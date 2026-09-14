@@ -1,19 +1,3 @@
-// inboxApi.js
-//
-// Matches the Temp Inbox Service API doc:
-//   - REST lives under {VITE_API_BASE_URL} (already includes /api/v1)
-//   - WS lives at {VITE_WS_BASE_URL}/ws (root, no /api/v1 prefix)
-//   - Errors come back as { error: { code, message } }
-//
-// Both env vars are blank until backend gives you a real host — see
-// .env.example. Calls will throw a clear error until then rather than
-// silently hitting a relative path that 404s.
-//
-// This layer reports what the server said, unmodified. It does not patch,
-// rescue or second-guess response values — useInbox decides what to trust.
-// Two layers rewriting the same field is how you get a bug that survives
-// being fixed in one of them.
-
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const WS_BASE = import.meta.env.VITE_WS_BASE_URL;
 
@@ -31,14 +15,14 @@ function assertConfigured(base, varName) {
 // button, address, copy, countdown ticking to zero, expired state,
 // refresh-restores-inbox — can be watched end to end with zero backend.
 // The moment the env var is set, this path is skipped entirely.
-//
-// Note this is the only mock that can exercise the countdown honestly: it
+
+// this is the only mock that can exercise the countdown: it
 // mints a real TTL relative to now. A Postman mock returns a timestamp
 // hardcoded when the example was saved, so against Postman the countdown
-// will read as years — correct behaviour for a static fixture, not a bug.
-// Use Postman to verify HTTP, headers and error codes; use this for timing.
+// will read as years.
+// Postman is used to verify HTTP, headers and error codes
 const MOCK = import.meta.env.DEV && !API_BASE;
-const MOCK_TTL_MS = 30_000; // short on purpose, so expiry is easy to watch
+const MOCK_TTL_MS = 600_000; // short on purpose, so expiry is easy to watch
 
 if (MOCK) {
     console.warn(
@@ -51,11 +35,6 @@ function abortError() {
     return new DOMException("Aborted", "AbortError");
 }
 
-// A setTimeout that respects an AbortSignal. Plain `await new Promise(r =>
-// setTimeout(r, ms))` resolves no matter what, so a fake request stays
-// "in flight" after the caller has given up — which silently defeats any
-// timeout built on top of it. Real fetch honours the signal; the fake has
-// to as well, or mock mode tests a code path that doesn't exist.
 function delay(ms, signal) {
     return new Promise((resolve, reject) => {
         if (signal?.aborted) return reject(abortError());
@@ -89,9 +68,6 @@ function mockInboxResponse() {
     };
 }
 
-// Thrown for any non-2xx response. `code` is the doc's error.code
-// (e.g. "INBOX_NOT_FOUND", "EXTEND_LIMIT_REACHED", "VALIDATION_ERROR"),
-// so callers can branch on it instead of parsing message strings.
 export class ApiError extends Error {
     constructor(status, code, message) {
         super(message || code || `Request failed (${status})`);
@@ -121,10 +97,7 @@ async function parseError(res) {
     return new ApiError(res.status, code, message);
 }
 
-// POST /inboxes — no auth. Both body fields are optional per the doc's
-// Zod schema, so an empty call is valid and gets you a random address
-// at the default TTL.
-//
+
 // Response: { id, address, token, createdAt, expiresAt }
 export async function createInbox({
     ttlMinutes,
@@ -153,8 +126,7 @@ export async function createInbox({
 
     const data = await res.json();
 
-    // Fail loudly in dev if the deployed API drifts from the doc — much
-    // easier to debug than a countdown silently reading NaN.
+
     if (!data?.id || !data?.address || !data?.token || !data?.expiresAt) {
         throw new ApiError(
             500,
@@ -171,10 +143,6 @@ export async function createInbox({
 // still alive, IND-7 will use the message list.
 export async function fetchInbox(id, token, { cursor, limit, signal } = {}) {
     if (MOCK) {
-        // Deliberately omits address, token and expiresAt. A stateless fake
-        // cannot know them, so the caller falls back to what it stored —
-        // which is the truthful outcome. Inventing values here is what made
-        // the address and the countdown reset on every refresh.
         await delay(200, signal);
         return { id, extendCount: 0, messages: [], nextCursor: null };
     }

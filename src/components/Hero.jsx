@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInbox } from "../state/useInbox.js";
 import Countdown from "./Countdown.jsx";
 import { ArrowRight, Check, Timer, Copy, CheckThick } from "./icons/icons.jsx";
 import Button from "./ui/Button.jsx";
 import Card from "./ui/Card.jsx";
 import Badge from "./ui/Badge.jsx";
+import ProgressRing from "./ProgressRing.jsx";
 
 export default function Hero() {
     const { status, inbox, error, generate, reset } = useInbox();
@@ -23,7 +24,7 @@ export default function Hero() {
                             Create a temporary email in seconds.
                         </h1>
 
-                        <p className="mt-4 max-w-[576px] text-center text-base leading-6 tracking-[-0.08px] text-muted">
+                        <p className="mt-4 max-w-xl text-center text-base leading-6 tracking-[-0.08px] text-[#45464C]">
                             Protect your inbox with a disposable email address
                             for sign-ups, verification codes, and temporary
                             testing.
@@ -31,7 +32,6 @@ export default function Hero() {
                     </>
                 )}
 
-                {/* FIX: Remove the top margin (mt-8) and expand width when the inbox is active */}
                 <div
                     className={`w-full ${status === "active" ? "max-w-[896px]" : "max-w-[750px] mt-8"}`}>
                     {status === "loading" ? (
@@ -70,11 +70,11 @@ export default function Hero() {
                     status !== "expired" && (
                         <>
                             <ul className="mt-6 flex flex-wrap items-center justify-center gap-6">
-                                <li className="flex items-center gap-1.5 text-[13px] text-muted">
+                                <li className="flex items-center gap-1.5 text-[13px] text-[#45464C]">
                                     <Check className="text-muted" />
                                     No signup required
                                 </li>
-                                <li className="flex items-center gap-1.5 text-[13px] text-muted">
+                                <li className="flex items-center gap-1.5 text-[13px] text-[#45464C]">
                                     <Check className="text-muted" />
                                     No credit card
                                 </li>
@@ -94,7 +94,6 @@ export default function Hero() {
 
 function Expired({ onReset }) {
     return (
-        // REFACTORED: Swapped <div> for <Card>, removed redundant bg/border/radius classes
         <Card className="flex flex-col items-center gap-4 p-8 shadow-tile">
             <p className="font-mono text-xs tracking-wide text-danger">
                 INBOX PURGED
@@ -115,26 +114,47 @@ function Expired({ onReset }) {
 }
 
 function ActiveInbox({ inbox, onReset }) {
+    const [now, setNow] = useState(() => Date.now());
+
+    useEffect(() => {
+        const intervalId = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(intervalId);
+    }, []);
+
+    const percentage = useMemo(() => {
+        if (!inbox.expiresAt) return 100;
+        const expiryTimestamp = new Date(inbox.expiresAt).getTime();
+        const msRemaining = Math.max(0, expiryTimestamp - now);
+        const maxDurationMs = 600000;
+        const calcPercentage = (msRemaining / maxDurationMs) * 100;
+        return Math.min(100, Math.max(0, calcPercentage));
+    }, [inbox.expiresAt, now]);
+
+    const isDanger = percentage <= 30;
+
     return (
         <div className="w-full max-w-[896px] mx-auto flex flex-col gap-6 mt-4 animate-in fade-in duration-500 text-left">
             {/* Status Pill */}
             <div className="flex justify-center mb-2">
-                <div className="flex items-center gap-2 text-[11px] font-mono tracking-wide text-muted bg-surface border border-line px-3 py-1.5 rounded-full shadow-sm">
+                <div className="flex items-center gap-2 text-[11px] font-mono tracking-wide text-gray-700 bg-surface border border-gray-300 border-line px-3 py-1.5 rounded-full shadow-sm">
                     <span className="text-emerald-500 animate-pulse">●</span>
                     (Ephemeral) instance active — Volatile memory allocation
                 </div>
             </div>
 
             {/* Timer Card */}
-            {/* REFACTORED: Swapped <div> for <Card> */}
             <Card className="flex items-center justify-between p-6 sm:p-8 shadow-sm">
                 <div className="flex flex-col gap-1">
-                    <h2 className="text-[11px] font-bold tracking-[0.1em] text-muted uppercase">
+                    <h2 className="text-[11px] font-bold tracking-[0.1em] text-gray-400 uppercase">
                         Time until auto-destruct
                     </h2>
-                    <div className="text-[48px] leading-none font-mono font-bold tracking-tighter text-ink mt-2 mb-2">
+
+                    {/* THE FIX: Conditionally apply text-danger and a smooth transition */}
+                    <div
+                        className={`text-[48px] leading-none font-mono font-bold tracking-tighter mt-2 mb-2 transition-colors duration-500 ${isDanger ? "text-danger" : "text-ink"}`}>
                         <Countdown expiresAt={inbox.expiresAt} />
                     </div>
+
                     <p className="text-[13px] text-muted max-w-sm">
                         This inbox and its messages are permanently deleted when
                         the timer runs out.
@@ -142,43 +162,30 @@ function ActiveInbox({ inbox, onReset }) {
                 </div>
 
                 <div className="flex flex-col items-center gap-3">
-                    <div className="size-16 rounded-full border-[3px] border-line flex items-center justify-center font-mono text-xs font-bold text-ink relative">
-                        <svg
-                            className="absolute inset-0 size-full -rotate-90"
-                            viewBox="0 0 36 36">
-                            <path
-                                className="text-ink"
-                                strokeDasharray="100, 100"
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                            />
-                        </svg>
-                        100%
-                    </div>
+                    <ProgressRing percentage={percentage} isDanger={isDanger} />
+
                     <button className="text-[11px] font-medium text-muted hover:text-ink transition-colors border border-line-cool rounded px-2 py-1 bg-canvas">
-                        + Extend 10m
+                        + Extend 5m
                     </button>
                 </div>
             </Card>
 
             {/* Address Card */}
-            {/* REFACTORED: Swapped <div> for <Card> */}
             <Card className="p-6 sm:p-8 shadow-sm">
-                <p className="text-[11px] font-bold tracking-widest text-gray-400 text-muted uppercase mb-4">
+                <p className="text-[11px] font-bold tracking-widest text-gray-400 text-muted mb-4">
                     Active Inbound Address
                 </p>
                 <AddressBar address={inbox.address} />
             </Card>
 
-            {/* Inbox Layout */}
+            {/* Inbox Layout (unchanged) */}
             <div className="mt-8 flex flex-col">
                 <div className="flex flex-wrap items-center justify-between mb-4 px-2 gap-4">
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-bold text-ink">Inbox</h2>
-                        {/* REFACTORED: Used Badge instead of raw span, but kept rounded-full to override her default 4px radius */}
-                        <Badge className="rounded-full">0 messages</Badge>
+                        <Badge className="rounded-full text-gray-900">
+                            0 messages
+                        </Badge>
                     </div>
 
                     <div className="flex items-center gap-4 text-[13px] font-medium">
@@ -190,20 +197,25 @@ function ActiveInbox({ inbox, onReset }) {
                         <Button
                             variant="chip"
                             className="text-muted hover:text-ink flex items-center gap-1.5 transition-colors">
-                            + Extend 10m
+                            + Extend 5m
                         </Button>
                         <Button
                             variant="chip"
                             onClick={onReset}
-                            className="text-danger hover:opacity-80 flex items-center gap-1.5 transition-colors border border-danger/20 bg-danger/5 px-2 py-1 rounded">
-                            <span className="text-base leading-none">⊗</span>{" "}
+                            className="text-danger hover:border-danger hover:bg-red-100 hover:opacity-80 flex items-center gap-1.5 transition-colors border border-danger/20  px-2 py-1 rounded">
+                            <span className="text-base leading-none">
+                                <img
+                                    className="w-[10.667px] h-[12px]"
+                                    src="/trash-1.png"
+                                    alt="trash-btn"
+                                />
+                            </span>{" "}
                             Destroy Inbox
                         </Button>
                     </div>
                 </div>
 
-                {/* Empty State Body */}
-                {/* REFACTORED: Swapped <div> for <Card> */}
+                {/* Empty State Body (unchanged) */}
                 <Card className="p-12 sm:p-16 shadow-sm flex flex-col items-center justify-center text-center">
                     <div className="mb-5 text-muted bg-canvas border border-line-cool p-4 rounded-full">
                         <svg
@@ -232,9 +244,11 @@ function ActiveInbox({ inbox, onReset }) {
                         will appear here in real-time without refreshing.
                     </p>
 
-                    <div className="flex items-center gap-2 text-[11px] font-mono tracking-widest text-emerald-500 uppercase font-medium bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
-                        <span className="animate-pulse">●</span> Waiting for
-                        incoming transmissions...
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-gray-800 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
+                        <span className="text-emerald-500 animate-pulse">
+                            ●
+                        </span>
+                        Waiting for incoming transmissions...
                     </div>
                 </Card>
             </div>
@@ -246,33 +260,38 @@ function HowInboundWorks() {
     return (
         <div className="w-full max-w-5xl mx-auto mt-24 mb-16 text-left">
             <div className="mb-8 pl-2">
-                <h2 className="text-lg font-semibold text-ink mb-1">
+                <h2 className="text-[24px] leading-8 tracking-[-0.6px] font-semibold text-ink mb-1">
                     How Inbound Works
                 </h2>
-                <p className="text-muted text-sm">
+                <p className="text-gray-600 text-sm">
                     Engineered for absolute frictionlessness and mathematical
                     privacy.
                 </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* REFACTORED: Swapped <div> for <Card> on all three cards */}
                 <Card className="p-6 shadow-sm flex flex-col">
                     <div className="flex justify-between items-start mb-4 text-muted">
                         <span className="text-xs font-mono font-medium">
                             01
                         </span>
-                        <span>⚡️</span>
+                        <span>
+                            <img
+                                src="/bolt.png"
+                                alt="bolt icon"
+                                className="w-[13.333px] h-[16.667px]"
+                            />
+                        </span>
                     </div>
-                    <h3 className="font-semibold text-ink mb-2">
+                    <h3 className="font-semibold text-[16px] leading-6 tracking-[-0.16px] text-ink mb-2">
                         Click Generate
                     </h3>
-                    <p className="text-muted text-sm grow mb-6 leading-relaxed">
+                    <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
                         Ephemeral mailbox instance bound instantly in volatile
                         RAM. No persistent records, passwords, or cookies are
                         ever written.
                     </p>
-                    <div className="text-xs font-mono text-muted pt-4 border-t border-line-cool">
+                    <div className="text-xs font-mono text-[#45464C] pt-4 border-t border-line-cool">
                         ● Allocation: &lt; 20ms
                     </div>
                 </Card>
@@ -282,32 +301,40 @@ function HowInboundWorks() {
                         <span className="text-xs font-mono font-medium">
                             02
                         </span>
-                        <span>📥</span>
+                        <span>
+                            <img
+                                src="/email.png"
+                                className="w-[16.667px] h-3.75"
+                                alt=""
+                            />
+                        </span>
                     </div>
-                    <h3 className="font-semibold text-ink mb-2">
+                    <h3 className="text-[16px] leading-6 tracking-[-0.16px] font-semibold text-ink mb-2">
                         Receive OTPs & Links
                     </h3>
-                    <p className="text-muted text-sm grow mb-6 leading-relaxed">
+                    <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
                         Real-time WebSocket streaming with 1-click verification
                         code extraction. View plain-text safely without
                         rendering external trackers.
                     </p>
-                    <div className="text-xs font-mono text-muted pt-4 border-t border-line-cool">
+                    <div className="text-xs font-mono text-[#45464C] pt-4 border-t border-line-cool">
                         ● Streaming: End-to-end TLS
                     </div>
                 </Card>
 
                 <Card className="p-6 shadow-sm flex flex-col">
                     <div className="flex justify-between items-start mb-4 text-muted">
-                        <span className="text-xs font-mono font-medium">
+                        <span className="text-xs text-[#BB0112] font-mono font-medium">
                             03
                         </span>
-                        <span className="text-danger">🔥</span>
+                        <span className="text-[#BB0112]">
+                            <img src="/trash-2.svg" alt="trash icon" />
+                        </span>
                     </div>
-                    <h3 className="font-semibold text-ink mb-2">
+                    <h3 className="font-semibold text-[16px] leading-6 tracking-[-0.16px] text-ink mb-2">
                         Auto-Shred & Purge
                     </h3>
-                    <p className="text-muted text-sm grow mb-6 leading-relaxed">
+                    <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
                         Permanent cryptographic zerocization after 10 minutes or
                         instantly via manual destruction. The entire namespace
                         is recycled.
@@ -350,11 +377,10 @@ function AddressBar({ address }) {
 
     return (
         <div>
-            {/* We changed the border style to map to the design */}
             <div className="flex items-center justify-between gap-3 border-b-2 border-ink pb-4">
                 <span
                     ref={addressRef}
-                    className="min-w-0 flex-1 truncate font-mono text-2xl text-ink tracking-tight">
+                    className="min-w-0 flex-1 text-gray-600 truncate font-mono text-2xl text-ink tracking-tight">
                     {address}
                 </span>
 
@@ -367,13 +393,12 @@ function AddressBar({ address }) {
                     <span className="hidden sm:inline">
                         {copyState === "copied" ? "Copied" : "Copy Address"}
                     </span>
-
-                    {/* Keyboard shortcut hint */}
-                    {copyState !== "copied" && (
+                    TODO......keyboard shortcut
+                    {/* {copyState !== "copied" && (
                         <kbd className="ml-1 rounded-[2px] border border-white/20 bg-white/10 px-1.5 py-px font-mono text-[10px] text-white/70 hidden sm:inline-block">
                             ⌘C
                         </kbd>
-                    )}
+                    )} */}
                 </Button>
             </div>
 

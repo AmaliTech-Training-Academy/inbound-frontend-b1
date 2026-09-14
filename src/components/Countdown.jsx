@@ -2,30 +2,47 @@
 // It does NOT decide when the inbox has expired — useInbox already owns
 // that transition via its own setTimeout. This just shows the number.
 
-import { useEffect, useState } from "react";
-import { msRemaining } from "../state/inboxStorage.js";
+import { useEffect, useState, useMemo } from "react";
+// import { msRemaining } from "../state/inboxStorage.js";
 
 export default function Countdown({ expiresAt }) {
-    const [remaining, setRemaining] = useState(() => msRemaining(expiresAt));
+    // const [remaining, setRemaining] = useState(() => msRemaining(expiresAt));
+    const [now, setNow] = useState(() => Date.now());
 
     useEffect(() => {
-        // Resync immediately when expiresAt changes (e.g. after an extend),
-        // then tick. 250ms rather than 1000ms so the display never visibly
-        // stalls, but we still only show whole seconds.
-        setRemaining(msRemaining(expiresAt));
-        const id = setInterval(() => setRemaining(msRemaining(expiresAt)), 250);
-        return () => clearInterval(id);
-    }, [expiresAt]);
+        const intervalId = setInterval(() => {
+            setNow(Date.now());
+        }, 250);
 
-    const totalSeconds = Math.max(0, Math.round(remaining / 1000));
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    const display = `${minutes}:${String(seconds).padStart(2, "0")}`;
+        return () => clearInterval(intervalId);
+    }, []);
+
+
+    const formattedTime = useMemo(() => {
+        // 1. Defensive Check: If expiresAt is missing/null, return a default
+        if (!expiresAt) return "00:00";
+
+        // 2. Type Safety: Convert expiresAt to a numeric timestamp
+        // (This safely handles both strings and existing numbers)
+        const expiryTimestamp = new Date(expiresAt).getTime();
+
+        // 3. Math: Now we can safely subtract
+        const secondsRemaining = Math.max(
+            0,
+            Math.floor((expiryTimestamp - now) / 1000),
+        );
+
+        // 4. Formatting
+        const minutes = Math.floor(secondsRemaining / 60);
+        const seconds = secondsRemaining % 60;
+
+        return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    }, [expiresAt, now]);
 
     return (
         <div>
             <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {display}
+                {formattedTime}
             </span>
             <span> remaining</span>
         </div>

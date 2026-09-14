@@ -10,6 +10,8 @@
 // explicit width/height either way: the design uses non-uniform sizes and
 // one global icon size would break the layout.
 
+
+
 export function ArrowRight({ className = "" }) {
     // 12 x 12 — trailing glyph inside the hero CTA
     return (
