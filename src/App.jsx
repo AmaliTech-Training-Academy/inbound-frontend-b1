@@ -1,17 +1,18 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import Header from "./components/Header.jsx";
+import Hero from "./components/Hero.jsx";
+// import HowItWorks from "./components/HowItWorks.jsx";
+// import Footer from "./components/Footer.jsx";
 
-function App() {
-  return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <h1 className="text-4xl font-bold text-blue-600">
-        Inbound Frontend
-      </h1>
-    </div>
-  )
+export default function App() {
+    return (
+        <div className="flex min-h-screen flex-col">
+            <Header />
+            <main className="flex-1">
+                
+                <Hero />
+                 {/* <HowItWorks />  */}
+            </main>
+            {/* <Footer />  */}
+        </div>
+    );
 }
-
-export default App
