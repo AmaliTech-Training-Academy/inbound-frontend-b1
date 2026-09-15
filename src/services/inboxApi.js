@@ -3,9 +3,7 @@ const WS_BASE = import.meta.env.VITE_WS_BASE_URL;
 
 function assertConfigured(base, varName) {
     if (!base) {
-        throw new Error(
-            `${varName} is not set. Copy .env.example to .env and fill it in once backend gives you a host.`,
-        );
+        throw new Error(`${varName} is not set.`);
     }
 }
 
@@ -92,11 +90,11 @@ async function parseError(res) {
         code = body?.error?.code;
         message = body?.error?.message;
     } catch {
-        // non-JSON error body (e.g. a proxy 502 page) — fall through to status
+        // ApiError already hands status and code
+        // debugging will be made from that
     }
     return new ApiError(res.status, code, message);
 }
-
 
 // Response: { id, address, token, createdAt, expiresAt }
 export async function createInbox({
@@ -115,27 +113,35 @@ export async function createInbox({
     if (ttlMinutes != null) body.ttlMinutes = ttlMinutes;
     if (preferredLocalPart) body.preferredLocalPart = preferredLocalPart;
 
-    const res = await fetch(`${API_BASE}/inboxes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal,
-    });
+    try {
+        const res = await fetch(`${API_BASE}/inboxes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal,
+        });
 
-    if (!res.ok) throw await parseError(res);
+        if (!res.ok) throw await parseError(res);
 
-    const data = await res.json();
+        const data = await res.json();
 
+        if (!data?.id || !data?.address || !data?.token || !data?.expiresAt) {
+            throw new ApiError(
+                500,
+                "CONTRACT_MISMATCH",
+                "Inbox response missing required fields",
+            );
+        }
 
-    if (!data?.id || !data?.address || !data?.token || !data?.expiresAt) {
-        throw new ApiError(
-            500,
-            "CONTRACT_MISMATCH",
-            "Inbox response missing required fields",
-        );
+        return data;
+    } catch (err) {
+        // fetch only rejects on network-level failure: DNS, CORS, offline,
+        // or an abort. Non-2xx responses resolve normally and are handled
+        // below. An abort is the caller's own timeout, so let it through
+        // untouched — useInbox checks for AbortError by name.
+        if (err?.name === "AbortError") throw err;
+        throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
     }
-
-    return data;
 }
 
 // GET /inboxes/:id — bearer auth. Returns inbox metadata plus a page
@@ -154,13 +160,21 @@ export async function fetchInbox(id, token, { cursor, limit, signal } = {}) {
     if (limit) params.set("limit", String(limit));
     const qs = params.toString() ? `?${params}` : "";
 
-    const res = await fetch(
-        `${API_BASE}/inboxes/${encodeURIComponent(id)}${qs}`,
-        {
-            headers: { Authorization: `Bearer ${token}` },
-            signal,
-        },
-    );
+    let res;
+    try {
+        res = await fetch(
+            `${API_BASE}/inboxes/${encodeURIComponent(id)}${qs}`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+                signal,
+            },
+        );
+
+
+    } catch (err) {
+        if (err?.name === "AbortError") throw err;
+        throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
+    }
 
     if (!res.ok) throw await parseError(res);
     return await res.json();
