@@ -1,4 +1,3 @@
-// THE FIX: Add isDanger to the props
 export default function ProgressRing({ percentage, isDanger }) {
     const radius = 28;
     const strokeWidth = 3;
@@ -10,10 +9,7 @@ export default function ProgressRing({ percentage, isDanger }) {
 
     return (
         <div className="relative flex items-center justify-center">
-            <svg
-                height={radius * 2}
-                width={radius * 2}
-                className="rotate-[-90deg]">
+            <svg height={radius * 2} width={radius * 2} className="-rotate-90">
                 <circle
                     stroke="#f1f5f9"
                     fill="transparent"

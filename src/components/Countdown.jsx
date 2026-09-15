@@ -3,10 +3,8 @@
 // that transition via its own setTimeout. This just shows the number.
 
 import { useEffect, useState, useMemo } from "react";
-// import { msRemaining } from "../state/inboxStorage.js";
 
 export default function Countdown({ expiresAt }) {
-    // const [remaining, setRemaining] = useState(() => msRemaining(expiresAt));
     const [now, setNow] = useState(() => Date.now());
 
     useEffect(() => {
@@ -23,7 +21,6 @@ export default function Countdown({ expiresAt }) {
         if (!expiresAt) return "00:00";
 
         // 2. Type Safety: Convert expiresAt to a numeric timestamp
-        // (This safely handles both strings and existing numbers)
         const expiryTimestamp = new Date(expiresAt).getTime();
 
         // 3. Math: Now we can safely subtract

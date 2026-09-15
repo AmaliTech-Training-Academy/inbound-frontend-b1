@@ -1,9 +1,7 @@
-// useInbox.js
-//
 // Owns the inbox lifecycle. Every other IND-3 component reads from this.
-//
+
 // status: 'loading' | 'idle' | 'creating' | 'active' | 'expired' | 'error'
-//
+
 //   loading  - checking storage on first paint, show nothing/skeleton
 //   idle     - no inbox, show the Generate button
 //   creating - request in flight, button disabled + spinner
@@ -20,16 +18,14 @@ import {
     msRemaining,
 } from "./inboxStorage.js";
 
-// Upper bound on inbox creation. AC1 promises an address within 1s, so
-// anything near this is already a failure — the timeout exists to turn a
-// hung request into a retryable error rather than a button stuck on
-// "Generating…" forever.
+//the timeout exists to turn a hung request into a retryable error r
+// rather than a button stuck on "Generating…" forever.
 const CREATE_TIMEOUT_MS = 8000;
 
-// The doc caps TTL at 120 minutes, so a server expiry further out than
+// The doc caps TTL at 10 minutes, so a server expiry further out than
 // this is not a longer-lived inbox — it's a static mock example, clock
 // skew, or a bug. See isPlausibleExpiry below.
-const MAX_PLAUSIBLE_TTL_MS = 2 * 60 * 60 * 1000;
+const MAX_PLAUSIBLE_TTL_MS = 10 * 60 * 1000;
 
 // Whether a server-supplied expiresAt is worth trusting over what we
 // already stored. A Postman mock returns a timestamp that was hardcoded
@@ -45,7 +41,10 @@ function isPlausibleExpiry(value) {
 }
 
 export function useInbox() {
-    const [status, setStatus] = useState("loading");
+    const [status, setStatus] = useState(() => {
+        const stored = loadInbox();
+        return stored ? "loading" : "idle";
+    });
     const [inbox, setInbox] = useState(null);
     const [error, setError] = useState(null);
 
@@ -59,7 +58,6 @@ export function useInbox() {
     useEffect(() => {
         const stored = loadInbox();
         if (!stored) {
-            setStatus("idle");
             return;
         }
 
@@ -117,6 +115,7 @@ export function useInbox() {
         if (status !== "active" || !inbox) return;
 
         const remaining = msRemaining(inbox.expiresAt);
+
         if (remaining <= 0) {
             clearInbox();
             setStatus("expired");
@@ -170,9 +169,6 @@ export function useInbox() {
             setInbox(created);
             setStatus("active");
         } catch (err) {
-            // An aborted fetch throws a DOMException, not an ApiError, and its
-            // default message ("signal is aborted without reason") is useless
-            // to a user. Swap in something actionable.
             const isTimeout = err?.name === "AbortError";
             setError(
                 isTimeout

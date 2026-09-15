@@ -9,21 +9,13 @@ export default function Header() {
                 <span className="text-base tracking-tight">Inbound</span>
             </div>
             <div className="flex items-center gap-3">
-                <Button>
-                    Generate Email &nbsp;
-                    {/* keyboard shortcut ... TODO later */}
-                    {/* <kbd
-                            aria-hidden="true"
-                            className="rounded-[2px] border border-line-cool bg-[#191c1d] px-[5px] py-px font-mono text-xs leading-4 text-white">
-                            G
-                        </kbd> */}
-                </Button>
+                <Button>Generate Email &nbsp;</Button>
 
                 <Button
                     variant="secondary"
                     aria-label="Toggle dark mode"
                     className="rounded-xs p-1.5 text-ink transition-colors hover:bg-line/60">
-                    <Moon className="" />
+                    <Moon />
                 </Button>
             </div>
         </header>

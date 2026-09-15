@@ -1,9 +1,7 @@
-// inboxStorage.js
 // Persists the whole inbox object as one blob so IND-7 (WebSocket reconnect)
 // and IND-19 (extend / new address) can all read the same source of truth.
-//
-// Shape stored:
-//   { id, address, token, expiresAt }   <- expiresAt is an ISO string from the API
+
+// Shape stored: { id, address, token, expiresAt }   <- expiresAt is an ISO string from the API
 
 const KEY = "inbound.inbox";
 
@@ -11,8 +9,7 @@ export function saveInbox(inbox) {
     try {
         localStorage.setItem(KEY, JSON.stringify(inbox));
     } catch {
-        // Private browsing / storage full. Not fatal: the inbox still works for
-        // this page view, it just won't survive a refresh.
+        // the inbox still works for this page view, it just won't survive a refresh.
     }
 }
 
@@ -24,7 +21,7 @@ export function clearInbox() {
     }
 }
 
-// Returns the stored inbox, or null if there isn't one, it's malformed,
+// Returns the stored inbox, or null if there isn't one, or it's malformed,
 // or it has already expired. Clears anything unusable on the way out so
 // we never hand back a dead inbox.
 export function loadInbox() {
