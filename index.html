@@ -3,11 +3,13 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-            rel="stylesheet" />
+        <!--
+            No Google Fonts link/preconnect: the UI promises "Zero logs, zero
+            tracking", and a webfont request leaks every visitor's IP and
+            User-Agent to a third party. The type stack in src/index.css uses
+            the locally installed Inter / JetBrains Mono when present and the
+            platform stack otherwise.
+        -->
         <title>Inbound — temporary email in seconds</title>
     </head>
     <body>

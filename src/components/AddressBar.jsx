@@ -34,7 +34,7 @@ export default function AddressBar({ address }) {
             <div className="flex items-center justify-between gap-3 border-b-2 border-ink pb-4">
                 <span
                     ref={addressRef}
-                    className="min-w-0 flex-1 text-gray-600 truncate font-mono text-2xl text-ink tracking-tight">
+                    className="min-w-0 flex-1 truncate font-mono text-2xl text-ink tracking-tight">
                     {address}
                 </span>
 
@@ -42,7 +42,7 @@ export default function AddressBar({ address }) {
                     type="button"
                     onClick={copy}
                     aria-label={`Copy ${address}`}
-                    className="flex shrink-0 items-center gap-2 rounded-sm bg-ink px-4 py-2.5 text-[13px] font-medium text-black transition-opacity hover:opacity-90">
+                    className="flex shrink-0 items-center gap-2 rounded-sm bg-ink px-4 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90">
                     {copyState === "copied" ? <CheckThick /> : <Copy />}
                     <span className="hidden sm:inline">
                         {copyState === "copied" ? "Copied" : "Copy Address"}

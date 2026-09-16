@@ -1,5 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL;
+import {
+    API_BASE,
+    WS_BASE,
+    USE_MOCK,
+    INBOX_TTL_MINUTES,
+    EXTEND_MINUTES,
+    MAX_EXTENDS,
+} from "../config.js";
 
 function assertConfigured(base, varName) {
     if (!base) {
@@ -8,24 +14,17 @@ function assertConfigured(base, varName) {
 }
 
 // --- Mock mode -------------------------------------------------------
-// While VITE_API_BASE_URL is blank, createInbox/fetchInbox fake a
-// response instead of hitting the network, so the whole IND-3 flow —
-// button, address, copy, countdown ticking to zero, expired state,
-// refresh-restores-inbox — can be watched end to end with zero backend.
-// The moment the env var is set, this path is skipped entirely.
+const MOCK = USE_MOCK;
+const MOCK_TTL_MS = INBOX_TTL_MINUTES * 60_000;
 
-// this is the only mock that can exercise the countdown: it
-// mints a real TTL relative to now. A Postman mock returns a timestamp
-// hardcoded when the example was saved, so against Postman the countdown
-// will read as years.
-// Postman is used to verify HTTP, headers and error codes
-const MOCK = import.meta.env.DEV && !API_BASE;
-const MOCK_TTL_MS = 600_000; // short on purpose, so expiry is easy to watch
+// Per-inbox extend counter, so the mock can reproduce the real API's
+// 409 EXTEND_LIMIT_REACHED once MAX_EXTENDS is reached.
+const mockState = new Map();
 
 if (MOCK) {
     console.warn(
-        "[inboxApi] VITE_API_BASE_URL is not set — using a fake in-browser inbox. " +
-            "Set the env var to talk to the real API.",
+        "[inboxApi] Running against the in-browser mock inbox (VITE_USE_MOCK, " +
+            "or VITE_API_BASE is unset). Set VITE_API_BASE to talk to the real API.",
     );
 }
 
@@ -55,14 +54,17 @@ function mockId() {
     );
 }
 
-function mockInboxResponse() {
+function mockInboxResponse(ttlMinutes) {
     const now = Date.now();
+    const id = mockId();
+    const ttlMs = (ttlMinutes ?? INBOX_TTL_MINUTES) * 60_000;
+    mockState.set(id, { extendCount: 0, expiresAt: now + ttlMs });
     return {
-        id: mockId(),
+        id,
         address: `mock-${Math.random().toString(36).slice(2, 8)}@tempmail.dev`,
         token: `mock_${Math.random().toString(36).slice(2, 10)}`,
         createdAt: new Date(now).toISOString(),
-        expiresAt: new Date(now + MOCK_TTL_MS).toISOString(),
+        expiresAt: new Date(now + ttlMs).toISOString(),
     };
 }
 
@@ -104,10 +106,10 @@ export async function createInbox({
 } = {}) {
     if (MOCK) {
         await delay(400, signal); // feels like a real request, and can be aborted
-        return mockInboxResponse();
+        return mockInboxResponse(ttlMinutes);
     }
 
-    assertConfigured(API_BASE, "VITE_API_BASE_URL");
+    assertConfigured(API_BASE, "VITE_API_BASE");
 
     const body = {};
     if (ttlMinutes != null) body.ttlMinutes = ttlMinutes;
@@ -136,9 +138,14 @@ export async function createInbox({
         return data;
     } catch (err) {
         // fetch only rejects on network-level failure: DNS, CORS, offline,
-        // or an abort. Non-2xx responses resolve normally and are handled
-        // below. An abort is the caller's own timeout, so let it through
-        // untouched — useInbox checks for AbortError by name.
+        // or an abort. An abort is the caller's own timeout, so let it
+        // through untouched — useInbox checks for AbortError by name.
+        //
+        // A non-2xx response or a contract mismatch arrives here as an
+        // ApiError already carrying the server's status/code/message.
+        // Wrapping it in NETWORK_ERROR would throw that away and make a 422
+        // look like the user being offline, so only fetch-level failures
+        // get wrapped.
         if (err instanceof ApiError || err?.name === "AbortError") throw err;
         throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
     }
@@ -150,10 +157,21 @@ export async function createInbox({
 export async function fetchInbox(id, token, { cursor, limit, signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
-        return { id, extendCount: 0, messages: [], nextCursor: null };
+        const state = mockState.get(id);
+        return {
+            id,
+            extendCount: state?.extendCount ?? 0,
+            // Mirror back the mock's own expiry so a rehydrate/refresh agrees
+            // with what createInbox/extendInbox handed out.
+            expiresAt: state
+                ? new Date(state.expiresAt).toISOString()
+                : undefined,
+            messages: [],
+            nextCursor: null,
+        };
     }
 
-    assertConfigured(API_BASE, "VITE_API_BASE_URL");
+    assertConfigured(API_BASE, "VITE_API_BASE");
 
     const params = new URLSearchParams();
     if (cursor) params.set("cursor", cursor);
@@ -169,8 +187,6 @@ export async function fetchInbox(id, token, { cursor, limit, signal } = {}) {
                 signal,
             },
         );
-
-
     } catch (err) {
         if (err?.name === "AbortError") throw err;
         throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
@@ -184,7 +200,32 @@ export async function fetchInbox(id, token, { cursor, limit, signal } = {}) {
 // extendCount hits MAX_EXTENDS; surfaced as ApiError so the UI can grey
 // out the button on that specific code rather than any failure.
 export async function extendInbox(id, token, { extendMinutes, signal } = {}) {
-    assertConfigured(API_BASE, "VITE_API_BASE_URL");
+    if (MOCK) {
+        await delay(250, signal);
+        const state = mockState.get(id) ?? {
+            extendCount: 0,
+            expiresAt: Date.now() + MOCK_TTL_MS,
+        };
+        if (state.extendCount >= MAX_EXTENDS) {
+            throw new ApiError(
+                409,
+                "EXTEND_LIMIT_REACHED",
+                "This inbox cannot be extended any further.",
+            );
+        }
+        state.extendCount += 1;
+        state.expiresAt =
+            Math.max(state.expiresAt, Date.now()) +
+            (extendMinutes ?? EXTEND_MINUTES) * 60_000;
+        mockState.set(id, state);
+        return {
+            id,
+            expiresAt: new Date(state.expiresAt).toISOString(),
+            extendCount: state.extendCount,
+        };
+    }
+
+    assertConfigured(API_BASE, "VITE_API_BASE");
 
     const body = {};
     if (extendMinutes != null) body.extendMinutes = extendMinutes;
@@ -210,7 +251,13 @@ export async function extendInbox(id, token, { extendMinutes, signal } = {}) {
 // address" to clean up the old inbox server-side before discarding it
 // client-side (best-effort: don't block the UI if this fails).
 export async function deleteInbox(id, token, { signal } = {}) {
-    assertConfigured(API_BASE, "VITE_API_BASE_URL");
+    if (MOCK) {
+        await delay(150, signal);
+        mockState.delete(id);
+        return;
+    }
+
+    assertConfigured(API_BASE, "VITE_API_BASE");
 
     const res = await fetch(`${API_BASE}/inboxes/${encodeURIComponent(id)}`, {
         method: "DELETE",
@@ -223,10 +270,9 @@ export async function deleteInbox(id, token, { signal } = {}) {
 
 // The WS route in the doc is at the host root (/ws), not under
 // /api/v1, and it's a separate env var since the two can point at
-// different origins in some deployments (e.g. behind different
-// reverse-proxy rules for HTTP vs upgrade requests).
+// different origins in some deployments
 export function inboxSocketUrl(id, token) {
-    assertConfigured(WS_BASE, "VITE_WS_BASE_URL");
+    assertConfigured(WS_BASE, "VITE_WS_BASE");
     const params = new URLSearchParams({ inboxId: id, token });
     return `${WS_BASE}/ws?${params}`;
 }

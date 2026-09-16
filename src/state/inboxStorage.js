@@ -5,9 +5,17 @@
 
 const KEY = "inbound.inbox";
 
+function store() {
+    try {
+        return window.sessionStorage;
+    } catch {
+        return null;
+    }
+}
+
 export function saveInbox(inbox) {
     try {
-        localStorage.setItem(KEY, JSON.stringify(inbox));
+        store()?.setItem(KEY, JSON.stringify(inbox));
     } catch {
         // the inbox still works for this page view, it just won't survive a refresh.
     }
@@ -15,7 +23,7 @@ export function saveInbox(inbox) {
 
 export function clearInbox() {
     try {
-        localStorage.removeItem(KEY);
+        store()?.removeItem(KEY);
     } catch {
         // ignore
     }
@@ -27,7 +35,7 @@ export function clearInbox() {
 export function loadInbox() {
     let raw;
     try {
-        raw = localStorage.getItem(KEY);
+        raw = store()?.getItem(KEY);
     } catch {
         return null;
     }

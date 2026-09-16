@@ -1,4 +1,5 @@
 import Card from "./ui/Card";
+import { INBOX_TTL_MINUTES } from "../config.js";
 
 export default function HowInboundWorks() {
     return (
@@ -32,8 +33,9 @@ export default function HowInboundWorks() {
                     </h3>
                     <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
                         Ephemeral mailbox instance bound instantly in volatile
-                        RAM. No persistent records, passwords, or cookies are
-                        ever written.
+                        RAM. No account, password, or tracking cookie is ever
+                        created — only this tab keeps the address, so closing
+                        it forgets the inbox.
                     </p>
                     <div className="text-xs font-mono text-[#45464C] pt-4 border-t border-line-cool">
                         ● Allocation: &lt; 20ms
@@ -79,9 +81,9 @@ export default function HowInboundWorks() {
                         Auto-Shred & Purge
                     </h3>
                     <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
-                        Permanent cryptographic zerocization after 10 minutes or
-                        instantly via manual destruction. The entire namespace
-                        is recycled.
+                        Permanent cryptographic zerocization after{" "}
+                        {INBOX_TTL_MINUTES} minutes or instantly via manual
+                        destruction. The entire namespace is recycled.
                     </p>
                     <div className="text-xs font-mono text-danger pt-4 border-t border-line-cool">
                         ● Purge: Unrecoverable

@@ -1,4 +1,5 @@
 import { useInbox } from "../state/useInbox.js";
+import { INBOX_TTL_MINUTES } from "../config.js";
 import { ArrowRight, Check, Timer } from "./icons/icons.jsx";
 import Button from "./ui/Button.jsx";
 import Card from "./ui/Card.jsx";
@@ -6,7 +7,18 @@ import HowInboundWorks from "./HowInboundWorks.jsx";
 import ActiveInbox from "./ActiveInbox.jsx";
 
 export default function Hero() {
-    const { status, inbox, error, generate, reset } = useInbox();
+    const {
+        status,
+        inbox,
+        error,
+        busy,
+        canExtend,
+        generate,
+        reset,
+        destroy,
+        extend,
+        refresh,
+    } = useInbox();
     const creating = status === "creating";
 
     return (
@@ -17,7 +29,7 @@ export default function Hero() {
             <div className="relative mx-auto flex max-w-4xl flex-col items-center px-6 pb-12 pt-16">
                 {status !== "active" && status !== "expired" && (
                     <>
-                        <h1 className="max-w-2xl text-center text-[clamp(2.5rem,6vw,4rem)] font-bold leading-[1.05] tracking-[-1.1px] text-ink">
+                        <h1 className="max-w-2xl text-center text-[clamp(2.5rem,6vw,4rem)] font-bold font-sans leading-[1.05] tracking-[-1.1px] text-ink">
                             Create a temporary email in seconds.
                         </h1>
 
@@ -34,7 +46,15 @@ export default function Hero() {
                     {status === "loading" ? (
                         <div aria-busy="true" className="h-11" />
                     ) : status === "active" && inbox ? (
-                        <ActiveInbox inbox={inbox} onReset={reset} />
+                        <ActiveInbox
+                            inbox={inbox}
+                            onDestroy={destroy}
+                            onExtend={extend}
+                            onRefresh={refresh}
+                            canExtend={canExtend}
+                            busy={busy}
+                            actionError={error}
+                        />
                     ) : status === "expired" ? (
                         <Expired onReset={reset} />
                     ) : (
@@ -77,7 +97,7 @@ export default function Hero() {
                                 </li>
                                 <li className="flex items-center gap-1.5 font-mono text-xs font-medium text-danger">
                                     <Timer className="text-danger" />
-                                    Auto-destructs in 10 min
+                                    Auto-destructs in {INBOX_TTL_MINUTES} min
                                 </li>
                             </ul>
 
@@ -102,7 +122,7 @@ function Expired({ onReset }) {
             <Button
                 type="button"
                 onClick={onReset}
-                className="flex h-11 items-center gap-2 rounded-sm border border-black bg-ink px-6.25 text-base font-medium text-black transition-opacity hover:opacity-90">
+                className="flex h-11 items-center gap-2 rounded-sm border border-black bg-ink px-6.25 text-base font-medium text-white transition-opacity hover:opacity-90">
                 Generate a new address
                 <ArrowRight />
             </Button>

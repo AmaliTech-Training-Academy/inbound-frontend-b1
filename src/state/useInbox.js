@@ -10,7 +10,14 @@
 //   error    - creation failed, offer retry
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createInbox, fetchInbox, ApiError } from "../services/inboxApi.js";
+import {
+    createInbox,
+    fetchInbox,
+    extendInbox,
+    deleteInbox,
+    ApiError,
+} from "../services/inboxApi.js";
+import { INBOX_TTL_MINUTES, EXTEND_MINUTES, MAX_EXTENDS } from "../config.js";
 import {
     saveInbox,
     loadInbox,
@@ -22,10 +29,13 @@ import {
 // rather than a button stuck on "Generating…" forever.
 const CREATE_TIMEOUT_MS = 8000;
 
-// The doc caps TTL at 10 minutes, so a server expiry further out than
-// this is not a longer-lived inbox — it's a static mock example, clock
-// skew, or a bug. See isPlausibleExpiry below.
-const MAX_PLAUSIBLE_TTL_MS = 10 * 60 * 1000;
+// The longest life an inbox can legitimately have: the TTL we request at
+// creation plus every extension the server will allow. Anything further out
+// than this is not a longer-lived inbox — it's a static mock example, clock
+// skew, or a bug. Derived from config so it cannot drift from what we send.
+// See isPlausibleExpiry below.
+const MAX_PLAUSIBLE_TTL_MS =
+    (INBOX_TTL_MINUTES + MAX_EXTENDS * EXTEND_MINUTES) * 60 * 1000;
 
 // Whether a server-supplied expiresAt is worth trusting over what we
 // already stored. A Postman mock returns a timestamp that was hardcoded
@@ -48,13 +58,15 @@ export function useInbox() {
     const [inbox, setInbox] = useState(null);
     const [error, setError] = useState(null);
 
+    // Which inbox action is in flight: 'extending' | 'refreshing' |
+    // 'destroying' | null. Drives the per-button disabled/loading state
+    // without collapsing it into the top-level `status` machine.
+    const [busy, setBusy] = useState(null);
+
     // Guards against a double-click creating two inboxes. A ref rather than
     // state because we need the value synchronously inside the handler.
     const inFlight = useRef(false);
 
-    // On mount: rehydrate. loadInbox already drops anything expired, so
-    // reaching here with a value means the client thinks it's alive — we
-    // still confirm with the server, since the backend may have reaped it.
     useEffect(() => {
         const stored = loadInbox();
         if (!stored) {
@@ -68,22 +80,15 @@ export function useInbox() {
                 const fresh = await fetchInbox(stored.id, stored.token, {
                     signal: controller.signal,
                 });
+                const expiryChanged =
+                    isPlausibleExpiry(fresh?.expiresAt) &&
+                    fresh.expiresAt !== stored.expiresAt;
 
-                // id, address and token are assigned once at creation and can
-                // never change for the life of an inbox, so they are never
-                // merged — a server value could only corrupt them, never
-                // correct them. expiresAt genuinely can change (an extend in
-                // another tab pushes it out), so it is the one field worth
-                // taking from the server — but only when it looks real.
-                const merged = isPlausibleExpiry(fresh?.expiresAt)
+                const merged = expiryChanged
                     ? { ...stored, expiresAt: fresh.expiresAt }
                     : stored;
 
-                // Only touch storage when something actually changed. Writing
-                // an identical blob on every mount is noise that makes a real
-                // bug harder to spot in the Application tab.
-                if (merged !== stored) saveInbox(merged);
-
+                // Only touch storage when the value actually changed.
                 setInbox(merged);
                 setStatus("active");
             } catch (err) {
@@ -93,7 +98,6 @@ export function useInbox() {
                     err instanceof ApiError &&
                     (err.isUnauthorized || err.isNotFound)
                 ) {
-                    // Server says it's gone (or the token's dead). Clean slate.
                     clearInbox();
                     setStatus("idle");
                 } else {
@@ -108,9 +112,7 @@ export function useInbox() {
         return () => controller.abort();
     }, []);
 
-    // Flip to expired the moment the clock runs out. One timeout aimed at the
-    // exact expiry instant, re-armed whenever expiresAt changes (an extension
-    // in IND-19 will push it out).
+    // Flip to expired the moment the clock runs out.
     useEffect(() => {
         if (status !== "active" || !inbox) return;
 
@@ -164,7 +166,10 @@ export function useInbox() {
         const timer = setTimeout(() => controller.abort(), CREATE_TIMEOUT_MS);
 
         try {
-            const created = await createInbox({ signal: controller.signal });
+            const created = await createInbox({
+                ttlMinutes: INBOX_TTL_MINUTES,
+                signal: controller.signal,
+            });
             saveInbox(created);
             setInbox(created);
             setStatus("active");
@@ -183,6 +188,7 @@ export function useInbox() {
     }, []);
 
     // Used by IND-19's "New address" and by the retry path after expiry.
+    // Local-only: does not touch the server.
     const reset = useCallback(() => {
         clearInbox();
         setInbox(null);
@@ -190,5 +196,105 @@ export function useInbox() {
         setStatus("idle");
     }, []);
 
-    return { status, inbox, error, generate, reset };
+    const destroy = useCallback(async () => {
+        const current = inbox;
+        if (current?.id && current?.token) {
+            setBusy("destroying");
+            try {
+                await deleteInbox(current.id, current.token);
+            } catch (err) {
+                console.error("[useInbox] destroy failed", err);
+            } finally {
+                setBusy(null);
+            }
+        }
+        reset();
+    }, [inbox, reset]);
+
+    // "+ Extend 5m". Pushes expiresAt out server-side, then adopts the new
+    // timestamp: the expiry timeout and the progress ring both key off it.
+    const extend = useCallback(async () => {
+        if (!inbox?.id || !inbox?.token) return;
+        setBusy("extending");
+        setError(null);
+        try {
+            const res = await extendInbox(inbox.id, inbox.token, {
+                extendMinutes: EXTEND_MINUTES,
+            });
+            if (!res?.expiresAt) {
+                throw new ApiError(
+                    500,
+                    "CONTRACT_MISMATCH",
+                    "Extend response missing expiresAt",
+                );
+            }
+            const next = {
+                ...inbox,
+                expiresAt: res.expiresAt,
+                extendCount: res.extendCount ?? (inbox.extendCount ?? 0) + 1,
+            };
+            saveInbox(next);
+            setInbox(next);
+        } catch (err) {
+            console.error("[useInbox] extend failed", err);
+            const limitReached =
+                err instanceof ApiError && err.code === "EXTEND_LIMIT_REACHED";
+            setError(
+                new Error(
+                    limitReached
+                        ? "This inbox cannot be extended any further."
+                        : "Could not extend the inbox. Try again.",
+                ),
+            );
+        } finally {
+            setBusy(null);
+        }
+    }, [inbox]);
+
+    // "Refresh". Re-reads the inbox so an expiry changed elsewhere (another
+    // tab extending it) and, from IND-7, the message list are picked up.
+    const refresh = useCallback(async () => {
+        if (!inbox?.id || !inbox?.token) return;
+        setBusy("refreshing");
+        setError(null);
+        try {
+            const fresh = await fetchInbox(inbox.id, inbox.token);
+            if (
+                isPlausibleExpiry(fresh?.expiresAt) &&
+                fresh.expiresAt !== inbox.expiresAt
+            ) {
+                const next = { ...inbox, expiresAt: fresh.expiresAt };
+                saveInbox(next);
+                setInbox(next);
+            }
+        } catch (err) {
+            console.error("[useInbox] refresh failed", err);
+            if (
+                err instanceof ApiError &&
+                (err.isUnauthorized || err.isNotFound)
+            ) {
+                // Server says it is gone. Do not keep showing a dead address.
+                clearInbox();
+                setInbox(null);
+                setStatus("expired");
+                return;
+            }
+            setError(new Error("Could not refresh the inbox. Try again."));
+        } finally {
+            setBusy(null);
+        }
+    }, [inbox]);
+
+    return {
+        status,
+        inbox,
+        error,
+        busy,
+        canExtend: (inbox?.extendCount ?? 0) < MAX_EXTENDS,
+        generate,
+        reset,
+        destroy,
+        extend,
+        refresh,
+    };
 }
