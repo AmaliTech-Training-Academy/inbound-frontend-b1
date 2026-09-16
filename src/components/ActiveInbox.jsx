@@ -46,6 +46,10 @@ export default function ActiveInbox({
     const extending = busy === "extending";
     const refreshing = busy === "refreshing";
     const destroying = busy === "destroying";
+    // useInbox serialises extend/refresh/destroy behind one lock, so a click
+    // on a second action while one is in flight would silently do nothing.
+    // Disable all three together to match.
+    const anyBusy = busy !== null;
     const extendLabel = `+ Extend ${EXTEND_MINUTES}m`;
 
     return (
@@ -82,7 +86,7 @@ export default function ActiveInbox({
                     <button
                         type="button"
                         onClick={onExtend}
-                        disabled={!canExtend || extending || destroying}
+                        disabled={!canExtend || anyBusy}
                         title={
                             canExtend
                                 ? undefined
@@ -116,14 +120,14 @@ export default function ActiveInbox({
                         <Button
                             variant="chip"
                             onClick={onRefresh}
-                            disabled={refreshing || destroying}
+                            disabled={anyBusy}
                             className="text-muted hover:text-ink flex items-center gap-1.5 transition-colors">
                             ↻ {refreshing ? "Refreshing…" : "Refresh"}
                         </Button>
                         <Button
                             variant="chip"
                             onClick={onExtend}
-                            disabled={!canExtend || extending || destroying}
+                            disabled={!canExtend || anyBusy}
                             title={
                                 canExtend
                                     ? undefined
@@ -135,7 +139,7 @@ export default function ActiveInbox({
                         <Button
                             variant="chip"
                             onClick={onDestroy}
-                            disabled={destroying}
+                            disabled={anyBusy}
                             className="text-danger hover:border-danger hover:bg-red-100 hover:opacity-80 flex items-center gap-1.5 transition-colors border border-danger/20  px-2 py-1 rounded">
                             <span className="text-base leading-none">
                                 <img

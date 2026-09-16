@@ -81,7 +81,7 @@ export default function HowInboundWorks() {
                         Auto-Shred & Purge
                     </h3>
                     <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
-                        Permanent cryptographic zerocization after{" "}
+                        Permanent cryptographic zeroization after{" "}
                         {INBOX_TTL_MINUTES} minutes or instantly via manual
                         destruction. The entire namespace is recycled.
                     </p>

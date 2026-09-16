@@ -25,7 +25,7 @@ import {
     msRemaining,
 } from "./inboxStorage.js";
 
-//the timeout exists to turn a hung request into a retryable error r
+// The timeout exists to turn a hung request into a retryable error
 // rather than a button stuck on "Generating…" forever.
 const CREATE_TIMEOUT_MS = 8000;
 
@@ -67,6 +67,15 @@ export function useInbox() {
     // state because we need the value synchronously inside the handler.
     const inFlight = useRef(false);
 
+    // One lock across extend/refresh/destroy. `busy` drives the UI but is
+    // async state, so it cannot prevent a second action starting in the same
+    // tick, and the three of them are not independent: a refresh that started
+    // before an extend resolves with the pre-extend expiry and would write it
+    // back over the newer one. Serialising them is simpler than
+    // reconciling out-of-order responses, and the user has no reason to run
+    // two at once.
+    const actionLock = useRef(false);
+
     useEffect(() => {
         const stored = loadInbox();
         if (!stored) {
@@ -89,6 +98,11 @@ export function useInbox() {
                     : stored;
 
                 // Only touch storage when the value actually changed.
+                // Compare the timestamp, not object identity: spreading
+                // `stored` mints a new object every time, so an identity check
+                // would rewrite an identical blob on every mount.
+                if (expiryChanged) saveInbox(merged);
+
                 setInbox(merged);
                 setStatus("active");
             } catch (err) {
@@ -196,12 +210,15 @@ export function useInbox() {
     const destroy = useCallback(async () => {
         const current = inbox;
         if (current?.id && current?.token) {
+            if (actionLock.current) return;
+            actionLock.current = true;
             setBusy("destroying");
             try {
                 await deleteInbox(current.id, current.token);
             } catch (err) {
                 console.error("[useInbox] destroy failed", err);
             } finally {
+                actionLock.current = false;
                 setBusy(null);
             }
         }
@@ -212,6 +229,8 @@ export function useInbox() {
     // timestamp: the expiry timeout and the progress ring both key off it.
     const extend = useCallback(async () => {
         if (!inbox?.id || !inbox?.token) return;
+        if (actionLock.current) return;
+        actionLock.current = true;
         setBusy("extending");
         setError(null);
         try {
@@ -244,6 +263,7 @@ export function useInbox() {
                 ),
             );
         } finally {
+            actionLock.current = false;
             setBusy(null);
         }
     }, [inbox]);
@@ -252,6 +272,8 @@ export function useInbox() {
     // tab extending it) and, from IND-7, the message list are picked up.
     const refresh = useCallback(async () => {
         if (!inbox?.id || !inbox?.token) return;
+        if (actionLock.current) return;
+        actionLock.current = true;
         setBusy("refreshing");
         setError(null);
         try {
@@ -278,6 +300,7 @@ export function useInbox() {
             }
             setError(new Error("Could not refresh the inbox. Try again."));
         } finally {
+            actionLock.current = false;
             setBusy(null);
         }
     }, [inbox]);

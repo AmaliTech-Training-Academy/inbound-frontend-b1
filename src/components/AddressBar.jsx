@@ -41,7 +41,13 @@ export default function AddressBar({ address }) {
                 <Button
                     type="button"
                     onClick={copy}
-                    aria-label={`Copy ${address}`}
+                    aria-label={
+                        copyState === "copied"
+                            ? `${address} copied to clipboard`
+                            : copyState === "failed"
+                              ? `Could not copy ${address} automatically; it is selected, press Ctrl+C`
+                              : `Copy ${address}`
+                    }
                     className="flex shrink-0 items-center gap-2 rounded-sm bg-ink px-4 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90">
                     {copyState === "copied" ? <CheckThick /> : <Copy />}
                     <span className="hidden sm:inline">
