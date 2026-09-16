@@ -139,7 +139,7 @@ export async function createInbox({
         // or an abort. Non-2xx responses resolve normally and are handled
         // below. An abort is the caller's own timeout, so let it through
         // untouched — useInbox checks for AbortError by name.
-        if (err?.name === "AbortError") throw err;
+        if (err instanceof ApiError || err?.name === "AbortError") throw err;
         throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
     }
 }
