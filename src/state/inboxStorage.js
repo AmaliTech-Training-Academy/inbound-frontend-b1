@@ -5,10 +5,17 @@
 
 const KEY = "inbound.inbox";
 
+// Safari in private mode throws on access rather than returning null, so the
+// accessor itself has to be guarded, not just the read/write.
 function store() {
     try {
         return window.sessionStorage;
-    } catch {
+    } catch (err) {
+        console.error(
+            "[inboxStorage] sessionStorage is unavailable (private mode or " +
+                "blocked site data); the inbox will not survive a reload.",
+            err,
+        );
         return null;
     }
 }
@@ -16,16 +23,20 @@ function store() {
 export function saveInbox(inbox) {
     try {
         store()?.setItem(KEY, JSON.stringify(inbox));
-    } catch {
-        // the inbox still works for this page view, it just won't survive a refresh.
+    } catch (err) {
+        // The inbox still works for this page view, it just won't survive a
+        // refresh — most likely the quota is full or writes are blocked.
+        console.error("[inboxStorage] failed to save the inbox", err);
     }
 }
 
 export function clearInbox() {
     try {
         store()?.removeItem(KEY);
-    } catch {
-        // ignore
+    } catch (err) {
+        // Worth logging loudly: a clear that silently fails leaves a dead
+        // inbox (and its token) behind after destroy or expiry.
+        console.error("[inboxStorage] failed to clear the stored inbox", err);
     }
 }
 
@@ -36,7 +47,8 @@ export function loadInbox() {
     let raw;
     try {
         raw = store()?.getItem(KEY);
-    } catch {
+    } catch (err) {
+        console.error("[inboxStorage] failed to read the stored inbox", err);
         return null;
     }
     if (!raw) return null;
@@ -44,7 +56,11 @@ export function loadInbox() {
     let inbox;
     try {
         inbox = JSON.parse(raw);
-    } catch {
+    } catch (err) {
+        console.error(
+            "[inboxStorage] stored inbox is not valid JSON; discarding it",
+            err,
+        );
         clearInbox();
         return null;
     }
@@ -57,6 +73,10 @@ export function loadInbox() {
         typeof inbox.expiresAt === "string";
 
     if (!valid) {
+        console.error(
+            "[inboxStorage] stored inbox is missing required fields; discarding it",
+            inbox,
+        );
         clearInbox();
         return null;
     }

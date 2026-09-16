@@ -28,6 +28,26 @@ if (MOCK) {
     );
 }
 
+// Every request goes through this instead of calling fetch directly.
+//
+// fetch only rejects on network-level failure: DNS, CORS, offline, or an
+// abort. Non-2xx responses resolve normally and are the caller's business.
+// An abort is the caller's own timeout, so it passes through untouched —
+// useInbox checks for AbortError by name. An ApiError raised further in
+// already carries the server's status/code/message, and wrapping it in
+// NETWORK_ERROR would throw that away and make a 422 look like the user
+// being offline. Everything else is a genuine connectivity failure.
+async function guardedFetch(url, init, label) {
+    try {
+        return await fetch(url, init);
+    } catch (err) {
+        if (err?.name === "AbortError") throw err;
+        if (err instanceof ApiError) throw err;
+        console.error(`[inboxApi] ${label} could not reach ${url}`, err);
+        throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
+    }
+}
+
 function abortError() {
     return new DOMException("Aborted", "AbortError");
 }
@@ -91,9 +111,14 @@ async function parseError(res) {
         const body = await res.json();
         code = body?.error?.code;
         message = body?.error?.message;
-    } catch {
-        // ApiError already hands status and code
-        // debugging will be made from that
+    } catch (err) {
+        // Not fatal: the ApiError still carries the HTTP status, which is
+        // usually enough to act on. Log it so a server returning HTML or an
+        // empty body on error is visible rather than looking like a bare 500.
+        console.error(
+            `[inboxApi] could not parse the error body of a ${res.status} response`,
+            err,
+        );
     }
     return new ApiError(res.status, code, message);
 }
@@ -115,42 +140,47 @@ export async function createInbox({
     if (ttlMinutes != null) body.ttlMinutes = ttlMinutes;
     if (preferredLocalPart) body.preferredLocalPart = preferredLocalPart;
 
-    try {
-        const res = await fetch(`${API_BASE}/inboxes`, {
+    const res = await guardedFetch(
+        `${API_BASE}/inboxes`,
+        {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
             signal,
-        });
+        },
+        "createInbox",
+    );
 
-        if (!res.ok) throw await parseError(res);
-
-        const data = await res.json();
-
-        if (!data?.id || !data?.address || !data?.token || !data?.expiresAt) {
-            throw new ApiError(
-                500,
-                "CONTRACT_MISMATCH",
-                "Inbox response missing required fields",
-            );
-        }
-
-        return data;
-    } catch (err) {
-        // fetch only rejects on network-level failure: DNS, CORS, offline,
-        // or an abort. An abort is the caller's own timeout, so let it
-        // through untouched — useInbox checks for AbortError by name.
-        //
-        // A non-2xx response or a contract mismatch arrives here as an
-        // ApiError already carrying the server's status/code/message.
-        // Wrapping it in NETWORK_ERROR would throw that away and make a 422
-        // look like the user being offline, so only fetch-level failures
-        // get wrapped.
-        if (err instanceof ApiError || err?.name === "AbortError") throw err;
-        throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
+    if (!res.ok) {
+        const err = await parseError(res);
+        console.error("[inboxApi] createInbox failed", err);
+        throw err;
     }
-}
 
+    let data;
+    try {
+        data = await res.json();
+    } catch (err) {
+        console.error("[inboxApi] createInbox returned invalid JSON", err);
+        throw new ApiError(
+            500,
+            "CONTRACT_MISMATCH",
+            "Inbox response was not valid JSON",
+        );
+    }
+
+    if (!data?.id || !data?.address || !data?.token || !data?.expiresAt) {
+        const err = new ApiError(
+            500,
+            "CONTRACT_MISMATCH",
+            "Inbox response missing required fields",
+        );
+        console.error("[inboxApi] createInbox contract mismatch", data);
+        throw err;
+    }
+
+    return data;
+}
 // GET /inboxes/:id — bearer auth. Returns inbox metadata plus a page
 // of message summaries; IND-3 only needs it to confirm the inbox is
 // still alive, IND-7 will use the message list.
@@ -178,22 +208,31 @@ export async function fetchInbox(id, token, { cursor, limit, signal } = {}) {
     if (limit) params.set("limit", String(limit));
     const qs = params.toString() ? `?${params}` : "";
 
-    let res;
-    try {
-        res = await fetch(
-            `${API_BASE}/inboxes/${encodeURIComponent(id)}${qs}`,
-            {
-                headers: { Authorization: `Bearer ${token}` },
-                signal,
-            },
-        );
-    } catch (err) {
-        if (err?.name === "AbortError") throw err;
-        throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
+    const res = await guardedFetch(
+        `${API_BASE}/inboxes/${encodeURIComponent(id)}${qs}`,
+        {
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+        },
+        "fetchInbox",
+    );
+
+    if (!res.ok) {
+        const err = await parseError(res);
+        console.error("[inboxApi] fetchInbox failed", err);
+        throw err;
     }
 
-    if (!res.ok) throw await parseError(res);
-    return await res.json();
+    try {
+        return await res.json();
+    } catch (err) {
+        console.error("[inboxApi] fetchInbox returned invalid JSON", err);
+        throw new ApiError(
+            500,
+            "CONTRACT_MISMATCH",
+            "Inbox response was not valid JSON",
+        );
+    }
 }
 
 // POST /inboxes/:id/extend — bearer auth. 409 EXTEND_LIMIT_REACHED once
@@ -230,7 +269,7 @@ export async function extendInbox(id, token, { extendMinutes, signal } = {}) {
     const body = {};
     if (extendMinutes != null) body.extendMinutes = extendMinutes;
 
-    const res = await fetch(
+    const res = await guardedFetch(
         `${API_BASE}/inboxes/${encodeURIComponent(id)}/extend`,
         {
             method: "POST",
@@ -241,10 +280,25 @@ export async function extendInbox(id, token, { extendMinutes, signal } = {}) {
             body: JSON.stringify(body),
             signal,
         },
+        "extendInbox",
     );
 
-    if (!res.ok) throw await parseError(res);
-    return await res.json(); // { id, expiresAt, extendCount }
+    if (!res.ok) {
+        const err = await parseError(res);
+        console.error("[inboxApi] extendInbox failed", err);
+        throw err;
+    }
+
+    try {
+        return await res.json(); // { id, expiresAt, extendCount }
+    } catch (err) {
+        console.error("[inboxApi] extendInbox returned invalid JSON", err);
+        throw new ApiError(
+            500,
+            "CONTRACT_MISMATCH",
+            "Extend response was not valid JSON",
+        );
+    }
 }
 
 // DELETE /inboxes/:id — bearer auth, 204 No Content. Used by "new
@@ -259,13 +313,21 @@ export async function deleteInbox(id, token, { signal } = {}) {
 
     assertConfigured(API_BASE, "VITE_API_BASE");
 
-    const res = await fetch(`${API_BASE}/inboxes/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-        signal,
-    });
+    const res = await guardedFetch(
+        `${API_BASE}/inboxes/${encodeURIComponent(id)}`,
+        {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+            signal,
+        },
+        "deleteInbox",
+    );
 
-    if (!res.ok && res.status !== 204) throw await parseError(res);
+    if (!res.ok && res.status !== 204) {
+        const err = await parseError(res);
+        console.error("[inboxApi] deleteInbox failed", err);
+        throw err;
+    }
 }
 
 // The WS route in the doc is at the host root (/ws), not under
