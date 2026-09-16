@@ -112,17 +112,14 @@ export function useInbox() {
         return () => controller.abort();
     }, []);
 
-    // Flip to expired the moment the clock runs out.
+    // Flip to expired the moment the clock runs out. One timeout aimed at the
+    // exact expiry instant, re-armed whenever expiresAt changes (an extend
+    // pushes it out).
+
     useEffect(() => {
         if (status !== "active" || !inbox) return;
 
-        const remaining = msRemaining(inbox.expiresAt);
-
-        if (remaining <= 0) {
-            clearInbox();
-            setStatus("expired");
-            return;
-        }
+        const remaining = Math.max(0, msRemaining(inbox.expiresAt));
 
         const t = setTimeout(() => {
             clearInbox();
