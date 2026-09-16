@@ -108,6 +108,11 @@ export function useInbox() {
             } catch (err) {
                 if (controller.signal.aborted) return;
 
+                console.error(
+                    "[useInbox] could not confirm the stored inbox with the server",
+                    err,
+                );
+
                 if (
                     err instanceof ApiError &&
                     (err.isUnauthorized || err.isNotFound)
@@ -186,6 +191,13 @@ export function useInbox() {
             setStatus("active");
         } catch (err) {
             const isTimeout = err?.name === "AbortError";
+            console.error(
+                isTimeout
+                    ? "[useInbox] createInbox timed out after " +
+                          `${CREATE_TIMEOUT_MS}ms`
+                    : "[useInbox] createInbox failed",
+                err,
+            );
             setError(
                 isTimeout
                     ? new Error("That took too long. Check your connection.")
