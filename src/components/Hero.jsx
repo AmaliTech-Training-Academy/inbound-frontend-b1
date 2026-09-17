@@ -1,4 +1,5 @@
 import { useInbox } from "../state/useInbox.js";
+import { useInboxSocket } from "../state/useInboxSocket.js";
 import { INBOX_TTL_MINUTES } from "../config.js";
 import { ArrowRight, Check, Timer } from "./icons/icons.jsx";
 import Button from "./ui/Button.jsx";
@@ -19,6 +20,14 @@ export default function Hero() {
         extend,
         refresh,
     } = useInbox();
+
+    // Live mail for the open inbox. Passing the whole inbox (rather than
+    // address/token separately) keeps the hook idle until one exists.
+    const {
+        messages,
+        status: socketStatus,
+        error: socketError,
+    } = useInboxSocket(status === "active" ? inbox : null);
     const creating = status === "creating";
 
     return (
@@ -54,6 +63,9 @@ export default function Hero() {
                             canExtend={canExtend}
                             busy={busy}
                             actionError={error}
+                            messages={messages}
+                            socketStatus={socketStatus}
+                            socketError={socketError}
                         />
                     ) : status === "expired" ? (
                         <Expired onReset={reset} />

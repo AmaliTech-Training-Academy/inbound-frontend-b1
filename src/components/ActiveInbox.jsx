@@ -5,6 +5,7 @@ import ProgressRing from "./ProgressRing";
 import Badge from "./ui/Badge";
 import Button from "./ui/Button";
 import AddressBar from "./AddressBar";
+import MessageList from "./MessageList";
 import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
 
 export default function ActiveInbox({
@@ -15,6 +16,9 @@ export default function ActiveInbox({
     canExtend = true,
     busy = null,
     actionError = null,
+    messages = [],
+    socketStatus = "idle",
+    socketError = null,
 }) {
     const [now, setNow] = useState(() => Date.now());
 
@@ -51,6 +55,7 @@ export default function ActiveInbox({
     // Disable all three together to match.
     const anyBusy = busy !== null;
     const extendLabel = `+ Extend ${EXTEND_MINUTES}m`;
+    const messageCount = messages.length;
 
     return (
         <div className="w-full max-w-4xl mx-auto flex flex-col gap-6 mt-4 animate-in fade-in duration-500 text-left">
@@ -112,8 +117,14 @@ export default function ActiveInbox({
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-bold text-ink">Inbox</h2>
                         <Badge className="rounded-full text-gray-900">
-                            0 messages
+                            {messageCount === 1
+                                ? "1 message"
+                                : `${messageCount} messages`}
                         </Badge>
+                        <LiveIndicator
+                            status={socketStatus}
+                            error={socketError}
+                        />
                     </div>
 
                     <div className="flex items-center gap-4 text-[13px] font-medium">
@@ -161,43 +172,110 @@ export default function ActiveInbox({
                     </p>
                 )}
 
-                {/* Empty State Body */}
-                <Card className="p-12 sm:p-16 shadow-sm flex flex-col items-center justify-center text-center">
-                    <div className="mb-5 text-muted bg-canvas border border-line-cool p-4 rounded-full">
-                        <svg
-                            width="24"
-                            height="24"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round">
-                            <rect width="20" height="16" x="2" y="4" rx="2" />
-                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                        </svg>
-                    </div>
+                {messageCount > 0 ? (
+                    <MessageList messages={messages} />
+                ) : (
+                    <Card className="p-12 sm:p-16 shadow-sm flex flex-col items-center justify-center text-center">
+                        <div className="mb-5 text-muted bg-canvas border border-line-cool p-4 rounded-full">
+                            <svg
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round">
+                                <rect
+                                    width="20"
+                                    height="16"
+                                    x="2"
+                                    y="4"
+                                    rx="2"
+                                />
+                                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                            </svg>
+                        </div>
 
-                    <h3 className="text-lg font-bold text-ink mb-2">
-                        Your inbox is empty
-                    </h3>
+                        <h3 className="text-lg font-bold text-ink mb-2">
+                            Your inbox is empty
+                        </h3>
 
-                    <p className="text-[14px] text-muted max-w-112.5 mb-8 leading-relaxed">
-                        New messages and verification codes sent to{" "}
-                        <span className="font-mono text-ink font-medium">
-                            {inbox.address}
-                        </span>{" "}
-                        will appear here in real-time without refreshing.
-                    </p>
+                        <p className="text-[14px] text-muted max-w-112.5 mb-8 leading-relaxed">
+                            New messages and verification codes sent to{" "}
+                            <span className="font-mono text-ink font-medium">
+                                {inbox.address}
+                            </span>{" "}
+                            will appear here in real-time without refreshing.
+                        </p>
 
-                    <div className="flex items-center gap-2 text-[11px] font-mono text-gray-800 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
-                        <span className="text-emerald-500 animate-pulse">
-                            ●
-                        </span>
-                        Waiting for incoming transmissions...
-                    </div>
-                </Card>
+                        <WaitingChip status={socketStatus} />
+                    </Card>
+                )}
             </div>
+        </div>
+    );
+}
+
+/**
+ * Whether live updates are actually arriving.
+ *
+ * The distinction matters: "connecting" means the page is showing a list that
+ * may already be out of date, which an empty inbox alone would not reveal.
+ */
+function LiveIndicator({ status, error }) {
+    if (status === "idle") return null;
+
+    const live = status === "live";
+    const failed = status === "error";
+
+    return (
+        <span
+            title={failed ? (error?.message ?? undefined) : undefined}
+            className={`flex items-center gap-1.5 font-mono text-[11px] ${
+                failed ? "text-danger" : "text-muted"
+            }`}>
+            <span
+                aria-hidden="true"
+                className={
+                    live
+                        ? "text-emerald-500 animate-pulse"
+                        : failed
+                          ? "text-danger"
+                          : "text-gray-400 animate-pulse"
+                }>
+                ●
+            </span>
+            {live ? "Live" : failed ? "Not receiving mail" : "Reconnecting…"}
+        </span>
+    );
+}
+
+function WaitingChip({ status }) {
+    const failed = status === "error";
+    const live = status === "live";
+
+    return (
+        <div
+            className={`flex items-center gap-2 text-[11px] font-mono px-3 py-1.5 rounded-full border ${
+                failed
+                    ? "text-danger bg-red-50 border-danger/20"
+                    : "text-gray-800 bg-gray-50 border-gray-200"
+            }`}>
+            <span
+                aria-hidden="true"
+                className={
+                    failed
+                        ? "text-danger"
+                        : "text-emerald-500 animate-pulse"
+                }>
+                ●
+            </span>
+            {failed
+                ? "Not connected — new mail will not appear"
+                : live
+                  ? "Waiting for incoming transmissions..."
+                  : "Connecting to the mail server…"}
         </div>
     );
 }
