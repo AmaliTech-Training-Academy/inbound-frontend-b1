@@ -1,8 +1,7 @@
-/**
- * Generic, realistic mock message datasets for development and automated testing
- * Contains diverse scenarios: plain-text, HTML emails, verification codes,
- * and multi-file attachment payloads (7-8 files).
- */
+const NOW = Date.now()
+const MINUTE = 60 * 1000
+const HOUR = 60 * MINUTE
+
 export const MOCK_MESSAGES = [
   {
     id: '849201a',
@@ -10,8 +9,7 @@ export const MOCK_MESSAGES = [
     senderEmail: 'notify@m.notion.so',
     recipientEmail: 'inbox-user-8921@inbound.mail',
     subject: 'Your Notion login code is 849 201',
-    receivedAt: '2026-09-14T07:22:15Z',
-    relativeTime: '12m ago',
+    receivedAt: new Date(NOW - 12 * MINUTE).toISOString(),
     verificationCode: '849 201',
     contextUrl: 'https://notion.so/login?code=849201',
     contextLabel: 'Notion Workspace',
@@ -64,8 +62,7 @@ The Notion Team`,
     senderEmail: 'billing@delivery-net.org',
     recipientEmail: 'inbox-user-8921@inbound.mail',
     subject: 'Monthly Subscription Statement and Tax Receipt',
-    receivedAt: '2026-09-14T06:45:00Z',
-    relativeTime: '49m ago',
+    receivedAt: new Date(NOW - 49 * MINUTE).toISOString(),
     verificationCode: null,
     htmlBody: `<div style="font-family: inherit; color: inherit;">
   <h2 style="font-size: 18px; margin-top: 0; font-weight: 600;">Statement of Account</h2>
@@ -110,8 +107,7 @@ The Notion Team`,
     senderEmail: 'builds@internal-ci.net',
     recipientEmail: 'inbox-user-8921@inbound.mail',
     subject: 'Deployment pipeline failed: Test suite regression',
-    receivedAt: '2026-09-14T05:10:00Z',
-    relativeTime: '2h ago',
+    receivedAt: new Date(NOW - 2 * HOUR).toISOString(),
     verificationCode: null,
     textBody: `Build pipeline #4928 failed for branch 'main' (commit e742b6).
 
@@ -132,8 +128,7 @@ Detailed console log and artifact archive are attached.`,
     senderEmail: 'john.doe@example.org',
     recipientEmail: 'inbox-user-8921@inbound.mail',
     subject: 'Quick test on plain text formatting',
-    receivedAt: '2026-09-14T04:30:00Z',
-    relativeTime: '3h ago',
+    receivedAt: new Date(NOW - 3 * HOUR).toISOString(),
     verificationCode: null,
     textBody: `Hello,
 
@@ -151,8 +146,7 @@ John`,
     senderEmail: 'assets@design-review.amalitech.org',
     recipientEmail: 'inbox-user-8921@inbound.mail',
     subject: 'Q3 Brand Assets and Design Tokens Package (8 files)',
-    receivedAt: '2026-09-14T02:15:00Z',
-    relativeTime: '5h ago',
+    receivedAt: new Date(NOW - 5 * HOUR).toISOString(),
     verificationCode: null,
     textBody: `Hi team,
 

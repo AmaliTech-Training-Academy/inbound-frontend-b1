@@ -1,15 +1,8 @@
 import { useState } from 'react'
 
-/**
- * Sandboxed HTML email renderer adhering strictly to Jira IND-8 criteria:
- * 1. Sandboxed iframe without `allow-scripts` (scripts strictly disabled).
- * 2. Strict Content-Security-Policy blocking all remote tracking pixels, images, external frames, and network requests.
- * 3. Scoped CSS for safe typography matching the Inbound design system.
- */
 function SafeHtmlEmail({ htmlContent }) {
   const [iframeHeight, setIframeHeight] = useState('220px')
 
-  // Construct secure srcDoc document with strict CSP and scoped reset styling
   const secureSrcDoc = `<!DOCTYPE html>
 <html lang="en">
 <head>
