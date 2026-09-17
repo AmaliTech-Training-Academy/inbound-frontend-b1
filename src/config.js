@@ -16,10 +16,18 @@ export const API_BASE = (
     env.VITE_API_BASE || "http://localhost:9001/api/v1"
 ).replace(/\/+$/, ""); // a trailing slash would build ".../api/v1//inbox"
 
-/** WebSocket origin */
+/**
+ * Socket.IO origin.
+ *
+ * Deliberately http(s), not ws(s): socket.io-client takes an HTTP origin and
+ * negotiates the upgrade itself. Handing it a ws:// URL breaks the handshake.
+ *
+ * The socket is served from the same process as the REST API (the backend
+ * mounts it on the same http.Server), so it is the API origin with the
+ * /api/v1 suffix stripped — no path of its own.
+ */
 export const WS_BASE =
-    env.VITE_WS_BASE ||
-    API_BASE.replace(/^http/, "ws").replace(/\/api\/v1\/?$/, "");
+    env.VITE_WS_BASE || API_BASE.replace(/\/api\/v1\/?$/, "");
 
 /**
  * Flip this on to run entirely against the in-memory mock backend — no API,
