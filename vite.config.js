@@ -14,6 +14,9 @@ export default defineConfig({
         // leaks in and inboxApi.test.js silently hits a real server instead
         // of the mock, passing or failing on whatever is running locally.
         env: { VITE_API_BASE: "", VITE_WS_BASE: "", VITE_USE_MOCK: "true" },
+        // The unit tests live in their own PR; without this `npm test` here
+        // exits non-zero with "no test files found".
+        passWithNoTests: true,
         environment: "jsdom",
         globals: true,
         setupFiles: "./src/test/setup.js",
