@@ -29,7 +29,12 @@ export function createInboxSocket() {
 
     return io(WS_BASE, {
         // The backend mounts socket.io at the default path on its own origin.
-        transports: ["websocket"],
+        //
+        // Both transports, as the API docs specify. Restricting this to
+        // ["websocket"] removes socket.io's fallback, so any proxy that
+        // blocks the upgrade takes the live inbox down entirely instead of
+        // degrading to long-polling.
+        transports: ["websocket", "polling"],
         withCredentials: false,
     });
 }

@@ -79,9 +79,7 @@ export function useInboxSocket(inbox) {
                     setStatus("live");
                     setError(null);
                     // TODO(IND-7): messages that arrived while disconnected are
-                    // still missing. The backend exposes no endpoint to list
-                    // them - only GET /inbox/messages/:id - so the backfill is
-                    // deliberately absent rather than faked.
+                    // still missing.
                 } else {
                     setStatus("error");
                     setError(
