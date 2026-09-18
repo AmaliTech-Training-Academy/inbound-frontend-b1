@@ -16,9 +16,6 @@ export default function AddressBar({ address }) {
             setCopyState("copied");
             resetTimer.current = setTimeout(() => setCopyState("idle"), 2000);
         } catch (err) {
-            // Clipboard writes are blocked without a user gesture, outside a
-            // secure context, or when the permission is denied - all of which
-            // look identical in the UI, so log the real reason.
             console.error("[AddressBar] clipboard write failed", err);
             setCopyState("failed");
             const node = addressRef.current;

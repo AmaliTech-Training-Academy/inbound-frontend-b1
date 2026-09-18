@@ -67,13 +67,6 @@ export function useInbox() {
     // state because we need the value synchronously inside the handler.
     const inFlight = useRef(false);
 
-    // One lock across extend/refresh/destroy. `busy` drives the UI but is
-    // async state, so it cannot prevent a second action starting in the same
-    // tick, and the three of them are not independent: a refresh that started
-    // before an extend resolves with the pre-extend expiry and would write it
-    // back over the newer one. Serialising them is simpler than
-    // reconciling out-of-order responses, and the user has no reason to run
-    // two at once.
     const actionLock = useRef(false);
 
     useEffect(() => {
@@ -96,11 +89,6 @@ export function useInbox() {
                 const merged = expiryChanged
                     ? { ...stored, expiresAt: fresh.expiresAt }
                     : stored;
-
-                // Only touch storage when the value actually changed.
-                // Compare the timestamp, not object identity: spreading
-                // `stored` mints a new object every time, so an identity check
-                // would rewrite an identical blob on every mount.
                 if (expiryChanged) saveInbox(merged);
 
                 setInbox(merged);
@@ -120,8 +108,6 @@ export function useInbox() {
                     clearInbox();
                     setStatus("idle");
                 } else {
-                    // Network blip — trust local state rather than dumping the
-                    // user back to the landing page and losing their address.
                     setInbox(stored);
                     setStatus("active");
                 }
@@ -148,10 +134,6 @@ export function useInbox() {
         return () => clearTimeout(t);
     }, [status, inbox]);
 
-    // Backgrounded tabs get their timers throttled, and a sleeping machine
-    // stops them entirely — so the timeout above can fire long after expiry.
-    // Countdown recalculates from the timestamp and would show 0:00 while
-    // status still said "active". Re-check whenever the tab comes back.
     useEffect(() => {
         if (status !== "active" || !inbox) return;
 
