@@ -12,12 +12,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
     createInbox,
-    fetchInbox,
+    getInboxInfo,
     extendInbox,
-    deleteInbox,
     ApiError,
 } from "../services/inboxApi.js";
-import { INBOX_TTL_MINUTES, EXTEND_MINUTES, MAX_EXTENDS } from "../config.js";
+import { MAX_EXTENDS } from "../config.js";
 import {
     saveInbox,
     loadInbox,
@@ -29,25 +28,18 @@ import {
 // rather than a button stuck on "Generating…" forever.
 const CREATE_TIMEOUT_MS = 8000;
 
-// The longest life an inbox can legitimately have: the TTL we request at
-// creation plus every extension the server will allow. Anything further out
-// than this is not a longer-lived inbox — it's a static mock example, clock
-// skew, or a bug. Derived from config so it cannot drift from what we send.
-// See isPlausibleExpiry below.
-const MAX_PLAUSIBLE_TTL_MS =
-    (INBOX_TTL_MINUTES + MAX_EXTENDS * EXTEND_MINUTES) * 60 * 1000;
-
-// Whether a server-supplied expiresAt is worth trusting over what we
-// already stored. A Postman mock returns a timestamp that was hardcoded
-// when the example was saved; adopting it would either expire the inbox
-// instantly (past date) or freeze the countdown at an absurd number
-// (far-future date). Either way it overwrites a good local value with a
-// meaningless one, and the write persists, so every refresh repeats it.
+// Whether a server-supplied expiresAt is worth adopting.
+//
+// Only a sanity check that it parses and is still in the future. There is
+// deliberately no upper bound: the server owns the TTL (the API accepts no
+// ttlMinutes and extends by a fixed amount without a documented cap), so any
+// ceiling derived from our own config would reject valid expiries and pin the
+// countdown to a stale value.
 function isPlausibleExpiry(value) {
     if (!value) return false;
     const ms = new Date(value).getTime() - Date.now();
     if (Number.isNaN(ms)) return false;
-    return ms > 0 && ms < MAX_PLAUSIBLE_TTL_MS;
+    return ms > 0;
 }
 
 export function useInbox() {
@@ -79,17 +71,31 @@ export function useInbox() {
 
         (async () => {
             try {
-                const fresh = await fetchInbox(stored.id, stored.token, {
+                const fresh = await getInboxInfo(stored.token, {
                     signal: controller.signal,
                 });
+                // /inbox/info returns no id and no token - the caller
+                // already holds both - so only the mutable fields are merged.
                 const expiryChanged =
                     isPlausibleExpiry(fresh?.expiresAt) &&
                     fresh.expiresAt !== stored.expiresAt;
 
-                const merged = expiryChanged
-                    ? { ...stored, expiresAt: fresh.expiresAt }
-                    : stored;
-                if (expiryChanged) saveInbox(merged);
+                const merged = {
+                    ...stored,
+                    ...(expiryChanged ? { expiresAt: fresh.expiresAt } : {}),
+                    ...(fresh?.createdAt
+                        ? { createdAt: fresh.createdAt }
+                        : {}),
+                    ...(fresh?.extendCount != null
+                        ? { extendCount: fresh.extendCount }
+                        : {}),
+                };
+
+                // Only touch storage when the value actually changed.
+                // Compare the timestamp, not object identity: spreading
+                // `stored` mints a new object every time, so an identity check
+                // would rewrite an identical blob on every mount.
+                if (expiryChanged || fresh?.createdAt) saveInbox(merged);
 
                 setInbox(merged);
                 setStatus("active");
@@ -101,12 +107,12 @@ export function useInbox() {
                     err,
                 );
 
-                if (
-                    err instanceof ApiError &&
-                    (err.isUnauthorized || err.isNotFound)
-                ) {
+                if (err instanceof ApiError && err.isDead) {
+                    // 401/403/404/410 all mean the same thing to the user:
+                    // this inbox is gone. 410 in particular is the server
+                    // telling us it outlived its TTL.
                     clearInbox();
-                    setStatus("idle");
+                    setStatus(err.isExpired ? "expired" : "idle");
                 } else {
                     setInbox(stored);
                     setStatus("active");
@@ -164,10 +170,8 @@ export function useInbox() {
         const timer = setTimeout(() => controller.abort(), CREATE_TIMEOUT_MS);
 
         try {
-            const created = await createInbox({
-                ttlMinutes: INBOX_TTL_MINUTES,
-                signal: controller.signal,
-            });
+            // The API accepts no request body: lifetime is server-owned.
+            const created = await createInbox({ signal: controller.signal });
             saveInbox(created);
             setInbox(created);
             setStatus("active");
@@ -201,23 +205,15 @@ export function useInbox() {
         setStatus("idle");
     }, []);
 
-    const destroy = useCallback(async () => {
-        const current = inbox;
-        if (current?.id && current?.token) {
-            if (actionLock.current) return;
-            actionLock.current = true;
-            setBusy("destroying");
-            try {
-                await deleteInbox(current.id, current.token);
-            } catch (err) {
-                console.error("[useInbox] destroy failed", err);
-            } finally {
-                actionLock.current = false;
-                setBusy(null);
-            }
-        }
+    // "Destroy Inbox".
+    //
+    // Local-only, because the API has no DELETE: the address keeps receiving
+    // mail server-side until its TTL runs out. Discarding the token is the
+    // most this client can do - without it nothing here can read the inbox
+    // again. If a delete endpoint is added, this is where it goes.
+    const destroy = useCallback(() => {
         reset();
-    }, [inbox, reset]);
+    }, [reset]);
 
     // "+ Extend 5m". Pushes expiresAt out server-side, then adopts the new
     // timestamp: the expiry timeout and the progress ring both key off it.
@@ -228,9 +224,7 @@ export function useInbox() {
         setBusy("extending");
         setError(null);
         try {
-            const res = await extendInbox(inbox.id, inbox.token, {
-                extendMinutes: EXTEND_MINUTES,
-            });
+            const res = await extendInbox(inbox.token);
             if (!res?.expiresAt) {
                 throw new ApiError(
                     500,
@@ -247,15 +241,13 @@ export function useInbox() {
             setInbox(next);
         } catch (err) {
             console.error("[useInbox] extend failed", err);
-            const limitReached =
-                err instanceof ApiError && err.code === "EXTEND_LIMIT_REACHED";
-            setError(
-                new Error(
-                    limitReached
-                        ? "This inbox cannot be extended any further."
-                        : "Could not extend the inbox. Try again.",
-                ),
-            );
+            if (err instanceof ApiError && err.isDead) {
+                clearInbox();
+                setInbox(null);
+                setStatus("expired");
+                return;
+            }
+            setError(new Error("Could not extend the inbox. Try again."));
         } finally {
             actionLock.current = false;
             setBusy(null);
@@ -271,7 +263,7 @@ export function useInbox() {
         setBusy("refreshing");
         setError(null);
         try {
-            const fresh = await fetchInbox(inbox.id, inbox.token);
+            const fresh = await getInboxInfo(inbox.token);
             if (
                 isPlausibleExpiry(fresh?.expiresAt) &&
                 fresh.expiresAt !== inbox.expiresAt
@@ -282,10 +274,7 @@ export function useInbox() {
             }
         } catch (err) {
             console.error("[useInbox] refresh failed", err);
-            if (
-                err instanceof ApiError &&
-                (err.isUnauthorized || err.isNotFound)
-            ) {
+            if (err instanceof ApiError && err.isDead) {
                 // Server says it is gone. Do not keep showing a dead address.
                 clearInbox();
                 setInbox(null);

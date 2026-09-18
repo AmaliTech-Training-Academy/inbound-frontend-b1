@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import {
     createInbox,
-    fetchInbox,
+    getInboxInfo,
     extendInbox,
-    deleteInbox,
+    fetchMessage,
     ApiError,
 } from "./inboxApi.js";
-import { INBOX_TTL_MINUTES, EXTEND_MINUTES, MAX_EXTENDS } from "../config.js";
+import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
 
 // No VITE_API_BASE in the test env, so config.js resolves USE_MOCK to true and
 // every call below exercises the in-browser mock rather than the network.
@@ -18,28 +18,34 @@ const minutesBetween = (a, b) =>
     (new Date(a).getTime() - new Date(b).getTime()) / 60_000;
 
 describe("createInbox (mock mode)", () => {
-    it("returns every field the client contract requires", async () => {
+    it("returns the fields the client contract requires", async () => {
         const inbox = await createInbox();
         expect(inbox).toMatchObject({
             id: expect.any(String),
             address: expect.stringContaining("@"),
             token: expect.any(String),
-            createdAt: expect.any(String),
             expiresAt: expect.any(String),
         });
     });
 
-    it("defaults the lifetime to the configured TTL", async () => {
+    it("stamps createdAt, which the real API does not return", async () => {
+        // The 201 body has no createdAt, but the progress ring needs a start
+        // point, so the client adds one at the moment the response lands.
+        const before = Date.now();
+        const { createdAt } = await createInbox();
+        const stamped = new Date(createdAt).getTime();
+
+        expect(Number.isNaN(stamped)).toBe(false);
+        expect(stamped).toBeGreaterThanOrEqual(before);
+        expect(stamped).toBeLessThanOrEqual(Date.now());
+    });
+
+    it("issues the configured lifetime", async () => {
         const { createdAt, expiresAt } = await createInbox();
         expect(minutesBetween(expiresAt, createdAt)).toBeCloseTo(
             INBOX_TTL_MINUTES,
-            5,
+            1,
         );
-    });
-
-    it("honours an explicit ttlMinutes", async () => {
-        const { createdAt, expiresAt } = await createInbox({ ttlMinutes: 25 });
-        expect(minutesBetween(expiresAt, createdAt)).toBeCloseTo(25, 5);
     });
 
     it("issues a distinct address and token each time", async () => {
@@ -57,87 +63,108 @@ describe("createInbox (mock mode)", () => {
     });
 });
 
+describe("getInboxInfo (mock mode)", () => {
+    it("returns inbox metadata without an id or token", async () => {
+        // The bearer token identifies the inbox, so the response carries
+        // neither - the caller already holds both from creation.
+        const inbox = await createInbox();
+        const info = await getInboxInfo(inbox.token);
+
+        expect(info).toMatchObject({
+            address: expect.any(String),
+            extendCount: expect.any(Number),
+        });
+        expect(info.id).toBeUndefined();
+        expect(info.token).toBeUndefined();
+    });
+
+    it("reflects an extend performed beforehand", async () => {
+        const inbox = await createInbox();
+        const extended = await extendInbox(inbox.token);
+        const info = await getInboxInfo(inbox.token);
+
+        expect(info.expiresAt).toBe(extended.expiresAt);
+        expect(info.extendCount).toBe(1);
+    });
+});
+
 describe("extendInbox (mock mode)", () => {
+    it("returns the documented shape", async () => {
+        const inbox = await createInbox();
+        const res = await extendInbox(inbox.token);
+
+        expect(res).toMatchObject({
+            expiresAt: expect.any(String),
+            lastExtendedAt: expect.any(String),
+            extendCount: 1,
+        });
+    });
+
     it("pushes expiry out by the configured amount", async () => {
         const inbox = await createInbox();
-        const res = await extendInbox(inbox.id, inbox.token);
-
-        expect(res.extendCount).toBe(1);
+        const res = await extendInbox(inbox.token);
         expect(minutesBetween(res.expiresAt, inbox.expiresAt)).toBeCloseTo(
             EXTEND_MINUTES,
             1,
         );
     });
 
-    it("accumulates across repeated extends", async () => {
+    it("keeps accumulating past MAX_EXTENDS, because the server has no cap", async () => {
+        // The API documents no limit; the extend ceiling is a UI courtesy
+        // only, so the service must not pretend to enforce one.
         const inbox = await createInbox();
         let last;
-        for (let i = 1; i <= MAX_EXTENDS; i++) {
-            last = await extendInbox(inbox.id, inbox.token);
+        for (let i = 1; i <= 5; i++) {
+            last = await extendInbox(inbox.token);
             expect(last.extendCount).toBe(i);
         }
         expect(minutesBetween(last.expiresAt, inbox.expiresAt)).toBeCloseTo(
-            MAX_EXTENDS * EXTEND_MINUTES,
+            5 * EXTEND_MINUTES,
             1,
         );
     });
+});
 
-    it("refuses past MAX_EXTENDS with a 409 the UI can branch on", async () => {
+describe("fetchMessage (mock mode)", () => {
+    it("returns a message for the reader", async () => {
         const inbox = await createInbox();
-        for (let i = 0; i < MAX_EXTENDS; i++) {
-            await extendInbox(inbox.id, inbox.token);
-        }
+        const message = await fetchMessage("msg-1", inbox.token);
 
-        await expect(
-            extendInbox(inbox.id, inbox.token),
-        ).rejects.toBeInstanceOf(ApiError);
-
-        await extendInbox(inbox.id, inbox.token).catch((err) => {
-            expect(err.status).toBe(409);
-            expect(err.code).toBe("EXTEND_LIMIT_REACHED");
+        expect(message).toMatchObject({
+            id: "msg-1",
+            subject: expect.any(String),
+            from: expect.any(String),
+            body: expect.any(String),
+            attachments: expect.any(Array),
         });
     });
 });
 
-describe("fetchInbox (mock mode)", () => {
-    it("echoes back the expiry the mock issued", async () => {
-        const inbox = await createInbox();
-        const fresh = await fetchInbox(inbox.id, inbox.token);
-        expect(fresh.expiresAt).toBe(inbox.expiresAt);
-        expect(fresh.messages).toEqual([]);
-    });
-
-    it("reflects an extend performed beforehand", async () => {
-        const inbox = await createInbox();
-        const extended = await extendInbox(inbox.id, inbox.token);
-        const fresh = await fetchInbox(inbox.id, inbox.token);
-        expect(fresh.expiresAt).toBe(extended.expiresAt);
-        expect(fresh.extendCount).toBe(1);
-    });
-});
-
-describe("deleteInbox (mock mode)", () => {
-    it("resolves and forgets the inbox's extend state", async () => {
-        const inbox = await createInbox();
-        await extendInbox(inbox.id, inbox.token);
-        await expect(deleteInbox(inbox.id, inbox.token)).resolves.toBeUndefined();
-
-        // A fresh extend after deletion starts the count over.
-        const res = await extendInbox(inbox.id, inbox.token);
-        expect(res.extendCount).toBe(1);
-    });
-});
-
 describe("ApiError", () => {
-    it("classifies auth and not-found statuses", () => {
-        expect(new ApiError(401, "NOPE", "x").isUnauthorized).toBe(true);
-        expect(new ApiError(403, "NOPE", "x").isUnauthorized).toBe(true);
-        expect(new ApiError(404, "NOPE", "x").isNotFound).toBe(true);
-        expect(new ApiError(500, "INBOX_NOT_FOUND", "x").isNotFound).toBe(true);
-        expect(new ApiError(500, "BOOM", "x").isUnauthorized).toBe(false);
+    it("classifies the statuses the API documents", () => {
+        expect(new ApiError(401, "x").isUnauthorized).toBe(true);
+        expect(new ApiError(403, "x").isUnauthorized).toBe(true);
+        expect(new ApiError(404, "x").isNotFound).toBe(true);
+        expect(new ApiError(410, "x").isExpired).toBe(true);
+        expect(new ApiError(500, "x").isUnauthorized).toBe(false);
+        expect(new ApiError(500, "x").isExpired).toBe(false);
     });
 
-    it("falls back to a readable message", () => {
-        expect(new ApiError(503, undefined, undefined).message).toContain("503");
+    it("treats 401/403/404/410 alike as a dead inbox", () => {
+        for (const status of [401, 403, 404, 410]) {
+            expect(new ApiError(status, "x").isDead).toBe(true);
+        }
+        expect(new ApiError(500, "x").isDead).toBe(false);
+        expect(new ApiError(0, "x").isDead).toBe(false);
+    });
+
+    it("keeps the server's message, the only detail the contract gives", () => {
+        expect(new ApiError(410, "Inbox has expired").message).toBe(
+            "Inbox has expired",
+        );
+    });
+
+    it("falls back to a readable message when the server sends none", () => {
+        expect(new ApiError(503).message).toContain("503");
     });
 });

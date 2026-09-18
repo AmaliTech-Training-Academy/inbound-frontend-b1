@@ -1,24 +1,63 @@
+// Client for the Inbound Email API.
+//
+// Matches the published OpenAPI spec (Inbound Email API 1.0.0, served at
+// /api-docs on the backend). Three things about that contract shape this file:
+//
+//  1. Every response is wrapped: { success, message?, data }. Callers here get
+//     the unwrapped `data`, so the rest of the app never sees the envelope.
+//  2. The bearer token identifies the inbox. No endpoint takes an inbox id in
+//     the path, and none accepts a request body - TTL and the extend amount
+//     are entirely server-owned.
+//  3. Errors carry no machine-readable code, only { success: false, message }.
+//     Branching therefore has to be on HTTP status, which is why ApiError
+//     exposes named status checks rather than code comparisons.
+//
+// There is no DELETE endpoint. "Destroy Inbox" is local-only; see destroy()
+// in useInbox.js.
+
 import {
     API_BASE,
-    WS_BASE,
     USE_MOCK,
     INBOX_TTL_MINUTES,
     EXTEND_MINUTES,
-    MAX_EXTENDS,
 } from "../config.js";
 
-function assertConfigured(base, varName) {
-    if (!base) {
-        throw new Error(`${varName} is not set.`);
+function assertConfigured() {
+    if (!API_BASE) throw new Error("VITE_API_BASE is not set.");
+}
+
+export class ApiError extends Error {
+    constructor(status, message) {
+        super(message || `Request failed (${status})`);
+        this.name = "ApiError";
+        this.status = status;
+    }
+
+    get isUnauthorized() {
+        return this.status === 401 || this.status === 403;
+    }
+
+    get isNotFound() {
+        return this.status === 404;
+    }
+
+    /** 410 Gone: the inbox outlived its TTL and the server has reaped it. */
+    get isExpired() {
+        return this.status === 410;
+    }
+
+    /** The inbox is unusable and the client should stop showing it. */
+    get isDead() {
+        return this.isUnauthorized || this.isNotFound || this.isExpired;
     }
 }
 
 // --- Mock mode -------------------------------------------------------
+// Selected explicitly in config.js (VITE_USE_MOCK, or an unset VITE_API_BASE)
+// and deliberately not gated on DEV, so a preview build with no API base
+// still works. The mock returns exactly the shapes the real client returns
+// after unwrapping, so swapping between them changes nothing upstream.
 const MOCK = USE_MOCK;
-const MOCK_TTL_MS = INBOX_TTL_MINUTES * 60_000;
-
-// Per-inbox extend counter, so the mock can reproduce the real API's
-// 409 EXTEND_LIMIT_REACHED once MAX_EXTENDS is reached.
 const mockState = new Map();
 
 if (MOCK) {
@@ -26,26 +65,6 @@ if (MOCK) {
         "[inboxApi] Running against the in-browser mock inbox (VITE_USE_MOCK, " +
             "or VITE_API_BASE is unset). Set VITE_API_BASE to talk to the real API.",
     );
-}
-
-// Every request goes through this instead of calling fetch directly.
-//
-// fetch only rejects on network-level failure: DNS, CORS, offline, or an
-// abort. Non-2xx responses resolve normally and are the caller's business.
-// An abort is the caller's own timeout, so it passes through untouched —
-// useInbox checks for AbortError by name. An ApiError raised further in
-// already carries the server's status/code/message, and wrapping it in
-// NETWORK_ERROR would throw that away and make a 422 look like the user
-// being offline. Everything else is a genuine connectivity failure.
-async function guardedFetch(url, init, label) {
-    try {
-        return await fetch(url, init);
-    } catch (err) {
-        if (err?.name === "AbortError") throw err;
-        if (err instanceof ApiError) throw err;
-        console.error(`[inboxApi] ${label} could not reach ${url}`, err);
-        throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server.");
-    }
 }
 
 function abortError() {
@@ -74,267 +93,204 @@ function mockId() {
     );
 }
 
-function mockInboxResponse(ttlMinutes) {
-    const now = Date.now();
-    const id = mockId();
-    const ttlMs = (ttlMinutes ?? INBOX_TTL_MINUTES) * 60_000;
-    mockState.set(id, { extendCount: 0, expiresAt: now + ttlMs });
-    return {
-        id,
-        address: `mock-${Math.random().toString(36).slice(2, 8)}@tempmail.dev`,
-        token: `mock_${Math.random().toString(36).slice(2, 10)}`,
-        createdAt: new Date(now).toISOString(),
-        expiresAt: new Date(now + ttlMs).toISOString(),
-    };
-}
+// --- Transport -------------------------------------------------------
 
-export class ApiError extends Error {
-    constructor(status, code, message) {
-        super(message || code || `Request failed (${status})`);
-        this.name = "ApiError";
-        this.status = status;
-        this.code = code;
-    }
-
-    get isUnauthorized() {
-        return this.status === 401 || this.status === 403;
-    }
-
-    get isNotFound() {
-        return this.status === 404 || this.code === "INBOX_NOT_FOUND";
-    }
-}
-
-async function parseError(res) {
-    let code, message;
+// fetch only rejects on network-level failure: DNS, CORS, offline, or an
+// abort. Non-2xx responses resolve normally and are handled by readEnvelope.
+// An abort is the caller's own timeout, so it passes through untouched -
+// useInbox checks for AbortError by name.
+async function guardedFetch(url, init, label) {
     try {
-        const body = await res.json();
-        code = body?.error?.code;
-        message = body?.error?.message;
+        return await fetch(url, init);
     } catch (err) {
-        // Not fatal: the ApiError still carries the HTTP status, which is
-        // usually enough to act on. Log it so a server returning HTML or an
-        // empty body on error is visible rather than looking like a bare 500.
-        console.error(
-            `[inboxApi] could not parse the error body of a ${res.status} response`,
-            err,
-        );
+        if (err?.name === "AbortError") throw err;
+        console.error(`[inboxApi] ${label} could not reach ${url}`, err);
+        throw new ApiError(0, "Could not reach the server.");
     }
-    return new ApiError(res.status, code, message);
 }
 
-// Response: { id, address, token, createdAt, expiresAt }
-export async function createInbox({
-    ttlMinutes,
-    preferredLocalPart,
-    signal,
-} = {}) {
-    if (MOCK) {
-        await delay(400, signal); // feels like a real request, and can be aborted
-        return mockInboxResponse(ttlMinutes);
+/**
+ * Turn a response into its `data` payload, or throw an ApiError.
+ *
+ * The server's own `message` is preserved on the error: it is the only
+ * human-readable detail the contract provides, and dropping it would leave
+ * every failure indistinguishable from every other.
+ */
+async function readEnvelope(res, label) {
+    let body;
+    try {
+        body = await res.json();
+    } catch (err) {
+        console.error(`[inboxApi] ${label} returned invalid JSON`, err);
+        throw new ApiError(res.status, "The server sent an unreadable reply.");
     }
 
-    assertConfigured(API_BASE, "VITE_API_BASE");
+    if (!res.ok || body?.success === false) {
+        const err = new ApiError(res.status, body?.message);
+        console.error(`[inboxApi] ${label} failed`, err);
+        throw err;
+    }
 
-    const body = {};
-    if (ttlMinutes != null) body.ttlMinutes = ttlMinutes;
-    if (preferredLocalPart) body.preferredLocalPart = preferredLocalPart;
+    if (!body || typeof body !== "object" || !("data" in body)) {
+        console.error(`[inboxApi] ${label} response had no data field`, body);
+        throw new ApiError(res.status, "The server sent an unexpected reply.");
+    }
+
+    return body.data;
+}
+
+function authHeaders(token) {
+    return { Authorization: `Bearer ${token}` };
+}
+
+// --- Endpoints -------------------------------------------------------
+
+/**
+ * POST /api/v1/inbox -> { id, address, token, expiresAt }
+ *
+ * Takes no request body: the server owns the TTL, so ttlMinutes and
+ * preferredLocalPart are not options the API offers.
+ *
+ * `createdAt` is added client-side. The create response omits it (only
+ * /inbox/info returns one) but the progress ring needs a start point, and the
+ * moment the response lands is within a round-trip of the real value. It is
+ * used only for that denominator, never sent back to the server.
+ */
+export async function createInbox({ signal } = {}) {
+    if (MOCK) {
+        await delay(400, signal);
+        const id = mockId();
+        const now = Date.now();
+        const expiresAt = now + INBOX_TTL_MINUTES * 60_000;
+        mockState.set(id, { extendCount: 0, expiresAt });
+        return {
+            id,
+            address: `mock-${Math.random().toString(36).slice(2, 8)}@tempmail.dev`,
+            token: `mock_${Math.random().toString(36).slice(2, 10)}`,
+            createdAt: new Date(now).toISOString(),
+            expiresAt: new Date(expiresAt).toISOString(),
+        };
+    }
+
+    assertConfigured();
 
     const res = await guardedFetch(
-        `${API_BASE}/inboxes`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-            signal,
-        },
+        `${API_BASE}/inbox`,
+        { method: "POST", signal },
         "createInbox",
     );
 
-    if (!res.ok) {
-        const err = await parseError(res);
-        console.error("[inboxApi] createInbox failed", err);
-        throw err;
-    }
-
-    let data;
-    try {
-        data = await res.json();
-    } catch (err) {
-        console.error("[inboxApi] createInbox returned invalid JSON", err);
-        throw new ApiError(
-            500,
-            "CONTRACT_MISMATCH",
-            "Inbox response was not valid JSON",
-        );
-    }
+    const data = await readEnvelope(res, "createInbox");
 
     if (!data?.id || !data?.address || !data?.token || !data?.expiresAt) {
-        const err = new ApiError(
-            500,
-            "CONTRACT_MISMATCH",
-            "Inbox response missing required fields",
-        );
         console.error("[inboxApi] createInbox contract mismatch", data);
-        throw err;
+        throw new ApiError(res.status, "Inbox response missing required fields");
+    }
+
+    return { createdAt: new Date().toISOString(), ...data };
+}
+
+/**
+ * GET /api/v1/inbox/info -> { address, localPart, extendCount, domain,
+ *                             createdAt, expiresAt, message }
+ *
+ * Note the response carries no `id` and no `token`: the caller already holds
+ * both from creation, and the bearer token is what identifies the inbox.
+ */
+export async function getInboxInfo(token, { signal } = {}) {
+    if (MOCK) {
+        await delay(200, signal);
+        const entry = [...mockState.entries()].at(-1)?.[1];
+        return {
+            address: "mock@tempmail.dev",
+            localPart: "mock",
+            domain: "tempmail.dev",
+            extendCount: entry?.extendCount ?? 0,
+            createdAt: undefined,
+            expiresAt: entry ? new Date(entry.expiresAt).toISOString() : undefined,
+        };
+    }
+
+    assertConfigured();
+
+    const res = await guardedFetch(
+        `${API_BASE}/inbox/info`,
+        { headers: authHeaders(token), signal },
+        "getInboxInfo",
+    );
+
+    return await readEnvelope(res, "getInboxInfo");
+}
+
+/**
+ * PATCH /api/v1/inbox/extend -> { expiresAt, lastExtendedAt, extendCount }
+ *
+ * No request body and no server-side cap: the backend always adds a fixed
+ * amount and increments extendCount without limit. EXTEND_MINUTES and
+ * MAX_EXTENDS in config.js are therefore display and courtesy values only -
+ * see the note there.
+ */
+export async function extendInbox(token, { signal } = {}) {
+    if (MOCK) {
+        await delay(250, signal);
+        const [id, entry] = [...mockState.entries()].at(-1) ?? [];
+        const base = Math.max(entry?.expiresAt ?? Date.now(), Date.now());
+        const next = {
+            extendCount: (entry?.extendCount ?? 0) + 1,
+            expiresAt: base + EXTEND_MINUTES * 60_000,
+        };
+        if (id) mockState.set(id, next);
+        return {
+            expiresAt: new Date(next.expiresAt).toISOString(),
+            lastExtendedAt: new Date().toISOString(),
+            extendCount: next.extendCount,
+        };
+    }
+
+    assertConfigured();
+
+    const res = await guardedFetch(
+        `${API_BASE}/inbox/extend`,
+        { method: "PATCH", headers: authHeaders(token), signal },
+        "extendInbox",
+    );
+
+    const data = await readEnvelope(res, "extendInbox");
+
+    if (!data?.expiresAt) {
+        console.error("[inboxApi] extendInbox contract mismatch", data);
+        throw new ApiError(res.status, "Extend response missing expiresAt");
     }
 
     return data;
 }
-// GET /inboxes/:id — bearer auth. Returns inbox metadata plus a page
-// of message summaries; IND-3 only needs it to confirm the inbox is
-// still alive, IND-7 will use the message list.
-export async function fetchInbox(id, token, { cursor, limit, signal } = {}) {
+
+/**
+ * GET /api/v1/inbox/messages/:id -> the full message, body sanitised server
+ * side. IND-8's reader consumes this; IND-7 only needs the socket previews.
+ */
+export async function fetchMessage(id, token, { signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
-        const state = mockState.get(id);
         return {
             id,
-            extendCount: state?.extendCount ?? 0,
-            // Mirror back the mock's own expiry so a rehydrate/refresh agrees
-            // with what createInbox/extendInbox handed out.
-            expiresAt: state
-                ? new Date(state.expiresAt).toISOString()
-                : undefined,
-            messages: [],
-            nextCursor: null,
+            subject: "Mock message",
+            sender: "Mock Sender <sender@example.com>",
+            from: "sender@example.com",
+            to: "mock@tempmail.dev",
+            body: "This is a mock message body.",
+            attachments: [],
+            isRead: false,
         };
     }
 
-    assertConfigured(API_BASE, "VITE_API_BASE");
-
-    const params = new URLSearchParams();
-    if (cursor) params.set("cursor", cursor);
-    if (limit) params.set("limit", String(limit));
-    const qs = params.toString() ? `?${params}` : "";
+    assertConfigured();
 
     const res = await guardedFetch(
-        `${API_BASE}/inboxes/${encodeURIComponent(id)}${qs}`,
-        {
-            headers: { Authorization: `Bearer ${token}` },
-            signal,
-        },
-        "fetchInbox",
+        `${API_BASE}/inbox/messages/${encodeURIComponent(id)}`,
+        { headers: authHeaders(token), signal },
+        "fetchMessage",
     );
 
-    if (!res.ok) {
-        const err = await parseError(res);
-        console.error("[inboxApi] fetchInbox failed", err);
-        throw err;
-    }
-
-    try {
-        return await res.json();
-    } catch (err) {
-        console.error("[inboxApi] fetchInbox returned invalid JSON", err);
-        throw new ApiError(
-            500,
-            "CONTRACT_MISMATCH",
-            "Inbox response was not valid JSON",
-        );
-    }
-}
-
-// POST /inboxes/:id/extend — bearer auth. 409 EXTEND_LIMIT_REACHED once
-// extendCount hits MAX_EXTENDS; surfaced as ApiError so the UI can grey
-// out the button on that specific code rather than any failure.
-export async function extendInbox(id, token, { extendMinutes, signal } = {}) {
-    if (MOCK) {
-        await delay(250, signal);
-        const state = mockState.get(id) ?? {
-            extendCount: 0,
-            expiresAt: Date.now() + MOCK_TTL_MS,
-        };
-        if (state.extendCount >= MAX_EXTENDS) {
-            throw new ApiError(
-                409,
-                "EXTEND_LIMIT_REACHED",
-                "This inbox cannot be extended any further.",
-            );
-        }
-        state.extendCount += 1;
-        state.expiresAt =
-            Math.max(state.expiresAt, Date.now()) +
-            (extendMinutes ?? EXTEND_MINUTES) * 60_000;
-        mockState.set(id, state);
-        return {
-            id,
-            expiresAt: new Date(state.expiresAt).toISOString(),
-            extendCount: state.extendCount,
-        };
-    }
-
-    assertConfigured(API_BASE, "VITE_API_BASE");
-
-    const body = {};
-    if (extendMinutes != null) body.extendMinutes = extendMinutes;
-
-    const res = await guardedFetch(
-        `${API_BASE}/inboxes/${encodeURIComponent(id)}/extend`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(body),
-            signal,
-        },
-        "extendInbox",
-    );
-
-    if (!res.ok) {
-        const err = await parseError(res);
-        console.error("[inboxApi] extendInbox failed", err);
-        throw err;
-    }
-
-    try {
-        return await res.json(); // { id, expiresAt, extendCount }
-    } catch (err) {
-        console.error("[inboxApi] extendInbox returned invalid JSON", err);
-        throw new ApiError(
-            500,
-            "CONTRACT_MISMATCH",
-            "Extend response was not valid JSON",
-        );
-    }
-}
-
-// DELETE /inboxes/:id — bearer auth, 204 No Content. Used by "new
-// address" to clean up the old inbox server-side before discarding it
-// client-side (best-effort: don't block the UI if this fails).
-export async function deleteInbox(id, token, { signal } = {}) {
-    if (MOCK) {
-        await delay(150, signal);
-        mockState.delete(id);
-        return;
-    }
-
-    assertConfigured(API_BASE, "VITE_API_BASE");
-
-    const res = await guardedFetch(
-        `${API_BASE}/inboxes/${encodeURIComponent(id)}`,
-        {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-            signal,
-        },
-        "deleteInbox",
-    );
-
-    if (!res.ok && res.status !== 204) {
-        const err = await parseError(res);
-        console.error("[inboxApi] deleteInbox failed", err);
-        throw err;
-    }
-}
-
-// The WS route in the doc is at the host root (/ws), not under
-// /api/v1, and it's a separate env var since the two can point at
-// different origins in some deployments
-export function inboxSocketUrl(id, token) {
-    assertConfigured(WS_BASE, "VITE_WS_BASE");
-    const params = new URLSearchParams({ inboxId: id, token });
-    return `${WS_BASE}/ws?${params}`;
+    return await readEnvelope(res, "fetchMessage");
 }
