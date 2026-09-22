@@ -22,11 +22,41 @@ export const API_BASE = (
  * negotiates the upgrade itself. Handing it a ws:// URL breaks the handshake.
  *
  * The socket is served from the same process as the REST API (the backend
- * mounts it on the same http.Server), so it is the API origin with the
- * /api/v1 suffix stripped — no path of its own.
+ * mounts it on the same http.Server), so it is the API base with the /api/v1
+ * suffix stripped. That may still carry a path prefix: the deployment behind
+ * nip.io serves everything under /server, so this can be
+ * "https://host/server" as well as a bare origin.
  */
 export const WS_BASE =
     env.VITE_WS_BASE || API_BASE.replace(/\/api\/v1\/?$/, "");
+
+/**
+ * Where socket.io actually lives, split into the two things io() needs.
+ *
+ * This split matters. socket.io-client reads the path of the URL you give it
+ * as a NAMESPACE, not as a mount point - io("https://host/server") asks for
+ * namespace "/server" on the default path "/socket.io", which 404s on a
+ * deployment that serves the app under /server. The prefix has to travel in
+ * the `path` option instead, and the URL must be the bare origin.
+ */
+export function splitSocketTarget(base) {
+    try {
+        const url = new URL(base);
+        const prefix = url.pathname.replace(/\/+$/, "");
+        return { origin: url.origin, path: `${prefix}/socket.io` };
+    } catch {
+        // Relative or unparseable: fall back to same-origin defaults.
+        return { origin: undefined, path: "/socket.io" };
+    }
+}
+
+const socketTarget = splitSocketTarget(WS_BASE);
+
+/** Bare origin for io(), never including the mount prefix. */
+export const SOCKET_ORIGIN = socketTarget.origin;
+
+/** socket.io mount point, e.g. "/socket.io" or "/server/socket.io". */
+export const SOCKET_PATH = socketTarget.path;
 
 /**
  * Flip this on to run entirely against the in-memory mock backend — no API,

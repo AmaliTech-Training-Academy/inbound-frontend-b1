@@ -17,7 +17,7 @@
 //     join-inbox has to be re-emitted on every "connect", not just the first.
 
 import { io } from "socket.io-client";
-import { WS_BASE, USE_MOCK } from "../config.js";
+import { SOCKET_ORIGIN, SOCKET_PATH, USE_MOCK } from "../config.js";
 
 // The server acks join-inbox after a DB lookup. If nothing comes back the
 // socket is connected but silently in no room, which looks identical to an
@@ -27,8 +27,12 @@ export const JOIN_ACK_TIMEOUT_MS = 8000;
 export function createInboxSocket() {
     if (USE_MOCK) return createMockSocket();
 
-    return io(WS_BASE, {
-        // The backend mounts socket.io at the default path on its own origin.
+    return io(SOCKET_ORIGIN, {
+        // The mount point travels here, not in the URL: socket.io reads a
+        // URL path as a namespace, so io("https://host/server") would ask for
+        // namespace "/server" on path "/socket.io" and never connect to a
+        // deployment served under a prefix.
+        path: SOCKET_PATH,
         //
         // Both transports, as the API docs specify. Restricting this to
         // ["websocket"] removes socket.io's fallback, so any proxy that
