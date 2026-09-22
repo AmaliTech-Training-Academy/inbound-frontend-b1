@@ -5,15 +5,6 @@ import MessageList from "./MessageList.jsx";
 const NOW = new Date("2026-09-17T12:00:00.000Z").getTime();
 const ago = (ms) => new Date(NOW - ms).toISOString();
 
-beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW);
-});
-
-afterEach(() => {
-    vi.useRealTimers();
-});
-
 const messages = [
     {
         id: "m2",
@@ -30,6 +21,15 @@ const messages = [
 ];
 
 describe("MessageList", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it("shows sender, subject and time for each message", () => {
         // AC 2: each list entry shows sender, subject, and time received.
         render(<MessageList messages={messages} />);

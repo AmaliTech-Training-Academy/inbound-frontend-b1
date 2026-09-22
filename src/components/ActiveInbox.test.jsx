@@ -89,69 +89,69 @@ describe("ActiveInbox", () => {
         expect(screen.getByText(/your inbox is empty/i)).toBeInTheDocument();
         expect(screen.getByText(/0 messages/i)).toBeInTheDocument();
     });
-});
 
-describe("ActiveInbox message list", () => {
-    const messages = [
-        {
-            id: "m1",
-            fromAddress: "sender@example.com",
-            subject: "Your code is 123456",
-            receivedAt: new Date().toISOString(),
-        },
-    ];
+    describe("message list", () => {
+        const messages = [
+            {
+                id: "m1",
+                fromAddress: "sender@example.com",
+                subject: "Your code is 123456",
+                receivedAt: new Date().toISOString(),
+            },
+        ];
 
-    it("replaces the empty state once mail arrives", () => {
-        setup({ messages, socketStatus: "live" });
+        it("replaces the empty state once mail arrives", () => {
+            setup({ messages, socketStatus: "live" });
 
-        expect(screen.queryByText(/your inbox is empty/i)).not.toBeInTheDocument();
-        expect(screen.getByText("sender@example.com")).toBeInTheDocument();
-        expect(screen.getByText("Your code is 123456")).toBeInTheDocument();
-    });
-
-    it("uses the singular for one message", () => {
-        setup({ messages, socketStatus: "live" });
-        expect(screen.getByText("1 message")).toBeInTheDocument();
-    });
-
-    it("pluralises correctly for several messages", () => {
-        setup({
-            messages: [
-                messages[0],
-                { ...messages[0], id: "m2", subject: "Second" },
-            ],
-            socketStatus: "live",
+            expect(screen.queryByText(/your inbox is empty/i)).not.toBeInTheDocument();
+            expect(screen.getByText("sender@example.com")).toBeInTheDocument();
+            expect(screen.getByText("Your code is 123456")).toBeInTheDocument();
         });
-        expect(screen.getByText("2 messages")).toBeInTheDocument();
-    });
 
-    it("says it is live when the socket has joined", () => {
-        setup({ socketStatus: "live" });
-        expect(screen.getByText("Live")).toBeInTheDocument();
-    });
-
-    it("warns while reconnecting, so a stale list is not mistaken for an empty one", () => {
-        setup({ socketStatus: "connecting" });
-        expect(screen.getByText(/reconnecting/i)).toBeInTheDocument();
-        expect(
-            screen.getByText(/connecting to the mail server/i),
-        ).toBeInTheDocument();
-    });
-
-    it("states plainly when mail will not arrive", () => {
-        setup({
-            socketStatus: "error",
-            socketError: new Error("invalid or expired inbox credentials"),
+        it("uses the singular for one message", () => {
+            setup({ messages, socketStatus: "live" });
+            expect(screen.getByText("1 message")).toBeInTheDocument();
         });
-        expect(screen.getByText(/not receiving mail/i)).toBeInTheDocument();
-        expect(
-            screen.getByText(/new mail will not appear/i),
-        ).toBeInTheDocument();
-    });
 
-    it("shows no live indicator when the socket is idle", () => {
-        setup({ socketStatus: "idle" });
-        expect(screen.queryByText("Live")).not.toBeInTheDocument();
-        expect(screen.queryByText(/reconnecting/i)).not.toBeInTheDocument();
+        it("pluralises correctly for several messages", () => {
+            setup({
+                messages: [
+                    messages[0],
+                    { ...messages[0], id: "m2", subject: "Second" },
+                ],
+                socketStatus: "live",
+            });
+            expect(screen.getByText("2 messages")).toBeInTheDocument();
+        });
+
+        it("says it is live when the socket has joined", () => {
+            setup({ socketStatus: "live" });
+            expect(screen.getByText("Live")).toBeInTheDocument();
+        });
+
+        it("warns while reconnecting, so a stale list is not mistaken for an empty one", () => {
+            setup({ socketStatus: "connecting" });
+            expect(screen.getByText(/reconnecting/i)).toBeInTheDocument();
+            expect(
+                screen.getByText(/connecting to the mail server/i),
+            ).toBeInTheDocument();
+        });
+
+        it("states plainly when mail will not arrive", () => {
+            setup({
+                socketStatus: "error",
+                socketError: new Error("invalid or expired inbox credentials"),
+            });
+            expect(screen.getByText(/not receiving mail/i)).toBeInTheDocument();
+            expect(
+                screen.getByText(/new mail will not appear/i),
+            ).toBeInTheDocument();
+        });
+
+        it("shows no live indicator when the socket is idle", () => {
+            setup({ socketStatus: "idle" });
+            expect(screen.queryByText("Live")).not.toBeInTheDocument();
+            expect(screen.queryByText(/reconnecting/i)).not.toBeInTheDocument();
+        });
     });
 });

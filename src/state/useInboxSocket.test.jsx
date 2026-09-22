@@ -54,15 +54,15 @@ const msg = (id, seconds, extra = {}) => ({
     ...extra,
 });
 
-beforeEach(() => {
-    sockets = [];
-    createInboxSocket.mockClear();
-    joinInbox.mockClear();
-    joinInbox.mockResolvedValue({ success: true, room: "inbox:1" });
-    vi.spyOn(console, "error").mockImplementation(() => {});
-});
-
 describe("useInboxSocket", () => {
+    beforeEach(() => {
+        sockets = [];
+        createInboxSocket.mockClear();
+        joinInbox.mockClear();
+        joinInbox.mockResolvedValue({ success: true, room: "inbox:1" });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
     it("stays idle and opens no socket without an inbox", () => {
         const { result } = renderHook(() => useInboxSocket(null));
 
