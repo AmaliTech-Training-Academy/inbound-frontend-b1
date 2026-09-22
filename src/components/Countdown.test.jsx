@@ -4,18 +4,18 @@ import Countdown from "./Countdown.jsx";
 
 const NOW = new Date("2026-09-16T10:00:00.000Z").getTime();
 
-beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW);
-});
-
-afterEach(() => {
-    vi.useRealTimers();
-});
-
 const inSeconds = (s) => new Date(NOW + s * 1000).toISOString();
 
 describe("Countdown", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     it("formats the remaining time as mm:ss", () => {
         render(<Countdown expiresAt={inSeconds(9 * 60 + 5)} />);
         expect(screen.getByText("09:05")).toBeInTheDocument();
