@@ -3,104 +3,13 @@ import Button from './Button'
 import Card from './Card'
 import Badge from './Badge'
 import SafeHtmlEmail from './SafeHtmlEmail'
+import Attachments from './Attachments'
 import { MOCK_MESSAGES } from '../data/mockMessages'
+import { formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../utils/helpers'
 
-/**
- * Formats an ISO timestamp into a human-readable date/time string.
- * Example: '2026-09-14T07:22:15Z' -> 'Sep 14, 2026, 7:22 AM'
- * Automatically uses the user's local timezone.
- */
-function formatReceivedAt(timestamp) {
-  if (!timestamp) return 'Unknown time'
-  const date = new Date(timestamp)
-  if (isNaN(date.getTime())) return timestamp
 
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(date)
-  } catch {
-    return timestamp
-  }
-}
 
-/**
- * Formats an ISO timestamp into a relative time string.
- * Examples: 'just now', '12m ago', '2h ago', '3d ago'
- */
-function formatRelativeTime(receivedAt) {
-  if (!receivedAt) return ''
-  const date = new Date(receivedAt)
-  if (isNaN(date.getTime())) return ''
 
-  const diffMs = Date.now() - date.getTime()
-  if (diffMs < 0) return 'just now'
-
-  const diffSec = Math.floor(diffMs / 1000)
-  const diffMin = Math.floor(diffSec / 60)
-  const diffHours = Math.floor(diffMin / 60)
-  const diffDays = Math.floor(diffHours / 24)
-
-  if (diffMin < 1) {
-    return 'just now'
-  }
-  if (diffHours < 1) {
-    return `${diffMin}m ago`
-  }
-  if (diffDays < 1) {
-    return `${diffHours}h ago`
-  }
-  if (diffDays < 30) {
-    return `${diffDays}d ago`
-  }
-  const diffMonths = Math.floor(diffDays / 30)
-  if (diffMonths < 12) {
-    return `${diffMonths}mo ago`
-  }
-  const diffYears = Math.floor(diffDays / 365)
-  return `${diffYears}y ago`
-}
-
-/**
- * Calculates and formats total attachments size.
- * Example: [{size: '4.8 MB'}, {size: '1.4 MB'}] -> '6.2 MB'
- */
-function formatTotalAttachmentSize(attachments = []) {
-  if (!attachments || attachments.length === 0) return ''
-  let totalBytes = 0
-  let hasValidSize = false
-
-  for (const att of attachments) {
-    if (!att.size) continue
-    const match = String(att.size).trim().match(/^([\d.]+)\s*(B|KB|MB|GB)?$/i)
-    if (match) {
-      hasValidSize = true
-      const num = parseFloat(match[1])
-      const unit = (match[2] || 'B').toUpperCase()
-      if (unit === 'GB') totalBytes += num * 1024 * 1024 * 1024
-      else if (unit === 'MB') totalBytes += num * 1024 * 1024
-      else if (unit === 'KB') totalBytes += num * 1024
-      else totalBytes += num
-    }
-  }
-
-  if (!hasValidSize || totalBytes === 0) return ''
-  if (totalBytes >= 1024 * 1024 * 1024) {
-    return `${(totalBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-  }
-  if (totalBytes >= 1024 * 1024) {
-    return `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-  if (totalBytes >= 1024) {
-    return `${(totalBytes / 1024).toFixed(0)} KB`
-  }
-  return `${totalBytes} B`
-}
 
 function MessageReader({
   message = MOCK_MESSAGES[0],
@@ -120,7 +29,6 @@ function MessageReader({
   const activeAddress = inboxAddress || message?.recipientEmail || 'temporary-inbox@inbound.mail'
   const relativeTime = formatRelativeTime(message?.receivedAt)
 
-  // Keyboard shortcut listener: ESC to back / exit full-screen, F to toggle full-screen
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Don't intercept shortcuts if user is inside an input/textarea
@@ -193,14 +101,6 @@ function MessageReader({
   const contextButtonLabel =
     message?.contextActionText ||
     (message?.contextLabel ? `Open ${message.contextLabel}` : 'Open link')
-
-  const getFileBadgeStyle = (type = '') => {
-    const t = type.toUpperCase()
-    if (t === 'PDF') return 'bg-danger/10 text-danger border-danger/30'
-    if (t === 'PNG' || t === 'JPG' || t === 'JPEG') return 'bg-purple-50 text-purple-700 border-purple-200'
-    if (t === 'ZIP' || t === 'TAR') return 'bg-amber-50 text-amber-700 border-amber-200'
-    return 'bg-chip text-text-secondary border-border-default'
-  }
 
   return (
     <div className="min-h-screen w-full bg-page text-text-primary font-sans flex flex-col antialiased selection:bg-dark-btn selection:text-surface">
@@ -464,94 +364,15 @@ function MessageReader({
           </div>
         </Card>
 
-        {message?.attachments && message.attachments.length > 0 && (
-          <Card className="p-6 flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border-default">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-text-primary shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-                <h2 className="text-sm sm:text-base font-bold text-text-primary">Attachments</h2>
-                <Badge className="bg-chip text-text-secondary px-2 py-0.5 font-mono text-[11px]">
-                  {message.attachments.length} {message.attachments.length === 1 ? 'file' : 'files'}
-                  {totalAttachmentSize ? ` · ${totalAttachmentSize}` : ''}
-                </Badge>
-              </div>
-
-              <Button
-                variant="light"
-                onClick={onDownloadAll}
-                className="text-xs px-3 py-1.5 gap-1.5 self-start sm:self-auto"
-                aria-label="Download all attachments as zip"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>Download All (.zip)</span>
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {message.attachments.map((att) => (
-                <div
-                  key={att.id || att.filename}
-                  className="bg-surface border border-border-default rounded-[8px] p-3 flex flex-col justify-between hover:border-border-strong transition-colors gap-2.5 min-w-0"
-                >
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <span
-                      className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-[3px] border uppercase shrink-0 ${getFileBadgeStyle(
-                        att.type
-                      )}`}
-                    >
-                      {att.type || 'FILE'}
-                    </span>
-                    <span
-                      className="font-medium text-xs text-text-primary truncate block flex-1"
-                      title={att.filename}
-                    >
-                      {att.filename}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1 border-t border-page text-[11px] text-text-secondary">
-                    <span className="font-mono">{att.size || ''}</span>
-                    <div className="flex items-center gap-1.5">
-                      {typeof onViewAttachment === 'function' && (
-                        <button
-                          type="button"
-                          onClick={() => onViewAttachment(att)}
-                          className="hover:text-text-primary font-medium transition-colors cursor-pointer"
-                        >
-                          View
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => typeof onDownloadAttachment === 'function' && onDownloadAttachment(att)}
-                        className="hover:text-text-primary font-medium transition-colors cursor-pointer inline-flex items-center gap-1"
-                        aria-label={`Download ${att.filename}`}
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        <span>Download</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {message?.scanInfo && (
-              <div className="mt-2 pt-3 border-t border-border-default flex items-center gap-2 text-xs font-mono text-text-secondary">
-                <svg className="w-3.5 h-3.5 text-success shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{message.scanInfo}</span>
-              </div>
-            )}
-          </Card>
-        )}
+        <Attachments
+          attachments={message?.attachments}
+          totalAttachmentSize={totalAttachmentSize}
+          scanInfo={message?.scanInfo}
+          onDownloadAll={onDownloadAll}
+          onDownloadAttachment={onDownloadAttachment}
+          onViewAttachment={onViewAttachment}
+          variant="card"
+        />
       </main>
 
       {isFullScreen && (
@@ -703,88 +524,14 @@ function MessageReader({
               </section>
             )}
 
-            {message?.attachments && message.attachments.length > 0 && (
-              <section
-                aria-label="Attachments"
-                className="pt-5 border-t border-border-default flex flex-col gap-4 mt-2"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-text-primary shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                    <h3 className="text-sm font-bold text-text-primary">Attachments</h3>
-                    <Badge className="bg-chip text-text-secondary px-2 py-0.5 font-mono text-[11px]">
-                      {message.attachments.length} {message.attachments.length === 1 ? 'file' : 'files'}
-                      {totalAttachmentSize ? ` · ${totalAttachmentSize}` : ''}
-                    </Badge>
-                  </div>
-
-                  <Button
-                    variant="light"
-                    onClick={onDownloadAll}
-                    className="text-xs px-2.5 py-1 gap-1.5"
-                    aria-label="Download all attachments as zip"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span>Download All</span>
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {message.attachments.map((att) => (
-                    <div
-                      key={att.id || att.filename}
-                      className="bg-surface-subtle border border-border-default rounded-[8px] p-3 flex flex-col justify-between hover:border-border-strong transition-colors gap-2.5 min-w-0"
-                    >
-                      <div className="flex items-start gap-2.5 min-w-0">
-                        <span
-                          className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-[3px] border uppercase shrink-0 ${getFileBadgeStyle(
-                            att.type
-                          )}`}
-                        >
-                          {att.type || 'FILE'}
-                        </span>
-                        <span
-                          className="font-medium text-xs text-text-primary truncate block flex-1"
-                          title={att.filename}
-                        >
-                          {att.filename}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1 border-t border-page text-[11px] text-text-secondary">
-                        <span className="font-mono">{att.size || ''}</span>
-                        <div className="flex items-center gap-2">
-                          {typeof onViewAttachment === 'function' && (
-                            <button
-                              type="button"
-                              onClick={() => onViewAttachment(att)}
-                              className="hover:text-text-primary font-medium transition-colors cursor-pointer"
-                            >
-                              View
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => typeof onDownloadAttachment === 'function' && onDownloadAttachment(att)}
-                            className="hover:text-text-primary font-medium transition-colors cursor-pointer inline-flex items-center gap-1"
-                            aria-label={`Download ${att.filename}`}
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            <span>Download</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            <Attachments
+              attachments={message?.attachments}
+              totalAttachmentSize={totalAttachmentSize}
+              onDownloadAll={onDownloadAll}
+              onDownloadAttachment={onDownloadAttachment}
+              onViewAttachment={onViewAttachment}
+              variant="fullscreen"
+            />
           </article>
         </div>
       )}
