@@ -92,8 +92,9 @@ function SafeHtmlEmail({ htmlContent }) {
         )
         setIframeHeight(`${measuredHeight + 16}px`)
       }
-    } catch {
+    } catch (error) {
       // Sandboxed origin may restrict direct DOM inspection in some engines; fallback to minimum height
+      console.error('Unable to measure sandboxed email height', error)
     }
   }
 

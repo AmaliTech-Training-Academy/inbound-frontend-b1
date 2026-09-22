@@ -1,15 +1,23 @@
 import { useState } from 'react'
+import InboxList from './components/InboxList'
 import MessageReader from './components/MessageReader'
 import { MOCK_MESSAGES } from './data/mockMessages'
 
+const INBOX_ADDRESS = 'inbox-user-8921@inbound.mail'
+
 function App() {
   const [feedbackNotification, setFeedbackNotification] = useState('')
+  const [selectedMessageId, setSelectedMessageId] = useState(null)
 
-  const activeMessage = MOCK_MESSAGES[0]
+  const messages = MOCK_MESSAGES
+  const activeMessage = messages.find((message) => message.id === selectedMessageId) ?? null
 
   const handleBack = () => {
-    setFeedbackNotification('onBack() called — returning to inbox')
-    setTimeout(() => setFeedbackNotification(''), 3000)
+    setSelectedMessageId(null)
+  }
+
+  const handleSelectMessage = (message) => {
+    setSelectedMessageId(message.id)
   }
 
   const handleGenerateEmail = () => {
@@ -33,13 +41,22 @@ function App() {
         </div>
       )}
 
-      <MessageReader
-        message={activeMessage}
-        inboxAddress="inbox-user-8921@inbound.mail"
-        onBack={handleBack}
-        onGenerateEmail={handleGenerateEmail}
-        onDestroy={handleDestroy}
-      />
+      {activeMessage ? (
+        <MessageReader
+          message={activeMessage}
+          inboxAddress={INBOX_ADDRESS}
+          onBack={handleBack}
+          onGenerateEmail={handleGenerateEmail}
+          onDestroy={handleDestroy}
+        />
+      ) : (
+        <InboxList
+          messages={messages}
+          inboxAddress={INBOX_ADDRESS}
+          onSelectMessage={handleSelectMessage}
+          onGenerateEmail={handleGenerateEmail}
+        />
+      )}
     </div>
   )
 }
