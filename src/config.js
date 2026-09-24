@@ -16,10 +16,21 @@ export const API_BASE = (
     env.VITE_API_BASE || "http://localhost:9001/api/v1"
 ).replace(/\/+$/, ""); // a trailing slash would build ".../api/v1//inbox"
 
-/** WebSocket origin */
-export const WS_BASE =
-    env.VITE_WS_BASE ||
-    API_BASE.replace(/^http/, "ws").replace(/\/api\/v1\/?$/, "");
+/**
+ * Socket.IO origin and path.
+ *
+ * socket.io-client takes an http(s) origin plus a `path`, not a ws:// URL, so
+ * the old scheme swap had to go. Stripping /api/v1 still holds: it leaves the
+ * socket's parent path.
+ *
+ *   http://localhost:9001/api/v1  -> http://localhost:9001/socket.io
+ *   https://host/server/api/v1    -> https://host/server/socket.io
+ */
+export const SOCKET_ORIGIN = (
+    env.VITE_SOCKET_ORIGIN || API_BASE.replace(/\/api\/v1\/?$/, "")
+).replace(/\/+$/, "");
+
+export const SOCKET_PATH = env.VITE_SOCKET_PATH || "/socket.io";
 
 /**
  * Flip this on to run entirely against the in-memory mock backend — no API,
