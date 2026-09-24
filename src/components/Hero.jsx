@@ -1,4 +1,3 @@
-import { useInbox } from "../state/useInbox.js";
 import { INBOX_TTL_MINUTES } from "../config.js";
 import { ArrowRight, Check, Timer } from "./icons/icons.jsx";
 import Button from "./ui/Button.jsx";
@@ -6,19 +5,21 @@ import Card from "./ui/Card.jsx";
 import HowInboundWorks from "./HowInboundWorks.jsx";
 import ActiveInbox from "./ActiveInbox.jsx";
 
-export default function Hero() {
-    const {
-        status,
-        inbox,
-        error,
-        busy,
-        canExtend,
-        generate,
-        reset,
-        destroy,
-        extend,
-        refresh,
-    } = useInbox();
+// Inbox state is owned by App and passed in, so the header's Generate
+// button drives the same inbox as this one.
+export default function Hero({
+    status,
+    inbox,
+    error,
+    busy,
+    regenerating,
+    canExtend,
+    generate,
+    regenerate,
+    destroy,
+    extend,
+    refresh,
+}) {
     const creating = status === "creating";
 
     return (
@@ -27,7 +28,10 @@ export default function Hero() {
             <div aria-hidden="true" className="absolute inset-0 dot-grid" />
 
             <div className="relative mx-auto flex max-w-4xl flex-col items-center px-6 pb-12 pt-16">
-                {status !== "active" && status !== "expired" && (
+                {status !== "active" &&
+                    status !== "loading" &&
+                    status !== "expired" &&
+                    !regenerating && (
                     <>
                         <h1 className="max-w-2xl text-center text-[clamp(2.5rem,6vw,4rem)] font-bold font-sans leading-[1.05] tracking-[-1.1px] text-ink">
                             Create a temporary email in seconds.
@@ -55,8 +59,11 @@ export default function Hero() {
                             busy={busy}
                             actionError={error}
                         />
-                    ) : status === "expired" ? (
-                        <Expired onReset={reset} />
+                    ) : status === "expired" || regenerating ? (
+                        <Expired
+                            onGenerate={regenerate}
+                            creating={creating}
+                        />
                     ) : (
                         <div className="flex flex-col items-center">
                             <Button
@@ -84,7 +91,8 @@ export default function Hero() {
 
                 {status !== "active" &&
                     status !== "loading" &&
-                    status !== "expired" && (
+                    status !== "expired" &&
+                    !regenerating && (
                         <>
                             <ul className="mt-6 flex flex-wrap items-center justify-center gap-6">
                                 <li className="flex items-center gap-1.5 text-[13px] text-[#45464C]">
@@ -109,7 +117,7 @@ export default function Hero() {
     );
 }
 
-function Expired({ onReset }) {
+function Expired({ onGenerate, creating }) {
     return (
         <Card className="flex flex-col items-center gap-4 p-8 shadow-tile">
             <p className="font-mono text-xs tracking-wide text-danger">
@@ -121,10 +129,11 @@ function Expired({ onReset }) {
             </p>
             <Button
                 type="button"
-                onClick={onReset}
-                className="flex h-11 items-center gap-2 rounded-sm border border-black bg-ink px-6.25 text-base font-medium text-white transition-opacity hover:opacity-90">
-                Generate a new address
-                <ArrowRight />
+                onClick={onGenerate}
+                disabled={creating}
+                className="flex h-11 items-center gap-2 rounded-sm border border-black bg-ink px-6.25 text-base font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-55">
+                {creating ? "Generating…" : "Generate a new address"}
+                {!creating && <ArrowRight />}
             </Button>
         </Card>
     );
