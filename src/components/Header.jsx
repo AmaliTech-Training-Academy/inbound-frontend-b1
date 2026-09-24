@@ -1,4 +1,3 @@
-import { Moon } from "./icons/icons";
 import Button from "./ui/Button";
 
 export default function Header({ status, generate, regenerate }) {
