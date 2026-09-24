@@ -6,7 +6,7 @@ import Card from "./ui/Card.jsx";
 import HowInboundWorks from "./HowInboundWorks.jsx";
 import ActiveInbox from "./ActiveInbox.jsx";
 
-export default function Hero() {
+export default function Hero({ onSelectMessage }) {
     const {
         status,
         inbox,
@@ -51,6 +51,7 @@ export default function Hero() {
                             onDestroy={destroy}
                             onExtend={extend}
                             onRefresh={refresh}
+                            onSelectMessage={onSelectMessage}
                             canExtend={canExtend}
                             busy={busy}
                             actionError={error}

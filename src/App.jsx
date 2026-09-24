@@ -1,21 +1,29 @@
 import { useState } from 'react'
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Header from './components/Header.jsx'
 import Hero from './components/Hero.jsx'
 import Footer from './components/Footer.jsx'
 import MessageReader from './components/MessageReader'
 import { MOCK_MESSAGES } from './data/mockMessages'
-import { ROUTES } from './router'
+import { ROUTES, messageDetailsPath } from './router'
+import { toReaderMessage } from './utils/message'
 
 const INBOX_ADDRESS = 'inbox-user-8921@inbound.mail'
 
 function HomePage() {
+  const navigate = useNavigate()
+
+  // The row already holds the message it was rendered from, so hand it to the
+  // details route instead of making that route look the id up again.
+  const openMessage = (message) =>
+    navigate(messageDetailsPath(message.id), { state: { message } })
+
   return (
     <>
       <Header />
 
       <main className="flex-1">
-        <Hero />
+        <Hero onSelectMessage={openMessage} />
       </main>
 
       <Footer />
@@ -25,16 +33,25 @@ function HomePage() {
 
 function MessageDetailsPage({ onGenerateEmail, onDestroy }) {
   const { messageId } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
-  const message = MOCK_MESSAGES.find((candidate) => candidate.id === messageId)
 
-  // A hand-typed or stale id has nothing to open, so send the visitor home
+  // A clicked row carries the message it was built from, which is the only way
+  // a live message opens: the mock list never saw it. The id check keeps state
+  // from an earlier row from rendering under a different url.
+  const clicked = location.state?.message
+  const source =
+    clicked?.id === messageId
+      ? clicked
+      : MOCK_MESSAGES.find((candidate) => candidate.id === messageId)
+
+  // A hand-typed or expired id has nothing to open, so send the visitor home
   // rather than render the reader around an empty message.
-  if (!message) return <Navigate to={ROUTES.home} replace />
+  if (!source) return <Navigate to={ROUTES.home} replace />
 
   return (
     <MessageReader
-      message={message}
+      message={toReaderMessage(source)}
       inboxAddress={INBOX_ADDRESS}
       onBack={() => navigate(ROUTES.home)}
       onGenerateEmail={onGenerateEmail}

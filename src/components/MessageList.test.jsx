@@ -1,7 +1,8 @@
 // AC #2: each entry shows sender, subject and the time received.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import MessageList from "./MessageList.jsx";
 
 const now = () => new Date().toISOString();
@@ -122,5 +123,46 @@ describe("MessageList", () => {
         );
 
         expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    });
+
+    it("hands the clicked row back to the caller", async () => {
+        const user = userEvent.setup();
+        const onSelectMessage = vi.fn();
+        const message = {
+            id: "msg-1",
+            sender: "Ada Lovelace <ada@example.com>",
+            subject: "Your verification code",
+            receivedAt: now(),
+        };
+
+        render(
+            <MessageList messages={[message]} onSelectMessage={onSelectMessage} />,
+        );
+
+        await user.click(
+            screen.getByRole("button", {
+                name: "Open message from Ada Lovelace: Your verification code",
+            }),
+        );
+
+        expect(onSelectMessage).toHaveBeenCalledWith(message);
+    });
+
+    it("gives a subjectless row something to be announced by", async () => {
+        const user = userEvent.setup();
+        const onSelectMessage = vi.fn();
+        const message = { id: "msg-1", from: "a@b.c", receivedAt: now() };
+
+        render(
+            <MessageList messages={[message]} onSelectMessage={onSelectMessage} />,
+        );
+
+        await user.click(
+            screen.getByRole("button", {
+                name: "Open message from a@b.c: (No Subject)",
+            }),
+        );
+
+        expect(onSelectMessage).toHaveBeenCalledWith(message);
     });
 });

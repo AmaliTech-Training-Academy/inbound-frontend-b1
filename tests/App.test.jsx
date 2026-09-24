@@ -6,13 +6,22 @@ import { MOCK_MESSAGES } from '../src/data/mockMessages'
 
 const HOME_HEADING = 'Create a temporary email in seconds.'
 const DETAILS_MESSAGE = MOCK_MESSAGES[2]
+// What a row of the live inbox holds: the API's shape, and an id no mock
+// message carries.
+const LIVE_MESSAGE = {
+  id: 'live-1',
+  sender: 'Ada Lovelace <ada@example.com>',
+  subject: 'Your verification code',
+  receivedAt: new Date().toISOString(),
+  body: 'Hello from the API.',
+}
 
 const detailsPath = (message) => `/inbox/${message.id}`
 
 /** The real entry point mounts a BrowserRouter, so the tests supply their own. */
-function renderApp(path = '/') {
+function renderApp(path = '/', state) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[state ? { pathname: path, state } : path]}>
       <App />
     </MemoryRouter>
   )
@@ -48,8 +57,25 @@ describe('App', () => {
     expect(screen.queryByText(HOME_HEADING)).toBeNull()
   })
 
-  it('returns to the home page when back is used', () => {
-    renderApp(detailsPath(MOCK_MESSAGES[1]))
+  it('opens a live message handed over by the row that was clicked', () => {
+    // No mock message carries this id, so the state a click leaves behind is
+    // the only thing that can open it.
+    expect(MOCK_MESSAGES.some((message) => message.id === LIVE_MESSAGE.id)).toBe(false)
+
+    renderApp(detailsPath(LIVE_MESSAGE), { message: LIVE_MESSAGE })
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(LIVE_MESSAGE.subject)
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
+    expect(screen.getByText('Hello from the API.')).toBeInTheDocument()
+  })
+
+  it('ignores state left behind by a different message', () => {
+    renderApp('/inbox/not-a-real-message', { message: LIVE_MESSAGE })
+
+    expectHomePage()
+  })
+
+  it('returns to the home page when back is used', () => {    renderApp(detailsPath(MOCK_MESSAGES[1]))
 
     fireEvent.click(screen.getByLabelText('Back to inbox'))
 

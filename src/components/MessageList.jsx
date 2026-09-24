@@ -1,21 +1,9 @@
 // The inbox list. Renders one row per message: sender, subject, time received.
+// A row is a button, so the caller decides what opening a message means.
 
 import Badge from "./ui/Badge";
 import { formatRelativeTime } from "../utils/time.js";
-
-// `sender` is a display projection like "Ada Lovelace <ada@example.com>",
-// while from/fromAddress hold the bare address. A preview row from
-// message:new has only the address, so split whatever is available.
-function splitSender(message) {
-    const raw = message.sender || message.from || message.fromAddress || "";
-    const angled = raw.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
-
-    if (angled) {
-        return { name: angled[1] || angled[2], email: angled[2] };
-    }
-
-    return { name: raw || "Unknown sender", email: "" };
-}
+import { splitSender } from "../utils/message.js";
 
 function initials(name) {
     return name
@@ -26,7 +14,7 @@ function initials(name) {
         .join("");
 }
 
-export default function MessageList({ messages = [] }) {
+export default function MessageList({ messages = [], onSelectMessage }) {
     if (!messages || messages.length === 0) return null;
 
     return (
@@ -36,7 +24,13 @@ export default function MessageList({ messages = [] }) {
 
                 return (
                     <li key={message.id}>
-                        <article className="flex items-start gap-3 rounded-[10px] border border-line bg-white p-4 shadow-tile">
+                        <button
+                            type="button"
+                            onClick={() => onSelectMessage?.(message)}
+                            aria-label={`Open message from ${sender.name}: ${
+                                message.subject || "(No Subject)"
+                            }`}
+                            className="flex w-full cursor-pointer items-start gap-3 rounded-[10px] border border-line bg-white p-4 text-left shadow-tile transition-colors hover:bg-surface-subtle">
                             <span
                                 aria-hidden="true"
                                 className="flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-[8px] bg-chip text-sm font-semibold text-ink">
@@ -82,7 +76,7 @@ export default function MessageList({ messages = [] }) {
                                     )}
                                 </div>
                             </div>
-                        </article>
+                        </button>
                     </li>
                 );
             })}

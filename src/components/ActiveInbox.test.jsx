@@ -153,4 +153,22 @@ describe("ActiveInbox", () => {
         expect(screen.getByText("Your verification code")).toBeInTheDocument();
         expect(screen.queryByText("Your inbox is empty")).toBeNull();
     });
+
+    it("forwards a clicked message so the parent can open it", async () => {
+        const user = userEvent.setup();
+        const onSelectMessage = vi.fn();
+        const arrived = message("m1");
+
+        feed.value = { messages: [arrived], connection: "joined", error: null };
+
+        setup({ onSelectMessage });
+
+        await user.click(
+            screen.getByRole("button", {
+                name: "Open message from Ada Lovelace: Message m1",
+            }),
+        );
+
+        expect(onSelectMessage).toHaveBeenCalledWith(arrived);
+    });
 });

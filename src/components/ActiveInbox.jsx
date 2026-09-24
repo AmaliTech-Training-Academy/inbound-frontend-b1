@@ -14,6 +14,7 @@ export default function ActiveInbox({
     onDestroy,
     onExtend,
     onRefresh,
+    onSelectMessage,
     canExtend = true,
     busy = null,
     actionError = null,
@@ -169,7 +170,10 @@ export default function ActiveInbox({
                 )}
 
                 {messages.length > 0 ? (
-                    <MessageList messages={messages} />
+                    <MessageList
+                        messages={messages}
+                        onSelectMessage={onSelectMessage}
+                    />
                 ) : (
                     /* Empty State Body */
                     <Card className="p-12 sm:p-16 shadow-sm flex flex-col items-center justify-center text-center">
