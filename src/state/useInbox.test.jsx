@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../services/inboxApi.js", async () => {
     const actual = await vi.importActual("../services/inboxApi.js");
@@ -12,7 +12,7 @@ vi.mock("../services/inboxApi.js", async () => {
 });
 
 import { useInbox } from "./useInbox.js";
-import { getInboxInfo, ApiError } from "../services/inboxApi.js";
+import { createInbox, getInboxInfo, ApiError } from "../services/inboxApi.js";
 
 const KEY = "inbound.inbox";
 
@@ -32,6 +32,16 @@ beforeEach(() => {
     // gets asserted, not the post-confirmation state.
     getInboxInfo.mockReturnValue(new Promise(() => {}));
 });
+
+// A confirmation the test settles by hand, after the user has acted.
+function deferred() {
+    let resolve, reject;
+    const promise = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+}
 
 describe("useInbox", () => {
     describe("restoring on mount", () => {
@@ -109,6 +119,51 @@ describe("useInbox", () => {
             await waitFor(() => expect(getInboxInfo).toHaveBeenCalled());
             expect(result.current.status).toBe("active");
             expect(result.current.inbox.address).toBe(storedInbox.address);
+        });
+    });
+
+    describe("a confirmation that lands after a local action", () => {
+        it("does not resurrect an inbox the user has destroyed", async () => {
+            sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
+            const confirm = deferred();
+            getInboxInfo.mockReturnValue(confirm.promise);
+
+            const { result } = renderHook(() => useInbox());
+            act(() => result.current.destroy());
+
+            await act(async () => {
+                confirm.resolve({ expiresAt: storedInbox.expiresAt });
+                await confirm.promise;
+            });
+
+            expect(result.current.status).toBe("idle");
+            expect(result.current.inbox).toBeNull();
+            expect(sessionStorage.getItem(KEY)).toBeNull();
+        });
+
+        it("does not clear a newly generated inbox on a stale 401", async () => {
+            sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
+            const confirm = deferred();
+            getInboxInfo.mockReturnValue(confirm.promise);
+            const replacement = {
+                ...storedInbox,
+                id: "i2",
+                address: "replacement@inbound.dev",
+                token: "tok_replacement",
+            };
+            createInbox.mockResolvedValue(replacement);
+
+            const { result } = renderHook(() => useInbox());
+            await act(() => result.current.generate());
+
+            await act(async () => {
+                confirm.reject(new ApiError(401, "Inbox Not Found"));
+                await confirm.promise.catch(() => {});
+            });
+
+            expect(result.current.status).toBe("active");
+            expect(result.current.inbox.address).toBe(replacement.address);
+            expect(JSON.parse(sessionStorage.getItem(KEY)).id).toBe("i2");
         });
     });
 });

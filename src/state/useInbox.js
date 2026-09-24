@@ -64,6 +64,17 @@ export function useInbox() {
 
     const actionLock = useRef(false);
 
+    // The mount-time confirmation of a restored inbox. Kept so that any local
+    // lifecycle action can cancel it: the inbox is on screen before the server
+    // answers, so the user can destroy, replace or extend it first, and a late
+    // answer about the old inbox must not overwrite what they did - resurrecting
+    // a destroyed inbox, or clearing a newly generated one on a stale 401.
+    const confirmation = useRef(null);
+    const cancelConfirmation = useCallback(() => {
+        confirmation.current?.abort();
+        confirmation.current = null;
+    }, []);
+
     useEffect(() => {
         const stored = loadInbox();
         if (!stored) {
@@ -71,12 +82,16 @@ export function useInbox() {
         }
 
         const controller = new AbortController();
+        confirmation.current = controller;
 
         (async () => {
             try {
                 const fresh = await getInboxInfo(stored.token, {
                     signal: controller.signal,
                 });
+                // The request may have settled just before a local action
+                // cancelled it, so check again rather than trust the await.
+                if (controller.signal.aborted) return;
                 // /inbox/info returns no id and no token - the caller
                 // already holds both - so only the mutable fields are merged.
                 const expiryChanged =
@@ -119,6 +134,10 @@ export function useInbox() {
                 } else {
                     setInbox(stored);
                     setStatus("active");
+                }
+            } finally {
+                if (confirmation.current === controller) {
+                    confirmation.current = null;
                 }
             }
         })();
@@ -165,6 +184,7 @@ export function useInbox() {
     const generate = useCallback(async () => {
         if (inFlight.current) return;
         inFlight.current = true;
+        cancelConfirmation();
 
         setStatus("creating");
         setError(null);
@@ -197,16 +217,17 @@ export function useInbox() {
             clearTimeout(timer);
             inFlight.current = false;
         }
-    }, []);
+    }, [cancelConfirmation]);
 
     // Used by IND-19's "New address" and by the retry path after expiry.
     // Local-only: does not touch the server.
     const reset = useCallback(() => {
+        cancelConfirmation();
         clearInbox();
         setInbox(null);
         setError(null);
         setStatus("idle");
-    }, []);
+    }, [cancelConfirmation]);
 
     // "Destroy Inbox".
     //
@@ -224,6 +245,7 @@ export function useInbox() {
         if (!inbox?.id || !inbox?.token) return;
         if (actionLock.current) return;
         actionLock.current = true;
+        cancelConfirmation();
         setBusy("extending");
         setError(null);
         try {
@@ -255,7 +277,7 @@ export function useInbox() {
             actionLock.current = false;
             setBusy(null);
         }
-    }, [inbox]);
+    }, [inbox, cancelConfirmation]);
 
     // "Refresh". Re-reads the inbox so an expiry changed elsewhere (another
     // tab extending it) and, from IND-7, the message list are picked up.
@@ -263,6 +285,7 @@ export function useInbox() {
         if (!inbox?.id || !inbox?.token) return;
         if (actionLock.current) return;
         actionLock.current = true;
+        cancelConfirmation();
         setBusy("refreshing");
         setError(null);
         try {
@@ -289,7 +312,7 @@ export function useInbox() {
             actionLock.current = false;
             setBusy(null);
         }
-    }, [inbox]);
+    }, [inbox, cancelConfirmation]);
 
     return {
         status,
