@@ -1,8 +1,7 @@
 // Owns the inbox lifecycle. Every other IND-3 component reads from this.
 
-// status: 'loading' | 'idle' | 'creating' | 'active' | 'expired' | 'error'
+// status: 'idle' | 'creating' | 'active' | 'expired' | 'error'
 
-//   loading  - checking storage on first paint, show nothing/skeleton
 //   idle     - no inbox, show the Generate button
 //   creating - request in flight, button disabled + spinner
 //   active   - inbox exists and hasn't expired
@@ -43,11 +42,15 @@ function isPlausibleExpiry(value) {
 }
 
 export function useInbox() {
-    const [status, setStatus] = useState(() => {
-        const stored = loadInbox();
-        return stored ? "loading" : "idle";
-    });
-    const [inbox, setInbox] = useState(null);
+    // Restore straight from storage rather than showing a placeholder while
+    // the server confirms. loadInbox() has already discarded anything expired
+    // or malformed, so what comes back is displayable immediately: a refresh
+    // now redraws the same screen the user was on instead of blanking it for
+    // the length of a round trip. The confirmation below still runs, and
+    // still tears the inbox down if the server says it is gone.
+    const [restored] = useState(loadInbox);
+    const [status, setStatus] = useState(restored ? "active" : "idle");
+    const [inbox, setInbox] = useState(restored);
     const [error, setError] = useState(null);
 
     // Which inbox action is in flight: 'extending' | 'refreshing' |
