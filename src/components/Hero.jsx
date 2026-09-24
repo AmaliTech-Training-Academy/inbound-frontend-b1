@@ -44,6 +44,7 @@ export default function Hero() {
 
             <div className="relative mx-auto flex max-w-4xl flex-col items-center px-6 pb-12 pt-16">
                 {status !== "active" &&
+                    status !== "loading" &&
                     status !== "expired" &&
                     !regenerating && (
                     <>
