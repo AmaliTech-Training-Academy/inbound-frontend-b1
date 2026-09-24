@@ -62,8 +62,9 @@ const mockState = new Map();
 
 if (MOCK) {
     console.warn(
-        "[inboxApi] Running against the in-browser mock inbox (VITE_USE_MOCK, " +
-            "or VITE_API_BASE is unset). Set VITE_API_BASE to talk to the real API.",
+        "[inboxApi] MOCK MODE - inboxes and messages are invented in the " +
+            "browser and no request reaches a server. VITE_USE_MOCK is " +
+            'set to "true"; remove it to talk to the real API.',
     );
 }
 

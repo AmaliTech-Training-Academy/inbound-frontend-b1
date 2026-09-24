@@ -22,14 +22,18 @@ export const WS_BASE =
     API_BASE.replace(/^http/, "ws").replace(/\/api\/v1\/?$/, "");
 
 /**
- * Flip this on to run entirely against the in-memory mock backend — no API,
- * no socket. Required by the tracker so UI work isn't blocked on backend
- * availability.
+ * Run against the in-memory mock backend instead of the API.
  *
- * Note this is NOT gated on DEV: a production preview build with no API base
- * still has to work, because the mock is currently the only working path.
+ * Opt-in only. This used to default to on whenever VITE_API_BASE was unset,
+ * which made a fresh clone look like a working app while serving invented
+ * inboxes - the backend team pulled dev and saw mock data with no indication
+ * anything was wrong. A missing config should fail visibly, not quietly
+ * pretend, so the mock now requires VITE_USE_MOCK="true".
+ *
+ * Deliberately not gated on DEV: a preview build has to be able to demo
+ * without a backend.
  */
-export const USE_MOCK = env.VITE_USE_MOCK === "true" || !env.VITE_API_BASE;
+export const USE_MOCK = env.VITE_USE_MOCK === "true";
 
 
 /**
