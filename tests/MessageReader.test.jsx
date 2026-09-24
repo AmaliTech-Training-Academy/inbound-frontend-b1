@@ -46,7 +46,6 @@ const stubClipboard = () => {
   return writeText
 }
 
-
 describe('MessageReader', () => {
   it('renders the subject, sender and sender address of the message', () => {
     render(<MessageReader message={baseMessage} />)
@@ -203,10 +202,7 @@ describe('MessageReader', () => {
 
     expect(onBack).toHaveBeenCalledTimes(1)
   })
-})
 
-
-describe('MessageReader', () => {
   it('expands the email into a full-screen reader', () => {
     render(<MessageReader message={baseMessage} />)
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -303,10 +299,7 @@ describe('MessageReader', () => {
 
     expect(onBack).not.toHaveBeenCalled()
   })
-})
 
-
-describe('MessageReader', () => {
   it('asks for confirmation before destroying the inbox', () => {
     const onDestroy = vi.fn()
     render(<MessageReader message={baseMessage} onDestroy={onDestroy} />)
@@ -339,6 +332,17 @@ describe('MessageReader', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
+  it('closes the destroy confirmation with escape instead of leaving the reader', () => {
+    const onBack = vi.fn()
+    render(<MessageReader message={baseMessage} onBack={onBack} />)
+    fireEvent.click(screen.getByLabelText('Destroy Inbox'))
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(onBack).not.toHaveBeenCalled()
+  })
+
   it('notes that deletion is not wired up when no destroy handler is given', () => {
     render(<MessageReader message={baseMessage} />)
 
@@ -346,10 +350,7 @@ describe('MessageReader', () => {
 
     expect(screen.getByText(/Backend deletion API/, { selector: 'span' })).toBeInTheDocument()
   })
-})
 
-
-describe('MessageReader', () => {
   it('renders the plain text body when the message has no html body', () => {
     render(<MessageReader message={textMessage} />)
 

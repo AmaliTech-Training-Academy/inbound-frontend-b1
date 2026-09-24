@@ -3,11 +3,19 @@ import Card from './Card'
 import Badge from './Badge'
 
 const getFileBadgeStyle = (type = '') => {
-  const t = type.toUpperCase()
-  if (t === 'PDF') return 'bg-danger/10 text-danger border-danger/30'
-  if (t === 'PNG' || t === 'JPG' || t === 'JPEG') return 'bg-purple-50 text-purple-700 border-purple-200'
-  if (t === 'ZIP' || t === 'TAR') return 'bg-amber-50 text-amber-700 border-amber-200'
-  return 'bg-chip text-text-secondary border-border-default'
+  switch (type.toUpperCase()) {
+    case 'PDF':
+      return 'bg-danger/10 text-danger border-danger/30'
+    case 'PNG':
+    case 'JPG':
+    case 'JPEG':
+      return 'bg-purple-50 text-purple-700 border-purple-200'
+    case 'ZIP':
+    case 'TAR':
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+    default:
+      return 'bg-chip text-text-secondary border-border-default'
+  }
 }
 
 function Attachments({

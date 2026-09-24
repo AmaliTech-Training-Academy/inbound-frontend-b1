@@ -8,9 +8,6 @@ import { MOCK_MESSAGES } from '../data/mockMessages'
 import { formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../utils/helpers'
 
 
-
-
-
 function MessageReader({
   message = MOCK_MESSAGES[0],
   onBack,
@@ -36,7 +33,9 @@ function MessageReader({
       if (tag === 'input' || tag === 'textarea') return
 
       if (e.key === 'Escape') {
-        if (isFullScreen) {
+        if (showDestroyConfirm) {
+          setShowDestroyConfirm(false)
+        } else if (isFullScreen) {
           setIsFullScreen(false)
         } else if (typeof onBack === 'function') {
           onBack()
@@ -48,17 +47,17 @@ function MessageReader({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isFullScreen, onBack])
+  }, [isFullScreen, onBack, showDestroyConfirm])
 
   // Prevent outer background scroll when full-screen is open
   useEffect(() => {
-    if (isFullScreen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
+    if (!isFullScreen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
     return () => {
-      document.body.style.overflow = ''
+      document.body.style.overflow = previousOverflow
     }
   }, [isFullScreen])
 

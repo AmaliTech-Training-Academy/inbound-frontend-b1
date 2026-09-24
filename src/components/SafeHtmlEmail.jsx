@@ -8,7 +8,7 @@ function SafeHtmlEmail({ htmlContent }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'none'; script-src 'none'; frame-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; style-src 'unsafe-inline'; font-src 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'none'; script-src 'none'; frame-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; style-src 'unsafe-inline'; font-src 'none'; base-uri 'none'; form-action 'none';">
   <style>
     *, *::before, *::after {
       box-sizing: border-box;

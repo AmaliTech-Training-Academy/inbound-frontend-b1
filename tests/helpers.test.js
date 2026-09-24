@@ -17,14 +17,10 @@ describe('helpers', () => {
   it ('returns the valid timestamp correctly',() => {
     const timestamp = '2026-09-17T09:49:10.566Z'
     const check = formatReceivedAt(timestamp)
-    expect(check).toBe('Sep 17, 2026, 9:49 AM')
+    // ICU 72+ separates the day period with U+202F; NFKC folds it back to a plain space
+    expect(check.normalize('NFKC')).toBe('Sep 17, 2026, 9:49 AM')
   })
-})
 
-
-
-
-describe('helpers', () => {
   it('returns empty string for falsy values', () => {
     const receivedAt = ''
     const check = formatRelativeTime(receivedAt)
@@ -78,101 +74,82 @@ describe('helpers', () => {
     const check = formatRelativeTime(receivedAt)
     expect(check).toBe('2y ago')
   })
-})
 
+  it('returns an empty string for falsy attachments ',() =>{
+    const attachments = ''
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('')
+  })
 
+  it('returns an empty string for empty attachments', () =>{
+    const attachments = []
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('')
+  })
 
+  it('returns an empty string when an attachment has no size', () =>{
+    const attachments = [{name: 'photo.png'}]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('')
+  })
 
-describe('helpers', () =>{
-    it('returns an empty string for falsy attachments ',() =>{
-      const attachments = ''
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('')
-    })
+  it('returns the size of an attachment when the size is valid', () =>{
+    const attachments = [{name: 'photo.png',size:'5KB'}]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('5 KB')
+  })
 
-    it('returns an empty string for empty attachments', () =>{
-      const attachments = []
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('')
-    })
+  it('returns bytes when size is less than 1 KB', () =>{
+    const attachments = [{name: 'photo.png',size:'500B'}]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('500 B')
+  })
 
-    it('returns an empty string when an attachment has no size', () =>{
-      const attachments = [{name: 'photo.png'}]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('')
-    })
+  it('returns KB when size is greater than 1KB but less than 1MB', () =>{
+    const attachments = [{name: 'photo.png',size:'2048B'}]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('2 KB')
+  })
 
-    it('returns the size of an attachment when the size is valid', () =>{
-      const attachments =  [{name: 'photo.png',size:'5KB'}]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('5 KB')
-    })
+  it('returns MB when size is greater than 1MB but less than 1GB', () =>{
+    const attachments = [{name: 'photo.png',size:'2097152B'}]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('2.0 MB')
+  })
 
-    it('returns bytes when size is less than 1 KB', () =>{
-      const attachments =  [{name: 'photo.png',size:'500B'}]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('500 B')
-    })
+  it('returns GB when size is greater than 1GB but less than 1TB', () =>{
+    const attachments = [{name: 'photo.png',size:'2147483648'}]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('2.0 GB')
+  })
 
-    it('returns KB when size is greater than 1KB but less than 1MB', () =>{
-       const attachments =  [{name: 'photo.png',size:'2048B'}]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('2 KB')
-    })
+  it('returns total size of two attachments ', () =>{
+    const attachments = [{name: 'photo.png',size:'2KB'}, { name: 'document.pdf', size: '3KB' }]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('5 KB')
+  })
 
-    it('returns MB when size is greater than 1MB but less than 1GB', () =>{
-       const attachments =  [{name: 'photo.png',size:'2097152B'}]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('2.0 MB')
-    })
+  it('returns total size of two attachments with different units ', () =>{
+    const attachments = [{name: 'photo.png',size:'512KB'}, { name: 'document.pdf', size: '3MB' }]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('3.5 MB')
+  })
 
-    it('returns GB when size is greater than 1GB but less than 1TB', () =>{
-       const attachments =  [{name: 'photo.png',size:'2147483648'}]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('2.0 GB')
-    })
+  it('returns empty string for invalid format ', () =>{
+    const attachments = [{name: 'photo.png',size:'five KB'}]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('')
+  })
 
-    it('returns total size of two attachments ', () =>{
-       const attachments =  [{name: 'photo.png',size:'2KB'}, { name: 'document.pdf', size: '3KB' }]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('5 KB')
-    })
-    
-    it('returns total size of two attachments with different units ', () =>{
-       const attachments =  [{name: 'photo.png',size:'512KB'}, { name: 'document.pdf', size: '3MB' }]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('3.5 MB')
-    })
+  it('returns empty string for zero size ', () =>{
+    const attachments = [{name: 'photo.png',size:'0 KB'}]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('')
+  })
 
-    it('returns total size of two attachments with different units ', () =>{
-       const attachments =  [{name: 'photo.png',size:'512KB'}, { name: 'document.pdf', size: '3MB' }]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('3.5 MB')
-    })
-
-     it('returns total size of two attachments with different units ', () =>{
-       const attachments =  [{name: 'photo.png',size:'512KB'}, { name: 'document.pdf', size: '3MB' }]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('3.5 MB')
-    })
-
-    it('returns empty string for invalid format ', () =>{
-       const attachments =  [{name: 'photo.png',size:'five KB'}]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('')
-    })
-
-    it('returns empty string for zero size ', () =>{
-       const attachments =  [{name: 'photo.png',size:'0 KB'}]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('')
-    })
-
-    it('returns empty string for  two attachments with one invalid format ', () =>{
-       const attachments =  [{name: 'photo.png',size:'512KB'}, { name: 'document.pdf', size: 'three MB' }]
-      const check = formatTotalAttachmentSize(attachments)
-      expect(check).toBe('512 KB')
-    })
-           
-
+  it('returns empty string for  two attachments with one invalid format ', () =>{
+    const attachments = [{name: 'photo.png',size:'512KB'}, { name: 'document.pdf', size: 'three MB' }]
+    const check = formatTotalAttachmentSize(attachments)
+    expect(check).toBe('512 KB')
+  })
 })

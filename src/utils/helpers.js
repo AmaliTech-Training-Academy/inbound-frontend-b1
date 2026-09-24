@@ -12,13 +12,11 @@ function formatReceivedAt(timestamp) {
       minute: '2-digit',
       hour12: true,
     }).format(date)
-  } catch {
+  } catch (error) {
+    console.error('Unable to format received timestamp', error)
     return timestamp
   }
 }
-
-
-
 
 function formatRelativeTime(receivedAt) {
   if (!receivedAt) return ''
@@ -53,9 +51,6 @@ function formatRelativeTime(receivedAt) {
   return `${diffYears}y ago`
 }
 
-
-
-
 function formatTotalAttachmentSize(attachments = []) {
   if (!attachments || attachments.length === 0) return ''
   let totalBytes = 0
@@ -87,8 +82,5 @@ function formatTotalAttachmentSize(attachments = []) {
   }
   return `${totalBytes} B`
 }
-
-
-
 
 export { formatReceivedAt, formatRelativeTime, formatTotalAttachmentSize }
