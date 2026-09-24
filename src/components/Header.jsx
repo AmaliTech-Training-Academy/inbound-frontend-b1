@@ -36,7 +36,7 @@ export default function Header({ status, generate, regenerate }) {
                     aria-label="Toggle dark mode (coming soon)"
                     title="Dark mode is not available yet"
                     className="rounded-xs p-1.5 text-ink transition-colors hover:bg-line/60">
-                    <Moon />
+                    {/* <Moon /> will implement later */}
                 </Button>
             </div>
         </header>
