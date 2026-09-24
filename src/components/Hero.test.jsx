@@ -88,4 +88,28 @@ describe("Hero", () => {
         // reset() would drop the user back to the landing page for a second click.
         expect(reset).not.toHaveBeenCalled();
     });
+
+    it("keeps the purged card up while the new address is generating", async () => {
+        // Between the click and the new inbox arriving, useInbox reports
+        // "creating". Without the regenerating guard that status renders the
+        // landing page, flashing the headline and How Inbound Works.
+        const user = userEvent.setup();
+        const generate = vi.fn(() => {
+            mockInbox({ status: "creating", generate });
+            return new Promise(() => {});
+        });
+        mockInbox({ status: "expired", generate });
+
+        render(<Hero />);
+        await user.click(
+            screen.getByRole("button", { name: /generate a new address/i }),
+        );
+
+        expect(screen.getByText(/INBOX PURGED/i)).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: /generating/i }),
+        ).toBeDisabled();
+        expect(screen.queryByText(HEADLINE)).not.toBeInTheDocument();
+        expect(screen.queryByText(/How Inbound Works/i)).not.toBeInTheDocument();
+    });
 });
