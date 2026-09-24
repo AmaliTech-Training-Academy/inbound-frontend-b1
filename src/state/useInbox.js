@@ -219,6 +219,20 @@ export function useInbox() {
         }
     }, [cancelConfirmation]);
 
+    // Replaces an expired inbox. Same request as generate(), but flagged so
+    // the purged card can stay on screen for the length of it: the status in
+    // between is "creating", which would otherwise render the landing page.
+    const [regenerating, setRegenerating] = useState(false);
+
+    const regenerate = useCallback(async () => {
+        setRegenerating(true);
+        try {
+            await generate();
+        } finally {
+            setRegenerating(false);
+        }
+    }, [generate]);
+
     // Used by IND-19's "New address" and by the retry path after expiry.
     // Local-only: does not touch the server.
     const reset = useCallback(() => {
@@ -319,8 +333,10 @@ export function useInbox() {
         inbox,
         error,
         busy,
+        regenerating,
         canExtend: (inbox?.extendCount ?? 0) < MAX_EXTENDS,
         generate,
+        regenerate,
         reset,
         destroy,
         extend,

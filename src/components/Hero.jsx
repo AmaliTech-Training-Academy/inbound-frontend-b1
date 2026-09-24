@@ -1,5 +1,3 @@
-import { useCallback, useState } from "react";
-import { useInbox } from "../state/useInbox.js";
 import { INBOX_TTL_MINUTES } from "../config.js";
 import { ArrowRight, Check, Timer } from "./icons/icons.jsx";
 import Button from "./ui/Button.jsx";
@@ -7,35 +5,22 @@ import Card from "./ui/Card.jsx";
 import HowInboundWorks from "./HowInboundWorks.jsx";
 import ActiveInbox from "./ActiveInbox.jsx";
 
-export default function Hero() {
-    const {
-        status,
-        inbox,
-        error,
-        busy,
-        canExtend,
-        generate,
-        destroy,
-        extend,
-        refresh,
-    } = useInbox();
+// Inbox state is owned by App and passed in, so the header's Generate
+// button drives the same inbox as this one.
+export default function Hero({
+    status,
+    inbox,
+    error,
+    busy,
+    regenerating,
+    canExtend,
+    generate,
+    regenerate,
+    destroy,
+    extend,
+    refresh,
+}) {
     const creating = status === "creating";
-
-    // Regenerating from the purged card used to go through reset(), which
-    // drops back to "idle" - the landing page - so the user had to click
-    // Generate a second time. This creates the new inbox directly, and keeps
-    // the purged card on screen while it does rather than flashing the
-    // landing page in between.
-    const [regenerating, setRegenerating] = useState(false);
-
-    const regenerate = useCallback(async () => {
-        setRegenerating(true);
-        try {
-            await generate();
-        } finally {
-            setRegenerating(false);
-        }
-    }, [generate]);
 
     return (
         <section id="generate" className="relative overflow-hidden">

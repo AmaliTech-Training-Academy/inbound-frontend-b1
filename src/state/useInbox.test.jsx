@@ -166,4 +166,29 @@ describe("useInbox", () => {
             expect(JSON.parse(sessionStorage.getItem(KEY)).id).toBe("i2");
         });
     });
+
+    describe("regenerate", () => {
+        it("flags the request so the purged card can stay up, then clears it", async () => {
+            const created = deferred();
+            createInbox.mockReturnValue(created.promise);
+
+            const { result } = renderHook(() => useInbox());
+            let pending;
+            act(() => {
+                pending = result.current.regenerate();
+            });
+
+            expect(result.current.regenerating).toBe(true);
+            expect(result.current.status).toBe("creating");
+
+            await act(async () => {
+                created.resolve({ ...storedInbox, id: "i3" });
+                await pending;
+            });
+
+            expect(result.current.regenerating).toBe(false);
+            expect(result.current.status).toBe("active");
+            expect(result.current.inbox.id).toBe("i3");
+        });
+    });
 });
