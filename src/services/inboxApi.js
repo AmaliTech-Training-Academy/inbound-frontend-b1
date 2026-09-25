@@ -294,3 +294,45 @@ export async function fetchMessage(id, token, { signal } = {}) {
 
     return await readEnvelope(res, "fetchMessage");
 }
+
+/**
+ * GET /api/v1/inbox/messages/unread/all -> UnreadMessage[]
+ *
+ * Reconnect recovery. Socket.IO restores the transport but does not replay
+ * what arrived while the client was away, so this is the only way back to
+ * those messages.
+ *
+ * The rows are list-shaped, not full messages: { id, subject, sender, to,
+ * receivedAt, isRead } - `sender` already assembled by the server from the
+ * name/address pair, `to` the inbox's own address, and no body at all. Each
+ * one therefore goes through fetchMessage like any other arrival before it
+ * reaches the list. Newest first, per the spec.
+ *
+ * The bearer token identifies the inbox: the path carries no inbox id and no
+ * address, exactly as the other endpoints here.
+ */
+export async function fetchUnreadMessages(token, { signal } = {}) {
+    if (MOCK) {
+        await delay(200, signal);
+        // The mock backend stores no messages of its own, so there is nothing
+        // to recover; live message:new previews still work.
+        return [];
+    }
+
+    assertConfigured();
+
+    const res = await guardedFetch(
+        `${API_BASE}/inbox/messages/unread/all`,
+        { headers: authHeaders(token), signal },
+        "fetchUnreadMessages",
+    );
+
+    const data = await readEnvelope(res, "fetchUnreadMessages");
+
+    if (!Array.isArray(data)) {
+        console.error("[inboxApi] fetchUnreadMessages contract mismatch", data);
+        throw new ApiError(res.status, "Unread messages response was not a list");
+    }
+
+    return data;
+}

@@ -20,7 +20,8 @@ export default defineConfig({
         environment: "jsdom",
         globals: true,
         setupFiles: "./src/test/setup.js",
-        // Components and utils only; nothing here needs a real browser.
-        include: ["src/**/*.test.{js,jsx}"],
+        // Both layouts: co-located specs under src/, and the specs under
+        // tests/. Neither needs a real browser.
+        include: ["src/**/*.test.{js,jsx}", "tests/**/*.test.{js,jsx}"],
     },
 });

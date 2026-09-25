@@ -4,6 +4,7 @@ import {
     getInboxInfo,
     extendInbox,
     fetchMessage,
+    fetchUnreadMessages,
     ApiError,
 } from "./inboxApi.js";
 import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
@@ -138,6 +139,16 @@ describe("inboxApi", () => {
                 body: expect.any(String),
                 attachments: expect.any(Array),
             });
+        });
+    });
+
+    describe("fetchUnreadMessages (mock mode)", () => {
+        it("returns an empty recovery list, because the mock stores no mail", async () => {
+            // Nothing to recover here: the mock has no message store, so a
+            // re-join sweeps and finds nothing rather than failing.
+            const inbox = await createInbox();
+
+            await expect(fetchUnreadMessages(inbox.token)).resolves.toEqual([]);
         });
     });
 

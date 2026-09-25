@@ -19,6 +19,7 @@ export default function Hero({
     destroy,
     extend,
     refresh,
+    onSelectMessage,
 }) {
     const creating = status === "creating";
 
@@ -55,6 +56,7 @@ export default function Hero({
                             onDestroy={destroy}
                             onExtend={extend}
                             onRefresh={refresh}
+                            onSelectMessage={onSelectMessage}
                             canExtend={canExtend}
                             busy={busy}
                             actionError={error}
