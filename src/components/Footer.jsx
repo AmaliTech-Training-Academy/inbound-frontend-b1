@@ -1,6 +1,6 @@
 // links have no pages yet so they are set as not allowed
 
-const LINKS = ["Manifesto", "Documentation", "Security Audits", "Terms"];
+// const LINKS = ["Manifesto", "Documentation", "Security Audits", "Terms"];
 
 export default function Footer() {
     return (
@@ -16,14 +16,14 @@ export default function Footer() {
                 </div>
 
                 <div className="flex items-center gap-6 font-medium text-muted">
-                    {LINKS.map((label) => (
+                    {/* {LINKS.map((label) => (
                         <span
                             key={label}
                             title="Coming soon"
                             className="cursor-not-allowed text-gray-600">
                             {label}
                         </span>
-                    ))}
+                    ))} */}
                 </div>
             </div>
         </footer>

@@ -7,11 +7,16 @@ import MessageReader from './components/MessageReader'
 import { MOCK_MESSAGES } from './data/mockMessages'
 import { ROUTES, messageDetailsPath } from './router'
 import { toReaderMessage } from './utils/message'
+import { useInbox } from './state/useInbox.js'
 
 const INBOX_ADDRESS = 'inbox-user-8921@inbound.mail'
 
 function HomePage() {
   const navigate = useNavigate()
+
+  // One inbox for the whole page. useInbox holds its own state, so calling it
+  // separately in Header and Hero would give each its own inbox.
+  const inbox = useInbox()
 
   // The row already holds the message it was rendered from, so hand it to the
   // details route instead of making that route look the id up again.
@@ -20,10 +25,14 @@ function HomePage() {
 
   return (
     <>
-      <Header />
+      <Header
+        status={inbox.status}
+        generate={inbox.generate}
+        regenerate={inbox.regenerate}
+      />
 
       <main className="flex-1">
-        <Hero onSelectMessage={openMessage} />
+        <Hero {...inbox} onSelectMessage={openMessage} />
       </main>
 
       <Footer />
