@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Header from './components/Header.jsx'
 import Hero from './components/Hero.jsx'
 import Footer from './components/Footer.jsx'
@@ -27,6 +27,11 @@ function HomePage() {
       </main>
 
       <Footer />
+
+      {/* The reader is a child route of this page rather than a sibling, so it
+          mounts over the inbox instead of replacing it. The address, the socket
+          and the message list all live here. */}
+      <Outlet />
     </>
   )
 }
@@ -50,13 +55,17 @@ function MessageDetailsPage({ onGenerateEmail, onDestroy }) {
   if (!source) return <Navigate to={ROUTES.home} replace />
 
   return (
-    <MessageReader
-      message={toReaderMessage(source)}
-      inboxAddress={INBOX_ADDRESS}
-      onBack={() => navigate(ROUTES.home)}
-      onGenerateEmail={onGenerateEmail}
-      onDestroy={onDestroy}
-    />
+    // The reader renders into the home page's outlet, so it has to be lifted
+    // out of the flow to cover it; scrolling still belongs to the reader.
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-page">
+      <MessageReader
+        message={toReaderMessage(source)}
+        inboxAddress={INBOX_ADDRESS}
+        onBack={() => navigate(ROUTES.home)}
+        onGenerateEmail={onGenerateEmail}
+        onDestroy={onDestroy}
+      />
+    </div>
   )
 }
 
@@ -88,16 +97,20 @@ function App() {
       )}
 
       <Routes>
-        <Route path={ROUTES.home} element={<HomePage />} />
-        <Route
-          path={ROUTES.messageDetails}
-          element={
-            <MessageDetailsPage
-              onGenerateEmail={handleGenerateEmail}
-              onDestroy={handleDestroy}
-            />
-          }
-        />
+        {/* The details route nests inside the home route: as a sibling it
+            unmounted the inbox on the way in, so coming back landed on a home
+            page still restoring itself, with nothing in it. */}
+        <Route path={ROUTES.home} element={<HomePage />}>
+          <Route
+            path={ROUTES.messageDetails}
+            element={
+              <MessageDetailsPage
+                onGenerateEmail={handleGenerateEmail}
+                onDestroy={handleDestroy}
+              />
+            }
+          />
+        </Route>
         <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
       </Routes>
     </div>

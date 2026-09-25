@@ -1,9 +1,12 @@
 // The inbox list. Renders one row per message: sender, subject, time received.
 // A row is a button, so the caller decides what opening a message means.
 
+import { useEffect } from "react";
 import Badge from "./ui/Badge";
 import { formatRelativeTime } from "../utils/time.js";
 import { splitSender } from "../utils/message.js";
+// TEMPORARY LATENCY DIAGNOSTICS - observation only, see utils/timingLog.js.
+import { noteRendered } from "../utils/timingLog.js";
 
 function initials(name) {
     return name
@@ -15,6 +18,15 @@ function initials(name) {
 }
 
 export default function MessageList({ messages = [], onSelectMessage }) {
+    // TEMPORARY DIAGNOSTICS: the list is newest first, so messages[0] is the
+    // newest arrival. An effect runs after React has committed, so this is the
+    // first moment the row is on screen. Keyed on the id, so the once-a-second
+    // countdown re-render does not re-log it.
+    const newestId = messages[0]?.id;
+    useEffect(() => {
+        if (newestId) noteRendered(newestId);
+    }, [newestId]);
+
     if (!messages || messages.length === 0) return null;
 
     return (

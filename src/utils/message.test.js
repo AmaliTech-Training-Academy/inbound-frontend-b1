@@ -35,7 +35,13 @@ describe("toReaderMessage", () => {
             attachments: [{ id: "att_01", filename: "guide.pdf" }],
         };
 
-        expect(toReaderMessage(mock)).toEqual({ ...mock, recipientEmail: null, textBody: null });
+        expect(toReaderMessage(mock)).toEqual({
+            ...mock,
+            recipientEmail: null,
+            textBody: null,
+            // "Code" on its own is not a trigger, so this sample yields none.
+            verificationCode: null,
+        });
     });
 
     it("reads a display sender and address into the reader's fields", () => {
@@ -56,6 +62,62 @@ describe("toReaderMessage", () => {
         expect(toReaderMessage({ html: "<p>Hello</p>" }).htmlBody).toBe("<p>Hello</p>");
     });
 
+    // The live backend sends one `body`, documented as "Sanitized HTML when
+    // available; otherwise plain text". Sending all of it to textBody is what
+    // made a live message's markup show up as its own tags in the reader.
+    describe("the single live body field", () => {
+        it("routes an HTML body to the HTML path", () => {
+            const message = toReaderMessage({
+                id: "live-1",
+                body: "<div>hiiiiiiiiii</div>",
+            });
+
+            expect(message.htmlBody).toBe("<div>hiiiiiiiiii</div>");
+            expect(message.textBody).toBeNull();
+        });
+
+        it("keeps a plain-text body on the text path so newlines survive", () => {
+            const body = "Hello,\n\nLine one.\n\nLine two.";
+            const message = toReaderMessage({ id: "live-2", body });
+
+            expect(message.textBody).toBe(body);
+            expect(message.htmlBody).toBeNull();
+        });
+
+        it("does not read an angle bracket in prose as markup", () => {
+            const prose = ["5 < 6 and 7 > 4", "2 <3", "Mail <ada@example.com>"];
+
+            for (const body of prose) {
+                const message = toReaderMessage({ id: "live-3", body });
+
+                expect(message.textBody).toBe(body);
+                expect(message.htmlBody).toBeNull();
+            }
+        });
+
+        it("sends markup - a script included - to the sandboxed path", () => {
+            const body = "<div>Hi</div><script>alert(1)</script>";
+            const message = toReaderMessage({ id: "live-4", body });
+
+            // It reaches SafeHtmlEmail, which is what stops it running: that
+            // frame is sandboxed without allow-scripts and its document CSP is
+            // script-src 'none'. See SafeHtmlEmail.test.jsx.
+            expect(message.htmlBody).toBe(body);
+            expect(message.textBody).toBeNull();
+        });
+
+        it("lets an explicit body key override the classification", () => {
+            const message = toReaderMessage({
+                id: "live-5",
+                body: "<div>Ignored</div>",
+                textBody: "Plain text wins",
+            });
+
+            expect(message.textBody).toBe("Plain text wins");
+            expect(message.htmlBody).toBeNull();
+        });
+    });
+
     it("prefers a body key the reader already knows", () => {
         const message = toReaderMessage({ htmlBody: "<p>Kept</p>", html: "<p>Ignored</p>" });
 
@@ -64,6 +126,50 @@ describe("toReaderMessage", () => {
 
     it("gives the reader an attachment list to count", () => {
         expect(toReaderMessage({ id: "live-1" }).attachments).toEqual([]);
+    });
+
+    // The reader only displays this field, so which code it gets is settled
+    // here. The extraction rule itself is tested in verificationCode.test.js;
+    // these are about the adapter picking it up and not overriding the backend.
+    describe("the verification code", () => {
+        it("reads one out of a live message, which carries none of its own", () => {
+            const message = toReaderMessage({
+                id: "live-6",
+                subject: "Your Notion sign-in request",
+                body: "Your verification code is 849 201. This code will expire in 10 minutes.",
+            });
+
+            expect(message.verificationCode).toBe("849 201");
+        });
+
+        it("reads one out of an HTML body without the markup around it", () => {
+            const message = toReaderMessage({
+                id: "live-7",
+                body: "<div><p>Your security code is <strong>559124</strong>.</p></div>",
+            });
+
+            expect(message.verificationCode).toBe("559124");
+        });
+
+        it("keeps the backend's own code over one read out of the body", () => {
+            const message = toReaderMessage({
+                id: "live-8",
+                body: "Your verification code is 849 201.",
+                verificationCode: "123456",
+            });
+
+            expect(message.verificationCode).toBe("123456");
+        });
+
+        it("leaves the field null when the message carries no code", () => {
+            const message = toReaderMessage({
+                id: "live-9",
+                subject: "Deployment pipeline failed",
+                body: "Build pipeline #4928 failed. Exit code: 1",
+            });
+
+            expect(message.verificationCode).toBeNull();
+        });
     });
 
     it("passes a missing message straight through", () => {

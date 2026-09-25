@@ -1,5 +1,7 @@
 import { io } from "socket.io-client";
 import { SOCKET_ORIGIN, SOCKET_PATH, USE_MOCK } from "../config.js";
+// TEMPORARY LATENCY DIAGNOSTICS - observation only, see utils/timingLog.js.
+import { noteArrival } from "../utils/timingLog.js";
 
 export const SOCKET_STATUS = {
     CONNECTING: "connecting",
@@ -56,6 +58,11 @@ export function createInboxSocket({
 
     const handleMessageNew = (payload) => {
         if (!payload?.id) return;
+
+        // TEMPORARY DIAGNOSTICS: the true arrival moment - the first point in
+        // the app the browser has seen this event, before any handling.
+        noteArrival(payload.id, payload, "socket");
+
         if (typeof onMessageNew === "function") onMessageNew(payload);
     };
 

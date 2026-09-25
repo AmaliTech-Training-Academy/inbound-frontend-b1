@@ -51,10 +51,16 @@ describe('App', () => {
   it('opens the message named in the details url', () => {
     renderApp(detailsPath(DETAILS_MESSAGE))
 
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(DETAILS_MESSAGE.subject)
+    // Named, because the reader no longer replaces the home page: the home page
+    // stays mounted behind it, so with no inbox here the landing hero is a
+    // second level-1 heading in the document. See the route table in App.jsx.
+    expect(
+      screen.getByRole('heading', { level: 1, name: DETAILS_MESSAGE.subject })
+    ).toBeInTheDocument()
     expect(screen.getByText(DETAILS_MESSAGE.senderName)).toBeInTheDocument()
     expect(screen.getByText(/Build pipeline #4928 failed/)).toBeInTheDocument()
-    expect(screen.queryByText(HOME_HEADING)).toBeNull()
+    // The reader covering that page is what the visitor actually sees.
+    expect(screen.getByLabelText('Back to inbox')).toBeInTheDocument()
   })
 
   it('opens a live message handed over by the row that was clicked', () => {
@@ -64,7 +70,9 @@ describe('App', () => {
 
     renderApp(detailsPath(LIVE_MESSAGE), { message: LIVE_MESSAGE })
 
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(LIVE_MESSAGE.subject)
+    expect(
+      screen.getByRole('heading', { level: 1, name: LIVE_MESSAGE.subject })
+    ).toBeInTheDocument()
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
     expect(screen.getByText('Hello from the API.')).toBeInTheDocument()
   })
