@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useEffectEvent } from 'react'
 import Button from './Button'
 import Card from './Card'
 import Badge from './Badge'
@@ -26,28 +26,28 @@ function MessageReader({
   const activeAddress = inboxAddress || message?.recipientEmail || 'temporary-inbox@inbound.mail'
   const relativeTime = formatRelativeTime(message?.receivedAt)
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Don't intercept shortcuts if user is inside an input/textarea
-      const tag = document.activeElement?.tagName?.toLowerCase()
-      if (tag === 'input' || tag === 'textarea') return
+  const handleKeyDown = useEffectEvent((e) => {
+    // Don't intercept shortcuts if user is inside an input/textarea
+    const tag = document.activeElement?.tagName?.toLowerCase()
+    if (tag === 'input' || tag === 'textarea') return
 
-      if (e.key === 'Escape') {
-        if (showDestroyConfirm) {
-          setShowDestroyConfirm(false)
-        } else if (isFullScreen) {
-          setIsFullScreen(false)
-        } else if (typeof onBack === 'function') {
-          onBack()
-        }
-      } else if (e.key === 'f' || e.key === 'F') {
-        setIsFullScreen((prev) => !prev)
+    if (e.key === 'Escape') {
+      if (showDestroyConfirm) {
+        setShowDestroyConfirm(false)
+      } else if (isFullScreen) {
+        setIsFullScreen(false)
+      } else if (typeof onBack === 'function') {
+        onBack()
       }
+    } else if (e.key === 'f' || e.key === 'F') {
+      setIsFullScreen((prev) => !prev)
     }
+  })
 
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isFullScreen, onBack, showDestroyConfirm])
+  }, [])
 
   // Prevent outer background scroll when full-screen is open
   useEffect(() => {
