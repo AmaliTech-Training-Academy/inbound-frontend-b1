@@ -66,7 +66,7 @@ function MessageDetailsPage({ onGenerateEmail, onDestroy }) {
   return (
     // The reader renders into the home page's outlet, so it has to be lifted
     // out of the flow to cover it; scrolling still belongs to the reader.
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-page">
+    <div className="app-backdrop fixed inset-0 z-40 overflow-y-auto">
       <MessageReader
         message={toReaderMessage(source)}
         inboxAddress={INBOX_ADDRESS}
@@ -95,7 +95,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-page text-text-primary font-sans">
+    <div className="app-backdrop min-h-screen flex flex-col text-text-primary font-sans">
       {feedbackNotification && (
         <div
           role="status"

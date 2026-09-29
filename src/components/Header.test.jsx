@@ -60,4 +60,37 @@ describe("Header", () => {
             screen.getByRole("button", { name: /generating/i }),
         ).toBeDisabled();
     });
+
+    describe("G shortcut", () => {
+        it("generates, like clicking the button", async () => {
+            const user = userEvent.setup();
+            const { generate } = renderHeader("idle");
+
+            await user.keyboard("g");
+
+            expect(generate).toHaveBeenCalledTimes(1);
+        });
+
+        it("is ignored while typing in a field", async () => {
+            const user = userEvent.setup();
+            const { generate } = renderHeader("idle");
+            const field = document.createElement("input");
+            document.body.appendChild(field);
+
+            await user.click(field);
+            await user.keyboard("g");
+
+            expect(generate).not.toHaveBeenCalled();
+            field.remove();
+        });
+
+        it("is ignored with a modifier held", async () => {
+            const user = userEvent.setup();
+            const { generate } = renderHeader("idle");
+
+            await user.keyboard("{Control>}g{/Control}");
+
+            expect(generate).not.toHaveBeenCalled();
+        });
+    });
 });

@@ -24,21 +24,20 @@ export default function Hero({
     const creating = status === "creating";
 
     return (
-        <section id="generate" className="relative overflow-hidden">
-            <div aria-hidden="true" className="absolute inset-0 hero-wash" />
-            <div aria-hidden="true" className="absolute inset-0 dot-grid" />
-
-            <div className="relative mx-auto flex max-w-4xl flex-col items-center px-6 pb-12 pt-16">
+        // The ambient glow behind this section is the app-wide backdrop (see
+        // .app-backdrop), so every screen shares it rather than just this one.
+        <section id="generate" className="relative">
+            <div className="relative mx-auto flex max-w-[976px] flex-col items-center px-6 pb-12 pt-16">
                 {status !== "active" &&
                     status !== "loading" &&
                     status !== "expired" &&
                     !regenerating && (
                     <>
-                        <h1 className="max-w-2xl text-center text-[clamp(2.5rem,6vw,4rem)] font-bold font-sans leading-[1.05] tracking-[-1.1px] text-ink">
+                        <h1 className="max-w-[56rem] text-center text-[clamp(2.5rem,6vw,4rem)] font-bold font-sans leading-[1.05] tracking-[-1.1px] text-ink">
                             Create a temporary email in seconds.
                         </h1>
 
-                        <p className="mt-4 max-w-xl text-center text-base leading-6 tracking-[-0.08px] text-[#45464C]">
+                        <p className="mt-4 max-w-xl text-center text-base leading-6 tracking-[-0.08px] text-muted">
                             Protect your inbox with a disposable email address
                             for sign-ups, verification codes, and temporary
                             testing.
@@ -47,7 +46,7 @@ export default function Hero({
                 )}
 
                 <div
-                    className={`w-full ${status === "active" ? "max-w-4xl" : "max-w-187.5 mt-8"}`}>
+                    className={`w-full ${status === "active" ? "max-w-[976px]" : "max-w-187.5 mt-8"}`}>
                     {status === "loading" ? (
                         <div aria-busy="true" className="h-11" />
                     ) : status === "active" && inbox ? (

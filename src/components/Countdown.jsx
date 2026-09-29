@@ -32,7 +32,9 @@ export default function Countdown({ expiresAt }) {
             <span style={{ fontVariantNumeric: "tabular-nums" }}>
                 {formattedTime}
             </span>
-            <span> remaining</span>
+            {/* The design shows the digits alone; screen readers still get
+                the word that makes them a duration. */}
+            <span className="sr-only"> remaining</span>
         </div>
     );
 }

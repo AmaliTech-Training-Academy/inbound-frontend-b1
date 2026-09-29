@@ -1,41 +1,39 @@
 /*
- * Fonts are deliberately NOT fetched from Google Fonts. The product copy
- * promises "Zero logs, zero tracking", and a webfont request hands every
- * visitor's IP and User-Agent to a third party on first paint. Until the
- * Inter / JetBrains Mono files are self-hosted under /public/fonts, fall
- * back to the locally installed face (if any) and then to the platform's
- * own UI / mono stack, which is visually close and costs no request.
+ * Fonts are self-hosted from @fontsource (imported in main.jsx), never fetched
+ * from Google Fonts: the product copy promises "Zero logs, zero tracking", and
+ * a webfont request would hand every visitor's IP and User-Agent to a third
+ * party on first paint. The files ship in our own bundle instead.
  */
 @import "tailwindcss";
 
 @theme {
-    --color-page: #f4f5f7;
-    --color-surface: #ffffff;
+    --color-page: #faf6f3;
+    --color-surface: #fffefd;
     --color-surface-subtle: #fcfdfe;
-    --color-header: #ffffff;
-    --color-border-default: #e4e5e9;
+    --color-header: #fefaf6;
+    --color-border-default: #ece5de;
     --color-border-strong: #111111;
-    --color-text-primary: #111213;
-    --color-text-secondary: #6b6d73;
+    --color-text-primary: #1c1613;
+    --color-text-secondary: #574f47;
     --color-text-tertiary: #9a9ca3;
-    --color-danger: #d1293d;
+    --color-danger: #bb0112;
     --color-success: #1f9d55;
-    --color-dark-btn: #111111;
+    --color-dark-btn: #1c1613;
     --color-dark-btn-hover: #2a2a2a;
     --color-chip: #eef0f2;
-    --color-ink: #111213;
-    --color-muted: #6b6d73;
-    --color-canvas: #f4f5f7;
-    --color-line: #e4e5e9;
-    --color-line-cool: #e6e8ee;
+    --color-ink: #1c1613;
+    --color-muted: #574f47;
+    --color-canvas: #f4f0ed;
+    --color-line: #ece5de;
+    --color-line-cool: #ece5de;
 
-    --shadow-tile: 0 1px 2px rgba(17, 18, 19, 0.04), 0 1px 1px rgba(17, 18, 19, 0.03);
+    --shadow-tile: 0 12px 16px rgba(92, 69, 51, 0.1), 0 1px 1.5px rgba(92, 69, 51, 0.06);
 
     --font-sans:
-        "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
         "Helvetica Neue", Arial, sans-serif;
     --font-mono:
-        "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+        "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
         Consolas, "Liberation Mono", monospace;
 }
 
@@ -47,26 +45,63 @@ body {
     padding: 0;
 }
 
-.hero-wash {
-    background:
-        radial-gradient(
-            60% 55% at 50% 0%,
-            rgba(255, 255, 255, 0.95) 0%,
-            rgba(244, 245, 247, 0) 70%
-        ),
-        linear-gradient(180deg, #ffffff 0%, var(--color-page) 100%);
+/*
+ * The warm ambient backdrop from the Figma landing page (node 109:3790), shared
+ * by every screen so the inbox and the reader sit on the same surface as the
+ * landing page. Fixed to the viewport: the glow stays put while content
+ * scrolls over it, and pages of any height get the whole of it.
+ */
+.app-backdrop {
+    position: relative;
+    isolation: isolate;
+    background: linear-gradient(
+        180deg,
+        #fdf7f1 0%,
+        #faf6f3 45%,
+        #f3efec 100%
+    );
 }
 
-.dot-grid {
+.app-backdrop::before,
+.app-backdrop::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* Peach centre, pink lower-left, lavender upper-right. */
+.app-backdrop::before {
+    background:
+        radial-gradient(
+            55% 38% at 50% 28%,
+            rgba(248, 186, 139, 0.5) 0%,
+            rgba(250, 215, 182, 0.24) 50%,
+            rgba(252, 236, 221, 0) 100%
+        ),
+        radial-gradient(
+            40% 34% at 28% 42%,
+            rgba(244, 167, 176, 0.34) 0%,
+            rgba(248, 212, 216, 0) 100%
+        ),
+        radial-gradient(
+            30% 27% at 85% 20%,
+            rgba(169, 180, 245, 0.32) 0%,
+            rgba(219, 225, 250, 0) 100%
+        );
+}
+
+.app-backdrop::after {
     background-image: radial-gradient(
-        rgba(17, 18, 19, 0.06) 1px,
+        rgba(28, 22, 19, 0.07) 1px,
         transparent 1px
     );
     background-size: 22px 22px;
     -webkit-mask-image: radial-gradient(
-        70% 60% at 50% 0%,
+        75% 55% at 50% 30%,
         #000 0%,
-        transparent 75%
+        transparent 80%
     );
-    mask-image: radial-gradient(70% 60% at 50% 0%, #000 0%, transparent 75%);
+    mask-image: radial-gradient(75% 55% at 50% 30%, #000 0%, transparent 80%);
 }

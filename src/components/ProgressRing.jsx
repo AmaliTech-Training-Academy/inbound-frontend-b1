@@ -1,6 +1,7 @@
 export default function ProgressRing({ percentage, isDanger }) {
-    const radius = 28;
-    const strokeWidth = 3;
+    // 96px across, per the design's "Circular Progress Ring (96px)".
+    const radius = 48;
+    const strokeWidth = 4;
     const normalizedRadius = radius - strokeWidth * 2;
     const circumference = normalizedRadius * 2 * Math.PI;
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
@@ -35,7 +36,7 @@ export default function ProgressRing({ percentage, isDanger }) {
             </svg>
 
             <span
-                className={`absolute font-mono text-xs font-bold transition-colors duration-500 ${colorClass}`}>
+                className={`absolute font-mono text-sm font-bold transition-colors duration-500 ${colorClass}`}>
                 {Math.round(percentage)}%
             </span>
         </div>

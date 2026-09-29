@@ -11,7 +11,7 @@ function Button({
         "inline-flex items-center justify-center font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed rounded-[6px] text-xs sm:text-sm select-none";
 
     let variantStyles =
-        "bg-[#111111] text-white hover:bg-[#2a2a2a] px-3.5 py-1.5";
+        "bg-dark-btn text-white hover:bg-dark-btn-hover px-3.5 py-1.5";
 
     if (variant === "light" || variant === "secondary") {
         variantStyles =

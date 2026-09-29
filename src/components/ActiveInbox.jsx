@@ -60,12 +60,12 @@ export default function ActiveInbox({
     const extendLabel = `+ Extend ${EXTEND_MINUTES}m`;
 
     return (
-        <div className="w-full max-w-4xl mx-auto flex flex-col gap-6 mt-4 animate-in fade-in duration-500 text-left">
+        <div className="w-full max-w-[976px] mx-auto flex flex-col gap-6 mt-4 animate-in fade-in duration-500 text-left">
             {/* Status Pill */}
             <div className="flex justify-center mb-2">
                 <div className="flex items-center gap-2 text-[11px] font-mono tracking-wide text-gray-700 bg-surface border border-line px-3 py-1.5 rounded-full shadow-sm">
                     <span className="text-emerald-500 animate-pulse">●</span>
-                    (Ephemeral) instance active — Volatile memory allocation
+                    Ephemeral instance active · volatile memory allocation
                 </div>
             </div>
 
@@ -77,7 +77,7 @@ export default function ActiveInbox({
                     </h2>
 
                     <div
-                        className={`text-[48px] leading-none font-mono font-bold tracking-tighter mt-2 mb-2 transition-colors duration-500 ${isDanger ? "text-danger" : "text-ink"}`}>
+                        className={`text-[56px] leading-none font-mono font-bold tracking-tighter mt-2 mb-2 transition-colors duration-500 ${isDanger ? "text-danger" : "text-ink"}`}>
                         <Countdown expiresAt={inbox.expiresAt} />
                     </div>
 

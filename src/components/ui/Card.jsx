@@ -1,7 +1,7 @@
 function Card({ children, className = '', ...props }) {
   return (
     <div
-      className={`bg-white border border-[#e4e5e9] rounded-[10px] ${className}`}
+      className={`bg-surface border border-line rounded-[12px] ${className}`}
       {...props}
     >
       {children}
