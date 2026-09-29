@@ -40,7 +40,7 @@ export default function Hero({
         // .app-backdrop), so every screen shares it rather than just this one.
         <section id="generate" className="relative">
             <div
-                className={`relative mx-auto flex flex-col items-center px-6 pb-12 pt-16 ${active ? "max-w-[1240px]" : "max-w-[976px]"}`}>
+                className={`relative mx-auto flex flex-col items-center px-4 pb-12 pt-8 sm:px-6 sm:pt-16 ${active ? "max-w-[1240px]" : "max-w-[976px]"}`}>
                 {status !== "active" &&
                     status !== "loading" &&
                     status !== "expired" &&
@@ -63,7 +63,9 @@ export default function Hero({
                     {status === "loading" ? (
                         <div aria-busy="true" className="h-11" />
                     ) : active ? (
-                        <div className="grid gap-6 lg:grid-cols-[232px_minmax(0,976px)] lg:justify-center">
+                        // minmax(0, 1fr): a grid column otherwise grows to its widest child,
+                        // so the rail's long strip of rows stretched the page on phones.
+                        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[232px_minmax(0,976px)] lg:justify-center">
                             <InboxRail
                                 inboxes={inboxes}
                                 activeId={activeId}

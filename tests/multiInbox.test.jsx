@@ -30,7 +30,11 @@ const rail = () => screen.getByRole("navigation", { name: "Inboxes" });
 const railRows = () =>
     within(rail())
         .getAllByRole("button")
-        .filter((button) => /@/.test(button.getAttribute("aria-label") ?? ""));
+        // A row's label is its address; each row's copy button reads "Copy …".
+        .filter((button) => {
+            const label = button.getAttribute("aria-label") ?? "";
+            return /@/.test(label) && !label.startsWith("Copy ");
+        });
 
 async function openFirstInboxWithAMessage() {
     render(
