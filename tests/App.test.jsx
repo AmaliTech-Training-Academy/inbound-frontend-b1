@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest'
-import {render,screen,fireEvent} from '@testing-library/react'
+import {render,screen,fireEvent,within} from '@testing-library/react'
 import {MemoryRouter} from 'react-router-dom'
 import App from '../src/App'
 import { MOCK_MESSAGES } from '../src/data/mockMessages'
@@ -110,15 +110,18 @@ describe('App', () => {
     expectHomePage()
   })
 
-  it('shows feedback when a new email is generated', () => {
-    vi.useFakeTimers()
+  it('shows the same single header as every other page', () => {
+    // The reader used to draw its own header, which drifted from the app's.
+    // It now renders the shared one, whose Generate button really generates.
     renderApp(detailsPath(MOCK_MESSAGES[0]))
 
-    fireEvent.click(screen.getByLabelText('Generate new temporary email'))
-
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Generate Email clicked (triggers parent email generator)'
-    )
+    const reader = screen.getByLabelText('Back to inbox').closest('.fixed')
+    const headers = within(reader).getAllByRole('banner')
+    expect(headers).toHaveLength(1)
+    expect(
+      within(headers[0]).getByRole('button', { name: /^generate email$/i })
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Generate new temporary email')).toBeNull()
   })
 
   it('shows feedback after the inbox destruction is confirmed', () => {

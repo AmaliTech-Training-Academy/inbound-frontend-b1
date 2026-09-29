@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import Header from './components/Header.jsx'
 import Hero from './components/Hero.jsx'
 import Footer from './components/Footer.jsx'
@@ -45,12 +45,21 @@ function HomePage() {
       {/* The reader is a child route of this page rather than a sibling, so it
           mounts over the inbox instead of replacing it. The address, the socket
           and the message list all live here. */}
-      <Outlet />
+      <Outlet
+        context={{
+          header: {
+            status: inbox.status,
+            generate: inbox.generate,
+            regenerate: inbox.regenerate,
+          },
+        }}
+      />
     </div>
   )
 }
 
 function MessageDetailsPage({ onGenerateEmail, onDestroy }) {
+  const { header } = useOutletContext() ?? {}
   const { messageId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -72,7 +81,10 @@ function MessageDetailsPage({ onGenerateEmail, onDestroy }) {
     // The reader renders into the home page's outlet, so it has to be lifted
     // out of the flow to cover it; scrolling still belongs to the reader.
     <div className="fixed inset-0 z-40 overflow-y-auto bg-page">
+      {/* The same header as every other page, not the reader's own copy. */}
+      <Header {...header} />
       <MessageReader
+        showHeader={false}
         message={toReaderMessage(source)}
         inboxAddress={INBOX_ADDRESS}
         onBack={() => navigate(ROUTES.home)}

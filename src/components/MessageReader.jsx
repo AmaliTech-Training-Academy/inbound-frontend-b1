@@ -15,6 +15,7 @@ function MessageReader({
   inboxAddress,
   onGenerateEmail,
   onDestroy,
+  showHeader = true,
   onDownloadAttachment,
   onDownloadAll,
   onViewAttachment,
@@ -104,6 +105,7 @@ function MessageReader({
 
   return (
     <div className="min-h-screen w-full bg-page text-text-primary font-sans flex flex-col antialiased selection:bg-dark-btn selection:text-surface">
+      {showHeader && (
       <header className="w-full h-14 bg-header border-b border-border-default px-6 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-2.5 select-none">
           <span className="w-3 h-3 bg-dark-btn rounded-full inline-block" aria-hidden="true" />
@@ -134,6 +136,7 @@ function MessageReader({
           </Button>
         </div>
       </header>
+      )}
 
       <main className="w-full max-w-[1000px] mx-auto px-6 py-6 flex-1 flex flex-col gap-4">
         <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-label="Inbox Actions">

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import Button from "./ui/Button";
+import { Moon } from "./icons/icons";
 
 // Typing "g" in a field is text, not a shortcut.
 function isTypingTarget(el) {
@@ -44,37 +45,41 @@ export default function Header({ status, generate, regenerate }) {
     }, []);
 
     return (
-        <header className="flex w-full items-center justify-between px-6 py-3 border-b border-line bg-white/80 backdrop-blur-sm">
-            <div className="flex items-center gap-1.5 font-bold text-ink">
-                <span className="text-[14px]">●</span>
-                <span className="text-base tracking-tight">Inbound</span>
+        // One header for every page, the reader included, so they cannot drift.
+        <header className="sticky top-0 z-20 flex h-14 w-full items-center justify-between border-b border-line bg-white/80 px-6 backdrop-blur-sm">
+            <div className="flex select-none items-center gap-2">
+                <span aria-hidden="true" className="size-2 rounded-full bg-ink" />
+                <span className="text-base font-semibold tracking-[-0.4px] text-ink">
+                    Inbound
+                </span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center">
                 <Button
                     onClick={handleGenerate}
                     disabled={creating}
                     aria-keyshortcuts="G"
-                    className="gap-2">
+                    className="h-8 gap-2 rounded-[2px] px-3 text-[13px]">
                     {creating ? "Generating…" : "Generate Email"}
                     {!creating && (
                         <kbd
                             aria-hidden="true"
-                            className="rounded-[2px] border border-white/40 px-1 font-mono text-[11px] leading-4 font-normal">
+                            className="rounded-[2px] border border-[#c6c6cd] bg-[#191c1d] px-[5px] font-mono text-[12px] leading-4 font-normal text-white">
                             G
                         </kbd>
                     )}
                 </Button>
 
-                {/* Dark mode is not implemented yet so button set to not allowed */}
-
-                <Button
-                    variant="secondary"
-                    disabled
-                    aria-label="Toggle dark mode (coming soon)"
-                    title="Dark mode is not available yet"
-                    className="rounded-xs p-1.5 text-ink transition-colors hover:bg-line/60">
-                    {/* <Moon /> will implement later */}
-                </Button>
+                {/* Dark mode is not implemented yet, so the toggle is shown but disabled. */}
+                <span className="ml-3 border-l border-[#c6c6cd] pl-3">
+                    <button
+                        type="button"
+                        disabled
+                        aria-label="Toggle dark mode (coming soon)"
+                        title="Dark mode is not available yet"
+                        className="grid size-7 place-items-center rounded-[2px] text-ink disabled:cursor-not-allowed">
+                        <Moon />
+                    </button>
+                </span>
             </div>
         </header>
     );
