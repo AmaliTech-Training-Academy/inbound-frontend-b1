@@ -5,9 +5,10 @@
 //
 //  1. Every response is wrapped: { success, message?, data }. Callers here get
 //     the unwrapped `data`, so the rest of the app never sees the envelope.
-//  2. The bearer token identifies the inbox. No endpoint takes an inbox id in
-//     the path, and none accepts a request body - TTL and the extend amount
-//     are entirely server-owned.
+//  2. The bearer token is a SESSION token, and one session can own several
+//     inboxes. So the token alone no longer says which inbox is meant: the
+//     per-inbox routes (info, extend) take the inbox id in the path. None
+//     accepts a request body - TTL and the extend amount are server-owned.
 //  3. Errors carry no machine-readable code, only { success: false, message }.
 //     Branching therefore has to be on HTTP status, which is why ApiError
 //     exposes named status checks rather than code comparisons.
@@ -146,7 +147,12 @@ function authHeaders(token) {
 // --- Endpoints -------------------------------------------------------
 
 /**
- * POST /api/v1/inbox -> { id, address, token, expiresAt }
+ * POST /api/v1/inbox -> { session: { token, expiresAt }, id, address, expiresAt }
+ *
+ * There is no per-inbox token any more. The returned inbox carries the
+ * session token as `token`, because that is what every other call - and the
+ * socket's join-inbox - authenticates with, and the rest of the app already
+ * reads it from there.
  *
  * Takes no request body: the server owns the TTL, so ttlMinutes and
  * preferredLocalPart are not options the API offers.
@@ -181,23 +187,30 @@ export async function createInbox({ signal } = {}) {
     );
 
     const data = await readEnvelope(res, "createInbox");
+    const token = data?.session?.token;
 
-    if (!data?.id || !data?.address || !data?.token || !data?.expiresAt) {
+    if (!data?.id || !data?.address || !token || !data?.expiresAt) {
         console.error("[inboxApi] createInbox contract mismatch", data);
         throw new ApiError(res.status, "Inbox response missing required fields");
     }
 
-    return { createdAt: new Date().toISOString(), ...data };
+    return {
+        createdAt: new Date().toISOString(),
+        id: data.id,
+        address: data.address,
+        token,
+        expiresAt: data.expiresAt,
+    };
 }
 
 /**
- * GET /api/v1/inbox/info -> { address, localPart, extendCount, domain,
- *                             createdAt, expiresAt, message }
+ * GET /api/v1/inbox/:id -> { address, localPart, extendCount, domain,
+ *                            createdAt, expiresAt, message }
  *
- * Note the response carries no `id` and no `token`: the caller already holds
- * both from creation, and the bearer token is what identifies the inbox.
+ * The response carries no `id` and no `token`: the caller already holds both
+ * from creation.
  */
-export async function getInboxInfo(token, { signal } = {}) {
+export async function getInboxInfo(id, token, { signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
         const entry = [...mockState.entries()].at(-1)?.[1];
@@ -214,7 +227,7 @@ export async function getInboxInfo(token, { signal } = {}) {
     assertConfigured();
 
     const res = await guardedFetch(
-        `${API_BASE}/inbox/info`,
+        `${API_BASE}/inbox/${encodeURIComponent(id)}`,
         { headers: authHeaders(token), signal },
         "getInboxInfo",
     );
@@ -223,14 +236,14 @@ export async function getInboxInfo(token, { signal } = {}) {
 }
 
 /**
- * PATCH /api/v1/inbox/extend -> { expiresAt, lastExtendedAt, extendCount }
+ * PATCH /api/v1/inbox/extend/:id -> { expiresAt, lastExtendedAt, extendCount }
  *
  * No request body and no server-side cap: the backend always adds a fixed
  * amount and increments extendCount without limit. EXTEND_MINUTES and
  * MAX_EXTENDS in config.js are therefore display and courtesy values only -
  * see the note there.
  */
-export async function extendInbox(token, { signal } = {}) {
+export async function extendInbox(id, token, { signal } = {}) {
     if (MOCK) {
         await delay(250, signal);
         const [id, entry] = [...mockState.entries()].at(-1) ?? [];
@@ -250,7 +263,7 @@ export async function extendInbox(token, { signal } = {}) {
     assertConfigured();
 
     const res = await guardedFetch(
-        `${API_BASE}/inbox/extend`,
+        `${API_BASE}/inbox/extend/${encodeURIComponent(id)}`,
         { method: "PATCH", headers: authHeaders(token), signal },
         "extendInbox",
     );
@@ -296,7 +309,8 @@ export async function fetchMessage(id, token, { signal } = {}) {
 }
 
 /**
- * GET /api/v1/inbox/messages/unread/all -> UnreadMessage[]
+ * GET /api/v1/inbox/messages/unread/all?inboxId=:id
+ *     -> { session, messages: UnreadMessage[] }
  *
  * Reconnect recovery. Socket.IO restores the transport but does not replay
  * what arrived while the client was away, so this is the only way back to
@@ -308,10 +322,10 @@ export async function fetchMessage(id, token, { signal } = {}) {
  * one therefore goes through fetchMessage like any other arrival before it
  * reaches the list. Newest first, per the spec.
  *
- * The bearer token identifies the inbox: the path carries no inbox id and no
- * address, exactly as the other endpoints here.
+ * The session token alone would return unread mail for every inbox in the
+ * session, so `inboxId` narrows it to the one being watched.
  */
-export async function fetchUnreadMessages(token, { signal } = {}) {
+export async function fetchUnreadMessages(token, { inboxId, signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
         // The mock backend stores no messages of its own, so there is nothing
@@ -322,17 +336,18 @@ export async function fetchUnreadMessages(token, { signal } = {}) {
     assertConfigured();
 
     const res = await guardedFetch(
-        `${API_BASE}/inbox/messages/unread/all`,
+        `${API_BASE}/inbox/messages/unread/all` +
+            (inboxId ? `?inboxId=${encodeURIComponent(inboxId)}` : ""),
         { headers: authHeaders(token), signal },
         "fetchUnreadMessages",
     );
 
     const data = await readEnvelope(res, "fetchUnreadMessages");
 
-    if (!Array.isArray(data)) {
+    if (!Array.isArray(data?.messages)) {
         console.error("[inboxApi] fetchUnreadMessages contract mismatch", data);
         throw new ApiError(res.status, "Unread messages response was not a list");
     }
 
-    return data;
+    return data.messages;
 }

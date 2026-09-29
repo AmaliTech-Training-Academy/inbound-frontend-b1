@@ -197,6 +197,7 @@ export function useMessages(inbox) {
 
         try {
             const unread = await fetchUnreadMessages(token, {
+                inboxId: inboxRef.current?.id,
                 signal: controller.signal,
             });
 

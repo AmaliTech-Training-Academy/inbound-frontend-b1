@@ -70,7 +70,7 @@ describe("inboxApi", () => {
             // The bearer token identifies the inbox, so the response carries
             // neither - the caller already holds both from creation.
             const inbox = await createInbox();
-            const info = await getInboxInfo(inbox.token);
+            const info = await getInboxInfo(inbox.id, inbox.token);
 
             expect(info).toMatchObject({
                 address: expect.any(String),
@@ -82,8 +82,8 @@ describe("inboxApi", () => {
 
         it("reflects an extend performed beforehand", async () => {
             const inbox = await createInbox();
-            const extended = await extendInbox(inbox.token);
-            const info = await getInboxInfo(inbox.token);
+            const extended = await extendInbox(inbox.id, inbox.token);
+            const info = await getInboxInfo(inbox.id, inbox.token);
 
             expect(info.expiresAt).toBe(extended.expiresAt);
             expect(info.extendCount).toBe(1);
@@ -93,7 +93,7 @@ describe("inboxApi", () => {
     describe("extendInbox (mock mode)", () => {
         it("returns the documented shape", async () => {
             const inbox = await createInbox();
-            const res = await extendInbox(inbox.token);
+            const res = await extendInbox(inbox.id, inbox.token);
 
             expect(res).toMatchObject({
                 expiresAt: expect.any(String),
@@ -104,7 +104,7 @@ describe("inboxApi", () => {
 
         it("pushes expiry out by the configured amount", async () => {
             const inbox = await createInbox();
-            const res = await extendInbox(inbox.token);
+            const res = await extendInbox(inbox.id, inbox.token);
             expect(minutesBetween(res.expiresAt, inbox.expiresAt)).toBeCloseTo(
                 EXTEND_MINUTES,
                 1,
@@ -117,7 +117,7 @@ describe("inboxApi", () => {
             const inbox = await createInbox();
             let last;
             for (let i = 1; i <= 5; i++) {
-                last = await extendInbox(inbox.token);
+                last = await extendInbox(inbox.id, inbox.token);
                 expect(last.extendCount).toBe(i);
             }
             expect(minutesBetween(last.expiresAt, inbox.expiresAt)).toBeCloseTo(
