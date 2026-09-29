@@ -157,8 +157,8 @@ function RailRow({ inbox, active, unread, now, onSelect }) {
     );
 }
 
-// Copies one inbox's address without opening it. Shown on hover, and on
-// keyboard focus so it is never mouse-only.
+// Copies one inbox's address without opening it. With a mouse it shows on
+// hover and on keyboard focus; on a touch screen it is always shown.
 function RowCopy({ address }) {
     const [state, setState] = useState("idle");
     const reset = useRef(null);
@@ -193,8 +193,10 @@ function RowCopy({ address }) {
                     : "Copy address"
             }
             className={`absolute right-2 top-2 grid size-7 place-items-center rounded-[6px] border bg-white transition focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-gray-900 group-hover:opacity-100 ${
+                // Hidden until hover only where hovering exists: on a touch
+                // screen there is no hover, so it would never appear at all.
                 state === "idle"
-                    ? "border-gray-200 text-gray-500 opacity-0 hover:border-gray-300 hover:text-gray-900"
+                    ? "border-gray-200 text-gray-500 [@media(hover:hover)]:opacity-0 hover:border-gray-300 hover:text-gray-900"
                     : state === "copied"
                       ? "border-emerald-200 text-success opacity-100"
                       : "border-red-200 text-red-600 opacity-100"
