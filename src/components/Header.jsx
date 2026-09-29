@@ -44,7 +44,7 @@ export default function Header({ status, generate, regenerate }) {
     }, []);
 
     return (
-        <header className="flex w-full items-center justify-between px-6 py-3 border-b border-line bg-header/80 backdrop-blur-sm">
+        <header className="flex w-full items-center justify-between px-6 py-3 border-b border-line bg-white/80 backdrop-blur-sm">
             <div className="flex items-center gap-1.5 font-bold text-ink">
                 <span className="text-[14px]">●</span>
                 <span className="text-base tracking-tight">Inbound</span>

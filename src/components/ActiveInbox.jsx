@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import Card from "./ui/Card";
 import Countdown from "./Countdown";
 import ProgressRing from "./ProgressRing";
-import Badge from "./ui/Badge";
-import Button from "./ui/Button";
 import AddressBar from "./AddressBar";
 import MessageList from "./MessageList";
 import { useMessages } from "../state/useMessages.js";
@@ -24,6 +22,18 @@ export default function ActiveInbox({
     // Live messages for this inbox. Owns its own socket, so unmounting on
     // expiry or destroy tears the connection down too.
     const { messages } = useMessages(inbox);
+
+    // Messages opened in this tab. The socket's previews carry no read flag,
+    // so "unread" is the server's word where it has one, and this otherwise.
+    const [openedIds, setOpenedIds] = useState(() => new Set());
+    const isUnread = (message) =>
+        !message.isRead && !openedIds.has(message.id);
+    const unreadCount = messages.filter(isUnread).length;
+
+    const openMessage = (message) => {
+        setOpenedIds((prev) => new Set(prev).add(message.id));
+        onSelectMessage?.(message);
+    };
 
     useEffect(() => {
         const intervalId = setInterval(() => setNow(Date.now()), 1000);
@@ -115,25 +125,28 @@ export default function ActiveInbox({
 
             {/* Inbox Layout */}
             <div className="mt-8 flex flex-col">
-                <div className="flex flex-wrap items-center justify-between mb-4 px-2 gap-4">
-                    <div className="flex items-center gap-3">
-                        <h2 className="text-lg font-bold text-ink">Inbox</h2>
-                        <Badge className="rounded-full text-gray-900">
+                <div className="flex flex-wrap items-center justify-between mb-3 gap-4">
+                    <div className="flex items-center gap-2.5">
+                        <h2 className="text-xl font-bold tracking-[-0.5px] text-gray-900">
+                            Inbox
+                        </h2>
+                        <span className="rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 font-mono text-xs font-medium text-gray-600">
                             {messages.length}{" "}
                             {messages.length === 1 ? "message" : "messages"}
-                        </Badge>
+                        </span>
+                        {unreadCount > 0 && (
+                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 font-mono text-xs font-semibold text-emerald-700">
+                                {unreadCount} unread
+                            </span>
+                        )}
                     </div>
 
-                    <div className="flex items-center gap-4 text-[13px] font-medium">
-                        <Button
-                            variant="chip"
-                            onClick={onRefresh}
-                            disabled={anyBusy}
-                            className="text-muted hover:text-ink flex items-center gap-1.5 transition-colors">
-                            ↻ {refreshing ? "Refreshing…" : "Refresh"}
-                        </Button>
-                        <Button
-                            variant="chip"
+                    <div className="flex items-center gap-2">
+                        <InboxAction onClick={onRefresh} disabled={anyBusy}>
+                            <span aria-hidden="true">↻</span>
+                            {refreshing ? "Refreshing…" : "Refresh"}
+                        </InboxAction>
+                        <InboxAction
                             onClick={onExtend}
                             disabled={!canExtend || anyBusy}
                             title={
@@ -141,23 +154,15 @@ export default function ActiveInbox({
                                     ? undefined
                                     : "This inbox cannot be extended any further."
                             }
-                            className="text-muted hover:text-ink flex items-center gap-1.5 transition-colors">
+                            >
                             {extending ? "Extending…" : extendLabel}
-                        </Button>
-                        <Button
-                            variant="chip"
+                        </InboxAction>
+                        <InboxAction
                             onClick={onDestroy}
                             disabled={anyBusy}
-                            className="text-danger hover:border-danger hover:bg-red-100 hover:opacity-80 flex items-center gap-1.5 transition-colors border border-danger/20  px-2 py-1 rounded">
-                            <span className="text-base leading-none">
-                                <img
-                                    className="w-[10.667px] h-3"
-                                    src="/trash-1.png"
-                                    alt=""
-                                />
-                            </span>{" "}
+                            danger>
                             {destroying ? "Destroying…" : "Destroy Inbox"}
-                        </Button>
+                        </InboxAction>
                     </div>
                 </div>
 
@@ -170,10 +175,15 @@ export default function ActiveInbox({
                 )}
 
                 {messages.length > 0 ? (
-                    <MessageList
-                        messages={messages}
-                        onSelectMessage={onSelectMessage}
-                    />
+                    <>
+                        <MessageList
+                            messages={messages}
+                            onSelectMessage={openMessage}
+                            isUnread={isUnread}
+                            now={now}
+                        />
+                        <AutoExtractNote />
+                    </>
                 ) : (
                     /* Empty State Body */
                     <Card className="p-12 sm:p-16 shadow-sm flex flex-col items-center justify-center text-center">
@@ -212,6 +222,50 @@ export default function ActiveInbox({
                         </div>
                     </Card>
                 )}
+            </div>
+        </div>
+    );
+}
+
+// The inbox's header actions, as the design draws them: white, a hairline
+// border and a one-pixel shadow, with hover only deepening the border and
+// tinting the fill. Destroy is the same button in red.
+function InboxAction({ danger = false, children, ...props }) {
+    return (
+        <button
+            type="button"
+            className={`flex h-8 items-center gap-1.5 rounded-[6px] border bg-white px-3 text-xs font-medium shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-50 ${
+                danger
+                    ? "border-red-200 text-red-600 enabled:hover:border-red-300 enabled:hover:bg-red-50"
+                    : "border-gray-200 text-gray-700 enabled:hover:border-gray-300 enabled:hover:bg-gray-50"
+            }`}
+            {...props}>
+            {children}
+        </button>
+    );
+}
+
+// Explains the code extraction under the list, as in the design's inbox frame.
+function AutoExtractNote() {
+    return (
+        <div className="mt-4 flex gap-4 rounded-[12px] border border-gray-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+            <span
+                aria-hidden="true"
+                className="grid size-8 shrink-0 place-items-center rounded-[8px] border border-gray-200 bg-gray-50 text-sm text-gray-600">
+                ⚿
+            </span>
+            <div>
+                <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900">
+                    Auto-Extract Verification Codes
+                    <span className="rounded border border-gray-200 bg-gray-50 px-1.5 font-mono text-[10px] font-medium text-gray-500">
+                        SMART OTP
+                    </span>
+                </p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                    6-digit verification OTPs, security tokens, and magic links
+                    are extracted automatically and pinned at the top of
+                    incoming messages for one-click copying.
+                </p>
             </div>
         </div>
     );

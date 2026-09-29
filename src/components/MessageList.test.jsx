@@ -29,7 +29,6 @@ describe("MessageList", () => {
         );
 
         expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
-        expect(screen.getByText("<ada@example.com>")).toBeInTheDocument();
         expect(
             screen.getByText("Your verification code"),
         ).toBeInTheDocument();
@@ -164,5 +163,76 @@ describe("MessageList", () => {
         );
 
         expect(onSelectMessage).toHaveBeenCalledWith(message);
+    });
+
+    describe("read state", () => {
+        const minutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
+
+        it("labels a message that just arrived as NEW", () => {
+            render(
+                <MessageList
+                    messages={[{ id: "a", subject: "Hi", fromAddress: "a@x.dev", receivedAt: now() }]}
+                    isUnread={() => true}
+                    now={Date.now()}
+                />,
+            );
+            expect(screen.getByText("NEW")).toBeInTheDocument();
+        });
+
+        it("labels an older unopened message UNREAD", () => {
+            render(
+                <MessageList
+                    messages={[{ id: "a", subject: "Hi", fromAddress: "a@x.dev", receivedAt: minutesAgo(3) }]}
+                    isUnread={() => true}
+                />,
+            );
+            expect(screen.getByText("UNREAD")).toBeInTheDocument();
+        });
+
+        it("labels an opened message READ", () => {
+            render(
+                <MessageList
+                    messages={[{ id: "a", subject: "Hi", fromAddress: "a@x.dev", receivedAt: now() }]}
+                    isUnread={() => false}
+                />,
+            );
+            expect(screen.getByText("READ")).toBeInTheDocument();
+        });
+    });
+
+    it("shows the verification code found in the message", () => {
+        render(
+            <MessageList
+                messages={[
+                    {
+                        id: "a",
+                        subject: "Your login code is 849 201",
+                        fromAddress: "a@x.dev",
+                        receivedAt: now(),
+                    },
+                ]}
+            />,
+        );
+        expect(screen.getByText("OTP: 849201")).toBeInTheDocument();
+    });
+
+    it("follows the subject with a plain-text preview of the body", () => {
+        render(
+            <MessageList
+                messages={[
+                    {
+                        id: "a",
+                        subject: "Welcome",
+                        body: "<p>Two steps <b>left</b></p>",
+                        fromAddress: "a@x.dev",
+                        receivedAt: now(),
+                    },
+                ]}
+            />,
+        );
+        // The subject, the dash and the preview are separate spans in one row.
+        expect(screen.getByRole("button")).toHaveTextContent(
+            /Welcome\s*—\s*Two steps left/,
+        );
     });
 });

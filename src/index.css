@@ -7,27 +7,27 @@
 @import "tailwindcss";
 
 @theme {
-    --color-page: #faf6f3;
-    --color-surface: #fffefd;
+    --color-page: #f6f7f9;
+    --color-surface: #ffffff;
     --color-surface-subtle: #fcfdfe;
-    --color-header: #fefaf6;
-    --color-border-default: #ece5de;
+    --color-header: #ffffff;
+    --color-border-default: #e5e7eb;
     --color-border-strong: #111111;
-    --color-text-primary: #1c1613;
-    --color-text-secondary: #574f47;
+    --color-text-primary: #111827;
+    --color-text-secondary: #4b5563;
     --color-text-tertiary: #9a9ca3;
-    --color-danger: #bb0112;
+    --color-danger: #dc2626;
     --color-success: #1f9d55;
-    --color-dark-btn: #1c1613;
+    --color-dark-btn: #111111;
     --color-dark-btn-hover: #2a2a2a;
     --color-chip: #eef0f2;
-    --color-ink: #1c1613;
-    --color-muted: #574f47;
-    --color-canvas: #f4f0ed;
-    --color-line: #ece5de;
-    --color-line-cool: #ece5de;
+    --color-ink: #111827;
+    --color-muted: #6b7280;
+    --color-canvas: #f9fafb;
+    --color-line: #e5e7eb;
+    --color-line-cool: #e5e7eb;
 
-    --shadow-tile: 0 12px 16px rgba(92, 69, 51, 0.1), 0 1px 1.5px rgba(92, 69, 51, 0.06);
+    --shadow-tile: 0 1px 2px rgba(0, 0, 0, 0.05);
 
     --font-sans:
         "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
@@ -46,10 +46,9 @@ body {
 }
 
 /*
- * The warm ambient backdrop from the Figma landing page (node 109:3790), shared
- * by every screen so the inbox and the reader sit on the same surface as the
- * landing page. Fixed to the viewport: the glow stays put while content
- * scrolls over it, and pages of any height get the whole of it.
+ * The warm ambient backdrop from the Figma landing page (node 109:3790). The
+ * landing page only: the inbox and reader frames sit on a plain page. Fixed to
+ * the viewport, so the glow stays put while content scrolls over it.
  */
 .app-backdrop {
     position: relative;

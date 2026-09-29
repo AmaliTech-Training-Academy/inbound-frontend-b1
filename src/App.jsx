@@ -23,8 +23,13 @@ function HomePage() {
   const openMessage = (message) =>
     navigate(messageDetailsPath(message.id), { state: { message } })
 
+  // The warm glow belongs to the landing page alone; the inbox and the purged
+  // card sit on the plain page, as in the design's inbox frames.
+  const landing =
+    inbox.status !== 'active' && inbox.status !== 'expired' && !inbox.regenerating
+
   return (
-    <>
+    <div className={`flex flex-1 flex-col ${landing ? 'app-backdrop' : ''}`}>
       <Header
         status={inbox.status}
         generate={inbox.generate}
@@ -41,7 +46,7 @@ function HomePage() {
           mounts over the inbox instead of replacing it. The address, the socket
           and the message list all live here. */}
       <Outlet />
-    </>
+    </div>
   )
 }
 
@@ -66,7 +71,7 @@ function MessageDetailsPage({ onGenerateEmail, onDestroy }) {
   return (
     // The reader renders into the home page's outlet, so it has to be lifted
     // out of the flow to cover it; scrolling still belongs to the reader.
-    <div className="app-backdrop fixed inset-0 z-40 overflow-y-auto">
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-page">
       <MessageReader
         message={toReaderMessage(source)}
         inboxAddress={INBOX_ADDRESS}
@@ -95,7 +100,7 @@ function App() {
   }
 
   return (
-    <div className="app-backdrop min-h-screen flex flex-col text-text-primary font-sans">
+    <div className="min-h-screen flex flex-col bg-page text-text-primary font-sans">
       {feedbackNotification && (
         <div
           role="status"
