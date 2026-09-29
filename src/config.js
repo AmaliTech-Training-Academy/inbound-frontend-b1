@@ -17,20 +17,32 @@ export const API_BASE = (
 ).replace(/\/+$/, ""); // a trailing slash would build ".../api/v1//inbox"
 
 /**
- * Socket.IO origin and path.
+ * Socket.IO origin and path, split from the API base.
  *
- * socket.io-client takes an http(s) origin plus a `path`, not a ws:// URL, so
- * the old scheme swap had to go. Stripping /api/v1 still holds: it leaves the
- * socket's parent path.
+ * socket.io-client reads the path of the URL it is given as a NAMESPACE, not
+ * as a mount point: io("https://host/server") asks for namespace "/server" on
+ * the default "/socket.io" and never connects. A deployment prefix therefore
+ * has to travel in the `path` option, with the URL cut back to the origin.
  *
- *   http://localhost:9001/api/v1  -> http://localhost:9001/socket.io
- *   https://host/server/api/v1    -> https://host/server/socket.io
+ *   http://localhost:9001/api/v1  -> origin http://localhost:9001, path /socket.io
+ *   https://host/server/api/v1    -> origin https://host, path /server/socket.io
  */
-export const SOCKET_ORIGIN = (
-    env.VITE_SOCKET_ORIGIN || API_BASE.replace(/\/api\/v1\/?$/, "")
-).replace(/\/+$/, "");
+export function splitSocketTarget(apiBase) {
+    try {
+        const url = new URL(apiBase.replace(/\/api\/v1\/?$/, ""));
+        const prefix = url.pathname.replace(/\/+$/, "");
+        return { origin: url.origin, path: `${prefix}/socket.io` };
+    } catch {
+        // Relative or unparseable: fall back to same-origin defaults.
+        return { origin: undefined, path: "/socket.io" };
+    }
+}
 
-export const SOCKET_PATH = env.VITE_SOCKET_PATH || "/socket.io";
+const socketTarget = splitSocketTarget(API_BASE);
+
+export const SOCKET_ORIGIN = env.VITE_SOCKET_ORIGIN || socketTarget.origin;
+
+export const SOCKET_PATH = env.VITE_SOCKET_PATH || socketTarget.path;
 
 /**
  * Flip this on to run entirely against the in-memory mock backend — no API,

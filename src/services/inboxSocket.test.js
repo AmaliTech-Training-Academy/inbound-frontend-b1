@@ -11,8 +11,8 @@ vi.mock("socket.io-client", () => ({ io: ioMock }));
 vi.mock("../config.js", () => ({
     USE_MOCK: false,
     API_BASE: "https://host.test/server/api/v1",
-    SOCKET_ORIGIN: "https://host.test/server",
-    SOCKET_PATH: "/socket.io",
+    SOCKET_ORIGIN: "https://host.test",
+    SOCKET_PATH: "/server/socket.io",
 }));
 
 import { createInboxSocket, SOCKET_STATUS } from "./inboxSocket.js";
@@ -76,8 +76,10 @@ describe("createInboxSocket", () => {
 
         expect(ioMock).toHaveBeenCalledTimes(1);
         const [url, options] = ioMock.mock.calls[0];
-        expect(url).toBe("https://host.test/server");
-        expect(options.path).toBe("/socket.io");
+        // The deployment prefix travels in `path`; in the URL socket.io would
+        // read it as a namespace and never connect.
+        expect(url).toBe("https://host.test");
+        expect(options.path).toBe("/server/socket.io");
         expect(options.transports).toEqual(["websocket", "polling"]);
         expect(options.reconnection).toBe(true);
     });
