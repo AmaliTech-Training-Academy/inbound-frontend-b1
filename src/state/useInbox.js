@@ -86,6 +86,25 @@ function mergeServerList(session, serverInboxes) {
     };
 }
 
+// What to tell the user about inboxes that went away between two states of
+// the session: every one that left the list - open or not, by timer or by
+// sync - except those destroyed on purpose, and whether the open one was
+// among them. Null when nothing left, or when nothing is left at all (the
+// purged card says that).
+function expiryNotice(prev, next) {
+    if (!prev || !next) return null;
+    const hidden = new Set(prev.hiddenIds ?? []);
+    const kept = new Set(next.inboxes.map((inbox) => inbox.id));
+    const gone = prev.inboxes.filter(
+        (inbox) => !hidden.has(inbox.id) && !kept.has(inbox.id),
+    );
+    if (gone.length === 0) return null;
+    return {
+        addresses: gone.map((inbox) => inbox.address),
+        switched: gone.some((inbox) => inbox.id === prev.activeId),
+    };
+}
+
 export function useInbox() {
     // Restore straight from storage rather than showing a placeholder while
     // the server confirms. loadSession() has already discarded anything
@@ -108,7 +127,8 @@ export function useInbox() {
     // the landing screen while one more inbox is on its way.
     const [adding, setAdding] = useState(false);
 
-    // "<address> expired", shown briefly when a non-last inbox runs out.
+    // { addresses, switched }: which inboxes just expired, shown briefly while
+    // others remain.
     const [notice, setNotice] = useState(null);
 
     // Guards against a double-click creating two inboxes. A ref rather than
@@ -166,11 +186,14 @@ export function useInbox() {
             // cancelled it, so check again rather than trust the await.
             if (controller.signal.aborted) return;
 
-            const next = pruneSession(mergeServerList(sessionRef.current ?? current, remote));
+            const before = sessionRef.current ?? current;
+            const next = pruneSession(mergeServerList(before, remote));
             if (!next) {
                 endSession("expired");
                 return;
             }
+            const expired = expiryNotice(before, next);
+            if (expired) setNotice(expired);
             setSession(next);
         } catch (err) {
             if (controller.signal.aborted) return;
@@ -219,8 +242,7 @@ export function useInbox() {
             endSession("expired");
             return;
         }
-        const activeGone = gone.find((inbox) => inbox.id === current.activeId);
-        if (activeGone) setNotice(`${activeGone.address} expired`);
+        setNotice(expiryNotice(current, next));
         setSession(next);
     }, [endSession]);
 
@@ -400,8 +422,12 @@ export function useInbox() {
                 ...current,
                 inboxes: current.inboxes.filter((entry) => entry.id !== id),
             });
-            if (!next) endSession("expired");
-            else setSession(next);
+            if (!next) {
+                endSession("expired");
+                return;
+            }
+            setNotice(expiryNotice(current, next));
+            setSession(next);
         },
         [endSession],
     );

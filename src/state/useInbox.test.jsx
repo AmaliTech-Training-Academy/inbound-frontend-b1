@@ -181,6 +181,23 @@ describe("useInbox", () => {
             expect(result.current.inboxes.map((i) => i.id)).toEqual(["b"]);
         });
 
+        it("keeps a destroyed inbox hidden after a reload", async () => {
+            // The server lists a destroyed inbox until its TTL, so its id has
+            // to outlive every prune - a reload prunes before the first sync.
+            storeSession();
+            const first = renderHook(() => useInbox());
+            act(() => first.result.current.destroy());
+            first.unmount();
+
+            getSessionInboxes.mockResolvedValue([inboxA, inboxB]);
+            const { result } = renderHook(() => useInbox());
+            await waitFor(() => expect(getSessionInboxes).toHaveBeenCalled());
+            await act(async () => {});
+
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["b"]);
+            expect(result.current.notice).toBeNull();
+        });
+
         it("keeps a destroyed inbox hidden when a later sync lists it again", async () => {
             storeSession();
             getSessionInboxes.mockResolvedValue([inboxA, inboxB]);
@@ -304,8 +321,43 @@ describe("useInbox", () => {
             const { result } = renderHook(() => useInbox());
 
             await waitFor(() => expect(result.current.inbox.id).toBe("b"));
-            expect(result.current.notice).toBe(`${inboxA.address} expired`);
+            expect(result.current.notice).toEqual({
+                addresses: [inboxA.address],
+                switched: true,
+            });
             expect(result.current.status).toBe("active");
+        });
+
+        it("says so when an inbox that is not open runs out, and stays put", async () => {
+            storeSession({
+                inboxes: [
+                    inboxA,
+                    { ...inboxB, expiresAt: new Date(Date.now() + 150).toISOString() },
+                ],
+            });
+            const { result } = renderHook(() => useInbox());
+
+            await waitFor(() => expect(result.current.inboxes).toHaveLength(1));
+            expect(result.current.inbox.id).toBe("a");
+            expect(result.current.notice).toEqual({
+                addresses: [inboxB.address],
+                switched: false,
+            });
+        });
+
+        it("says so when the server's list drops an expired inbox", async () => {
+            storeSession();
+            getSessionInboxes.mockResolvedValue([
+                inboxA,
+                { ...inboxB, expiresAt: inMinutes(-1) },
+            ]);
+            const { result } = renderHook(() => useInbox());
+
+            await waitFor(() => expect(result.current.inboxes).toHaveLength(1));
+            expect(result.current.notice).toEqual({
+                addresses: [inboxB.address],
+                switched: false,
+            });
         });
 
         it("shows the purged state when the last inbox runs out", async () => {

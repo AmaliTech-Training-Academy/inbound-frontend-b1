@@ -137,17 +137,15 @@ export function pruneSession(session) {
     const live = liveInboxes(session);
     if (live.length === 0) return null;
 
-    const hidden = new Set(session.hiddenIds ?? []);
     const liveIds = new Set(live.map((inbox) => inbox.id));
     return {
         ...session,
         inboxes: live,
-        // Only ids the server may still return are worth remembering.
-        hiddenIds: [...hidden].filter((id) =>
-            session.inboxes.some(
-                (inbox) => inbox.id === id && msRemaining(inbox.expiresAt) > 0,
-            ),
-        ),
+        // Kept whole, never trimmed to the inboxes still listed here: a
+        // destroyed inbox leaves this list at once but stays on the server's
+        // until its TTL, so forgetting its id would let the next sync bring
+        // it back. The list only lives as long as the session.
+        hiddenIds: [...(session.hiddenIds ?? [])],
         activeId: liveIds.has(session.activeId) ? session.activeId : live[0].id,
     };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { msRemaining } from "../state/inboxStorage.js";
+import { isRunningOut } from "../utils/inboxProgress.js";
 
 function timeLeft(expiresAt, now) {
     const end = new Date(expiresAt).getTime();
@@ -44,7 +44,8 @@ export default function InboxRail({
                     const active = inbox.id === activeId;
                     const unread = unreadCounts[inbox.id] ?? 0;
                     const localPart = inbox.address.split("@")[0];
-                    const ending = msRemaining(inbox.expiresAt) <= 60_000;
+                    // The timer card's rule, so a row and its card turn red together.
+                    const ending = isRunningOut(inbox, now);
 
                     return (
                         <li key={inbox.id} className="shrink-0 lg:shrink">

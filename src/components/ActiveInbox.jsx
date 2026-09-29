@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "./ui/Card";
 import Countdown from "./Countdown";
 import ProgressRing from "./ProgressRing";
@@ -6,7 +6,8 @@ import AddressBar from "./AddressBar";
 import ConfirmDestroyDialog from "./ConfirmDestroyDialog";
 import ReaderButton from "./Button";
 import MessageList from "./MessageList";
-import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
+import { EXTEND_MINUTES } from "../config.js";
+import { inboxProgress, isRunningOut } from "../utils/inboxProgress.js";
 
 export default function ActiveInbox({
     inbox,
@@ -37,26 +38,9 @@ export default function ActiveInbox({
         return () => clearInterval(intervalId);
     }, []);
 
-    const percentage = useMemo(() => {
-        if (!inbox.expiresAt) return 100;
-
-        const expiryTimestamp = new Date(inbox.expiresAt).getTime();
-        if (Number.isNaN(expiryTimestamp)) return 100;
-
-        const createdTimestamp = new Date(inbox.createdAt ?? "").getTime();
-        const fallbackMs =
-            (INBOX_TTL_MINUTES + (inbox.extendCount ?? 0) * EXTEND_MINUTES) *
-            60_000;
-        const totalDurationMs = Number.isNaN(createdTimestamp)
-            ? fallbackMs
-            : Math.max(1, expiryTimestamp - createdTimestamp);
-
-        const msRemaining = Math.max(0, expiryTimestamp - now);
-        const calcPercentage = (msRemaining / totalDurationMs) * 100;
-        return Math.min(100, Math.max(0, calcPercentage));
-    }, [inbox.expiresAt, inbox.createdAt, inbox.extendCount, now]);
-
-    const isDanger = percentage <= 30;
+    // The same rule as the rail's rows, so both turn red together.
+    const percentage = inboxProgress(inbox, now);
+    const isDanger = isRunningOut(inbox, now);
     const extending = busy === "extending";
     const refreshing = busy === "refreshing";
     const destroying = busy === "destroying";
