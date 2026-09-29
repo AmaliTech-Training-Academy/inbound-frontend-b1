@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MAX_INBOXES } from "../config.js";
 
 import InboxRail from "./InboxRail.jsx";
 
@@ -73,15 +72,6 @@ describe("InboxRail", () => {
         await user.click(screen.getByRole("button", { name: "+ New inbox" }));
 
         expect(onAdd).toHaveBeenCalledTimes(1);
-    });
-
-    it(`says so, and stops adding, at ${MAX_INBOXES} inboxes`, () => {
-        const full = Array.from({ length: MAX_INBOXES }, (_, n) => inbox(`i${n}`));
-        render(<InboxRail inboxes={full} activeId="i0" canAdd={false} />);
-
-        expect(
-            screen.getByRole("button", { name: "Inbox limit reached" }),
-        ).toBeDisabled();
     });
 
     it("shows an add in progress", () => {

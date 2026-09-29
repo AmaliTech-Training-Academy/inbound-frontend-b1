@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { MAX_INBOXES } from "../config.js";
 import { msRemaining } from "../state/inboxStorage.js";
 
 function timeLeft(expiresAt, now) {
@@ -29,8 +28,6 @@ export default function InboxRail({
         return () => clearInterval(id);
     }, []);
 
-    const full = inboxes.length >= MAX_INBOXES;
-
     return (
         <nav
             aria-label="Inboxes"
@@ -38,7 +35,7 @@ export default function InboxRail({
             <p className="px-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">
                 Inboxes
                 <span className="ml-1.5 font-mono font-medium normal-case tracking-normal">
-                    {inboxes.length}/{MAX_INBOXES}
+                    {inboxes.length}
                 </span>
             </p>
 
@@ -99,13 +96,8 @@ export default function InboxRail({
                         type="button"
                         onClick={onAdd}
                         disabled={!canAdd}
-                        title={
-                            full
-                                ? `A session holds up to ${MAX_INBOXES} inboxes.`
-                                : undefined
-                        }
                         className="flex h-full w-full min-w-36 items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-gray-300 px-3 py-2.5 text-xs font-medium text-gray-600 transition-colors enabled:hover:border-gray-400 enabled:hover:bg-white enabled:hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-50">
-                        {adding ? "Adding…" : full ? "Inbox limit reached" : "+ New inbox"}
+                        {adding ? "Adding…" : "+ New inbox"}
                     </button>
                 </li>
             </ul>

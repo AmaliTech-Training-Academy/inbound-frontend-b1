@@ -1,6 +1,6 @@
 // Owns the session and its inboxes. Every other IND-3 component reads from this.
 //
-// One session token owns up to MAX_INBOXES inboxes. What comes back describes
+// One session token owns any number of inboxes. What comes back describes
 // the *active* inbox in the same shape it always has (`status`, `inbox`, the
 // actions), plus the list of inboxes and the means to add and switch.
 
@@ -20,7 +20,7 @@ import {
     extendInbox,
     ApiError,
 } from "../services/inboxApi.js";
-import { MAX_EXTENDS, MAX_INBOXES } from "../config.js";
+import { MAX_EXTENDS } from "../config.js";
 import {
     saveSession,
     loadSession,
@@ -270,8 +270,9 @@ export function useInbox() {
     const addInbox = useCallback(async () => {
         if (inFlight.current) return;
         const current = sessionRef.current;
+        // No cap on how many: the server sets none. If the backend adds one,
+        // its refusal surfaces through the error below.
         const count = liveInboxes(current).length;
-        if (count >= MAX_INBOXES) return;
 
         inFlight.current = true;
         cancelSync();
@@ -493,7 +494,7 @@ export function useInbox() {
         notice,
         regenerating,
         canExtend: (inbox?.extendCount ?? 0) < MAX_EXTENDS,
-        canAddInbox: inboxes.length < MAX_INBOXES && !adding,
+        canAddInbox: !adding,
         generate,
         regenerate,
         addInbox,

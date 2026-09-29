@@ -13,7 +13,6 @@ vi.mock("../services/inboxApi.js", async () => {
 });
 
 import { useInbox } from "./useInbox.js";
-import { MAX_INBOXES } from "../config.js";
 import { createInbox, getSessionInboxes, ApiError } from "../services/inboxApi.js";
 
 const LEGACY_KEY = "inbound.inbox";
@@ -238,22 +237,6 @@ describe("useInbox", () => {
             expect(result.current.status).toBe("active");
             expect(result.current.inbox.id).toBe("a");
             expect(result.current.error.message).toMatch(/could not add an inbox/i);
-        });
-
-        it(`stops at ${MAX_INBOXES} inboxes`, async () => {
-            storeSession({
-                inboxes: Array.from({ length: MAX_INBOXES }, (_, n) => ({
-                    ...inboxA,
-                    id: `i${n}`,
-                })),
-                activeId: "i0",
-            });
-
-            const { result } = renderHook(() => useInbox());
-            expect(result.current.canAddInbox).toBe(false);
-            await act(() => result.current.addInbox());
-
-            expect(createInbox).not.toHaveBeenCalled();
         });
 
         it("creates the first inbox through the creating state", async () => {
