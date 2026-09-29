@@ -50,10 +50,18 @@ export default function AddressBar({ address }) {
                               : `Copy ${address}`
                     }
                     className="flex shrink-0 items-center gap-2 rounded-sm bg-ink px-4 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90">
-                    {copyState === "copied" ? <CheckThick /> : <Copy />}
-                    <span className="hidden sm:inline">
-                        {copyState === "copied" ? "Copied" : "Copy Address"}
-                    </span>
+                    {/* Copied reads in green, as on the reader's Copy Code. */}
+                    {copyState === "copied" ? (
+                        <span className="flex items-center gap-1.5 font-semibold text-success">
+                            <CheckThick />
+                            <span className="hidden sm:inline">Copied</span>
+                        </span>
+                    ) : (
+                        <>
+                            <Copy />
+                            <span className="hidden sm:inline">Copy Address</span>
+                        </>
+                    )}
                 </Button>
             </div>
 
