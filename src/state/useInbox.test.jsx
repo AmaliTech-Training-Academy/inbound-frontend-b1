@@ -164,6 +164,25 @@ describe("useInbox", () => {
             );
         });
 
+        it("keeps the rail's order whatever order the server lists in", async () => {
+            // A just-added inbox sat at the bottom, then jumped when the next
+            // sync adopted the server's order.
+            storeSession();
+            getSessionInboxes.mockResolvedValue([
+                { ...inboxA, id: "c", address: "charlie@inbound.dev", createdAt: inMinutes(-0.5) },
+                inboxB,
+                { ...inboxA, id: "d", address: "delta@inbound.dev", createdAt: inMinutes(-0.8) },
+                inboxA,
+            ]);
+
+            const { result } = renderHook(() => useInbox());
+
+            // a and b where they were; the unseen ones after, oldest first.
+            await waitFor(() =>
+                expect(result.current.inboxes.map((i) => i.id)).toEqual(["a", "b", "d", "c"]),
+            );
+        });
+
         it("does not bring back an inbox destroyed while it was in flight", async () => {
             storeSession();
             const answer = deferred();

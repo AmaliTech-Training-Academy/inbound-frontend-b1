@@ -69,9 +69,26 @@ function toEntry(created) {
 // expire. What only this tab knows - extend counts - is kept.
 function mergeServerList(session, serverInboxes) {
     const local = new Map(session.inboxes.map((inbox) => [inbox.id, inbox]));
+
+    // The order on screen is kept: the server lists inboxes in no promised
+    // order, and adopting it made a just-added inbox jump from the bottom of
+    // the rail to somewhere else a few seconds later. Inboxes this tab already
+    // shows stay where they are; ones it has not seen join the end, oldest
+    // first.
+    const position = new Map(session.inboxes.map((inbox, index) => [inbox.id, index]));
+    const created = (inbox) => new Date(inbox.createdAt ?? 0).getTime() || 0;
+    const ordered = [...serverInboxes].sort((a, b) => {
+        const pa = position.get(a.id);
+        const pb = position.get(b.id);
+        if (pa !== undefined && pb !== undefined) return pa - pb;
+        if (pa !== undefined) return -1;
+        if (pb !== undefined) return 1;
+        return created(a) - created(b);
+    });
+
     return {
         ...session,
-        inboxes: serverInboxes.map((remote) => ({
+        inboxes: ordered.map((remote) => ({
             id: remote.id,
             address: remote.address,
             createdAt: remote.createdAt ?? local.get(remote.id)?.createdAt,
