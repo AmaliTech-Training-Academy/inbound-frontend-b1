@@ -81,6 +81,13 @@ export const EXTEND_MINUTES = 5;
  */
 export const MAX_EXTENDS = 3;
 
+/**
+ * Most inboxes one session holds at a time. Each open inbox keeps its own
+ * socket (a socket joins one inbox room), so this bounds the connections as
+ * well as the length of the rail.
+ */
+export const MAX_INBOXES = 5;
+
 /** Timer colour thresholds, in seconds. */
 export const TIMER_WARN_SECONDS = 5 * 60;
 export const TIMER_DANGER_SECONDS = 60;

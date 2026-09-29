@@ -10,6 +10,9 @@ export default function ConfirmDestroyDialog({
   onCancel,
   onConfirm,
   showBackendNote = false,
+  // Optional: which inbox, and how many others the session keeps.
+  address = null,
+  otherInboxCount = 0,
 }) {
   const cancelRef = useRef(null)
 
@@ -45,7 +48,18 @@ export default function ConfirmDestroyDialog({
           </h3>
         </div>
         <p id="confirm-destroy-body" className="text-xs text-text-secondary leading-relaxed">
-          This action is permanent and will delete all messages in this temporary address.
+          This action is permanent and will delete all messages in{' '}
+          {address ? (
+            <span className="font-mono text-text-primary">{address}</span>
+          ) : (
+            'this temporary address'
+          )}
+          .
+          {otherInboxCount > 0 && (
+            <span className="block mt-2">
+              Your other {otherInboxCount === 1 ? 'inbox stays' : `${otherInboxCount} inboxes stay`}.
+            </span>
+          )}
           {showBackendNote && (
             <span className="block mt-2 font-mono text-[11px] text-text-tertiary">
               (Note: Backend deletion API will be connected in future tickets.)

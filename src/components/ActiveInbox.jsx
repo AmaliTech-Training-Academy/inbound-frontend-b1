@@ -6,7 +6,6 @@ import AddressBar from "./AddressBar";
 import ConfirmDestroyDialog from "./ConfirmDestroyDialog";
 import ReaderButton from "./Button";
 import MessageList from "./MessageList";
-import { useMessages } from "../state/useMessages.js";
 import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
 
 export default function ActiveInbox({
@@ -15,30 +14,23 @@ export default function ActiveInbox({
     onExtend,
     onRefresh,
     onSelectMessage,
+    // The live feed is owned above this screen (one per inbox, see
+    // InboxFeed), so switching inboxes keeps every list; this only draws it.
+    messages = [],
+    isUnread = (message) => !message.isRead,
+    // How many other inboxes the session still holds, for the destroy copy.
+    otherInboxCount = 0,
     canExtend = true,
     busy = null,
     actionError = null,
 }) {
     const [now, setNow] = useState(() => Date.now());
 
-    // Live messages for this inbox. Owns its own socket, so unmounting on
-    // expiry or destroy tears the connection down too.
-    const { messages } = useMessages(inbox);
-
-    // Messages opened in this tab. The socket's previews carry no read flag,
-    // so "unread" is the server's word where it has one, and this otherwise.
-    const [openedIds, setOpenedIds] = useState(() => new Set());
-
     // Destroying is permanent, so the button only asks; the dialog destroys.
     const [confirmingDestroy, setConfirmingDestroy] = useState(false);
-    const isUnread = (message) =>
-        !message.isRead && !openedIds.has(message.id);
     const unreadCount = messages.filter(isUnread).length;
 
-    const openMessage = (message) => {
-        setOpenedIds((prev) => new Set(prev).add(message.id));
-        onSelectMessage?.(message);
-    };
+    const openMessage = (message) => onSelectMessage?.(message);
 
     useEffect(() => {
         const intervalId = setInterval(() => setNow(Date.now()), 1000);
@@ -178,6 +170,8 @@ export default function ActiveInbox({
 
                 <ConfirmDestroyDialog
                     open={confirmingDestroy}
+                    address={inbox.address}
+                    otherInboxCount={otherInboxCount}
                     onCancel={() => setConfirmingDestroy(false)}
                     onConfirm={() => {
                         setConfirmingDestroy(false);

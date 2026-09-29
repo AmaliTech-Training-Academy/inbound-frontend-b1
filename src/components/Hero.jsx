@@ -4,6 +4,7 @@ import Button from "./ui/Button.jsx";
 import Card from "./ui/Card.jsx";
 import HowInboundWorks from "./HowInboundWorks.jsx";
 import ActiveInbox from "./ActiveInbox.jsx";
+import InboxRail from "./InboxRail.jsx";
 
 // Inbox state is owned by App and passed in, so the header's Generate
 // button drives the same inbox as this one.
@@ -20,14 +21,26 @@ export default function Hero({
     extend,
     refresh,
     onSelectMessage,
+    inboxes = [],
+    activeId = null,
+    select,
+    addInbox,
+    canAddInbox = true,
+    adding = false,
+    notice = null,
+    messages = [],
+    isUnread,
+    unreadCounts = {},
 }) {
     const creating = status === "creating";
+    const active = status === "active" && inbox;
 
     return (
         // The ambient glow behind this section is the app-wide backdrop (see
         // .app-backdrop), so every screen shares it rather than just this one.
         <section id="generate" className="relative">
-            <div className="relative mx-auto flex max-w-[976px] flex-col items-center px-6 pb-12 pt-16">
+            <div
+                className={`relative mx-auto flex flex-col items-center px-6 pb-12 pt-16 ${active ? "max-w-[1240px]" : "max-w-[976px]"}`}>
                 {status !== "active" &&
                     status !== "loading" &&
                     status !== "expired" &&
@@ -46,20 +59,46 @@ export default function Hero({
                 )}
 
                 <div
-                    className={`w-full ${status === "active" ? "max-w-[976px]" : "max-w-187.5 mt-8"}`}>
+                    className={`w-full ${active ? "" : "max-w-187.5 mt-8"}`}>
                     {status === "loading" ? (
                         <div aria-busy="true" className="h-11" />
-                    ) : status === "active" && inbox ? (
-                        <ActiveInbox
-                            inbox={inbox}
-                            onDestroy={destroy}
-                            onExtend={extend}
-                            onRefresh={refresh}
-                            onSelectMessage={onSelectMessage}
-                            canExtend={canExtend}
-                            busy={busy}
-                            actionError={error}
-                        />
+                    ) : active ? (
+                        <div className="grid gap-6 lg:grid-cols-[232px_minmax(0,976px)] lg:justify-center">
+                            <InboxRail
+                                inboxes={inboxes}
+                                activeId={activeId}
+                                onSelect={select}
+                                onAdd={addInbox}
+                                canAdd={canAddInbox}
+                                adding={adding}
+                                unreadCounts={unreadCounts}
+                            />
+                            <div className="min-w-0">
+                                {notice && (
+                                    <p
+                                        role="status"
+                                        className="mb-4 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-2 text-center text-[13px] text-amber-800">
+                                        <span className="font-mono">{notice}</span>. Switched to your next inbox.
+                                    </p>
+                                )}
+                                <ActiveInbox
+                                    // A fresh screen per inbox, so its timers
+                                    // and dialog never carry across a switch.
+                                    key={inbox.id}
+                                    inbox={inbox}
+                                    messages={messages}
+                                    isUnread={isUnread}
+                                    otherInboxCount={Math.max(0, inboxes.length - 1)}
+                                    onDestroy={destroy}
+                                    onExtend={extend}
+                                    onRefresh={refresh}
+                                    onSelectMessage={onSelectMessage}
+                                    canExtend={canExtend}
+                                    busy={busy}
+                                    actionError={error}
+                                />
+                            </div>
+                        </div>
                     ) : status === "expired" || regenerating ? (
                         <Expired
                             onGenerate={regenerate}

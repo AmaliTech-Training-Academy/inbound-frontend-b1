@@ -4,8 +4,14 @@ import userEvent from "@testing-library/user-event";
 
 import Header from "./Header.jsx";
 
-function renderHeader(status) {
-    const props = { status, generate: vi.fn(), regenerate: vi.fn() };
+function renderHeader(status, extra = {}) {
+    const props = {
+        status,
+        generate: vi.fn(),
+        regenerate: vi.fn(),
+        onAddInbox: vi.fn(),
+        ...extra,
+    };
     render(<Header {...props} />);
     return props;
 }
@@ -42,15 +48,25 @@ describe("Header", () => {
         expect(generate).not.toHaveBeenCalled();
     });
 
-    it("leaves an active inbox alone", async () => {
+    it("adds an inbox to an open session instead of replacing one", async () => {
         // Replacing it from the header would throw away an address in use.
         const user = userEvent.setup();
-        const { generate, regenerate } = renderHeader("active");
+        const { generate, regenerate, onAddInbox } = renderHeader("active");
 
         await user.click(button());
 
+        expect(onAddInbox).toHaveBeenCalledTimes(1);
         expect(generate).not.toHaveBeenCalled();
         expect(regenerate).not.toHaveBeenCalled();
+    });
+
+    it("adds nothing once the session is full", async () => {
+        const user = userEvent.setup();
+        const { onAddInbox } = renderHeader("active", { canAddInbox: false });
+
+        await user.click(button());
+
+        expect(onAddInbox).not.toHaveBeenCalled();
     });
 
     it("is disabled while an inbox is being created", () => {
