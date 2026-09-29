@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import Button from "./ui/Button";
-import { Moon } from "./icons/icons";
 
 // Typing "g" in a field is text, not a shortcut.
 function isTypingTarget(el) {
@@ -68,18 +67,6 @@ export default function Header({ status, generate, regenerate }) {
                         </kbd>
                     )}
                 </Button>
-
-                {/* Dark mode is not implemented yet, so the toggle is shown but disabled. */}
-                <span className="ml-3 border-l border-[#c6c6cd] pl-3">
-                    <button
-                        type="button"
-                        disabled
-                        aria-label="Toggle dark mode (coming soon)"
-                        title="Dark mode is not available yet"
-                        className="grid size-7 place-items-center rounded-[2px] text-ink disabled:cursor-not-allowed">
-                        <Moon />
-                    </button>
-                </span>
             </div>
         </header>
     );
