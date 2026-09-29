@@ -3,6 +3,7 @@ import Card from "./ui/Card";
 import Countdown from "./Countdown";
 import ProgressRing from "./ProgressRing";
 import AddressBar from "./AddressBar";
+import ConfirmDestroyDialog from "./ConfirmDestroyDialog";
 import MessageList from "./MessageList";
 import { useMessages } from "../state/useMessages.js";
 import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
@@ -26,6 +27,9 @@ export default function ActiveInbox({
     // Messages opened in this tab. The socket's previews carry no read flag,
     // so "unread" is the server's word where it has one, and this otherwise.
     const [openedIds, setOpenedIds] = useState(() => new Set());
+
+    // Destroying is permanent, so the button only asks; the dialog destroys.
+    const [confirmingDestroy, setConfirmingDestroy] = useState(false);
     const isUnread = (message) =>
         !message.isRead && !openedIds.has(message.id);
     const unreadCount = messages.filter(isUnread).length;
@@ -158,13 +162,22 @@ export default function ActiveInbox({
                             {extending ? "Extending…" : extendLabel}
                         </InboxAction>
                         <InboxAction
-                            onClick={onDestroy}
+                            onClick={() => setConfirmingDestroy(true)}
                             disabled={anyBusy}
                             danger>
                             {destroying ? "Destroying…" : "Destroy Inbox"}
                         </InboxAction>
                     </div>
                 </div>
+
+                <ConfirmDestroyDialog
+                    open={confirmingDestroy}
+                    onCancel={() => setConfirmingDestroy(false)}
+                    onConfirm={() => {
+                        setConfirmingDestroy(false);
+                        onDestroy?.();
+                    }}
+                />
 
                 {actionError && (
                     <p

@@ -61,8 +61,48 @@ describe("ActiveInbox", () => {
         await user.click(extendButtons()[0]);
         expect(onExtend).toHaveBeenCalledTimes(1);
 
+        // Destroy asks first; only the dialog's confirm button destroys.
         await user.click(screen.getByRole("button", { name: /destroy inbox/i }));
+        expect(onDestroy).not.toHaveBeenCalled();
+        await user.click(screen.getByRole("button", { name: /yes, destroy inbox/i }));
         expect(onDestroy).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+
+    describe("destroy confirmation", () => {
+        it("asks before destroying, with focus on Cancel", async () => {
+            const user = userEvent.setup();
+            setup();
+
+            await user.click(screen.getByRole("button", { name: /destroy inbox/i }));
+
+            expect(screen.getByRole("alertdialog")).toHaveTextContent(
+                "Destroy Temporary Inbox?",
+            );
+            expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+        });
+
+        it("keeps the inbox when cancelled", async () => {
+            const user = userEvent.setup();
+            const { onDestroy } = setup();
+
+            await user.click(screen.getByRole("button", { name: /destroy inbox/i }));
+            await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+            expect(onDestroy).not.toHaveBeenCalled();
+            expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+        });
+
+        it("closes on Escape without destroying", async () => {
+            const user = userEvent.setup();
+            const { onDestroy } = setup();
+
+            await user.click(screen.getByRole("button", { name: /destroy inbox/i }));
+            await user.keyboard("{Escape}");
+
+            expect(onDestroy).not.toHaveBeenCalled();
+            expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+        });
     });
 
     it("disables every action while one is in flight", () => {

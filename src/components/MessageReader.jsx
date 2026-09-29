@@ -4,6 +4,7 @@ import Card from './Card'
 import Badge from './Badge'
 import SafeHtmlEmail from './SafeHtmlEmail'
 import Attachments from './Attachments'
+import ConfirmDestroyDialog from './ConfirmDestroyDialog'
 import { MOCK_MESSAGES } from '../data/mockMessages'
 import { formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../utils/helpers'
 
@@ -535,46 +536,12 @@ function MessageReader({
         </div>
       )}
 
-      {showDestroyConfirm && (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 bg-text-primary/40 backdrop-blur-2xs flex items-center justify-center p-4"
-        >
-          <div className="bg-surface border border-border-default rounded-[10px] p-6 max-w-sm w-full shadow-lg flex flex-col gap-4">
-            <div className="flex items-center gap-2.5 text-danger">
-              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <h3 className="font-bold text-sm text-text-primary">Destroy Temporary Inbox?</h3>
-            </div>
-            <p className="text-xs text-text-secondary leading-relaxed">
-              This action is permanent and will delete all messages in this temporary address.
-              {typeof onDestroy !== 'function' && (
-                <span className="block mt-2 font-mono text-[11px] text-text-tertiary">
-                  (Note: Backend deletion API will be connected in future tickets.)
-                </span>
-              )}
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="light"
-                onClick={() => setShowDestroyConfirm(false)}
-                className="text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                onClick={handleConfirmDestroy}
-                className="text-xs font-semibold"
-              >
-                Yes, destroy inbox
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDestroyDialog
+        open={showDestroyConfirm}
+        onCancel={() => setShowDestroyConfirm(false)}
+        onConfirm={handleConfirmDestroy}
+        showBackendNote={typeof onDestroy !== 'function'}
+      />
     </div>
   )
 }
