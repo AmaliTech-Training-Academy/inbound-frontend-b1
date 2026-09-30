@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "./ui/Card";
 import Countdown from "./Countdown";
 import ProgressRing from "./ProgressRing";
@@ -6,8 +6,8 @@ import AddressBar from "./AddressBar";
 import ConfirmDestroyDialog from "./ConfirmDestroyDialog";
 import ReaderButton from "./Button";
 import MessageList from "./MessageList";
-import { useMessages } from "../state/useMessages.js";
-import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
+import { EXTEND_MINUTES } from "../config.js";
+import { inboxProgress, isRunningOut } from "../utils/inboxProgress.js";
 
 export default function ActiveInbox({
     inbox,
@@ -15,56 +15,32 @@ export default function ActiveInbox({
     onExtend,
     onRefresh,
     onSelectMessage,
+    // The live feed is owned above this screen (one per inbox, see
+    // InboxFeed), so switching inboxes keeps every list; this only draws it.
+    messages = [],
+    isUnread = (message) => !message.isRead,
+    // How many other inboxes the session still holds, for the destroy copy.
+    otherInboxCount = 0,
     canExtend = true,
     busy = null,
     actionError = null,
 }) {
     const [now, setNow] = useState(() => Date.now());
 
-    // Live messages for this inbox. Owns its own socket, so unmounting on
-    // expiry or destroy tears the connection down too.
-    const { messages } = useMessages(inbox);
-
-    // Messages opened in this tab. The socket's previews carry no read flag,
-    // so "unread" is the server's word where it has one, and this otherwise.
-    const [openedIds, setOpenedIds] = useState(() => new Set());
-
     // Destroying is permanent, so the button only asks; the dialog destroys.
     const [confirmingDestroy, setConfirmingDestroy] = useState(false);
-    const isUnread = (message) =>
-        !message.isRead && !openedIds.has(message.id);
     const unreadCount = messages.filter(isUnread).length;
 
-    const openMessage = (message) => {
-        setOpenedIds((prev) => new Set(prev).add(message.id));
-        onSelectMessage?.(message);
-    };
+    const openMessage = (message) => onSelectMessage?.(message);
 
     useEffect(() => {
         const intervalId = setInterval(() => setNow(Date.now()), 1000);
         return () => clearInterval(intervalId);
     }, []);
 
-    const percentage = useMemo(() => {
-        if (!inbox.expiresAt) return 100;
-
-        const expiryTimestamp = new Date(inbox.expiresAt).getTime();
-        if (Number.isNaN(expiryTimestamp)) return 100;
-
-        const createdTimestamp = new Date(inbox.createdAt ?? "").getTime();
-        const fallbackMs =
-            (INBOX_TTL_MINUTES + (inbox.extendCount ?? 0) * EXTEND_MINUTES) *
-            60_000;
-        const totalDurationMs = Number.isNaN(createdTimestamp)
-            ? fallbackMs
-            : Math.max(1, expiryTimestamp - createdTimestamp);
-
-        const msRemaining = Math.max(0, expiryTimestamp - now);
-        const calcPercentage = (msRemaining / totalDurationMs) * 100;
-        return Math.min(100, Math.max(0, calcPercentage));
-    }, [inbox.expiresAt, inbox.createdAt, inbox.extendCount, now]);
-
-    const isDanger = percentage <= 30;
+    // The same rule as the rail's rows, so both turn red together.
+    const percentage = inboxProgress(inbox, now);
+    const isDanger = isRunningOut(inbox, now);
     const extending = busy === "extending";
     const refreshing = busy === "refreshing";
     const destroying = busy === "destroying";
@@ -178,6 +154,8 @@ export default function ActiveInbox({
 
                 <ConfirmDestroyDialog
                     open={confirmingDestroy}
+                    address={inbox.address}
+                    otherInboxCount={otherInboxCount}
                     onCancel={() => setConfirmingDestroy(false)}
                     onConfirm={() => {
                         setConfirmingDestroy(false);

@@ -60,6 +60,10 @@ export class ApiError extends Error {
 // after unwrapping, so swapping between them changes nothing upstream.
 const MOCK = USE_MOCK;
 const mockState = new Map();
+// Sessions the mock knows, by token: `adopted` when it only met the token
+// after a reload, so it holds just the inboxes added since and cannot list
+// the session in full.
+const mockSessions = new Map();
 
 if (MOCK) {
     console.warn(
@@ -161,20 +165,34 @@ function authHeaders(token) {
  * /inbox/info returns one) but the progress ring needs a start point, and the
  * moment the response lands is within a round-trip of the real value. It is
  * used only for that denominator, never sent back to the server.
+ *
+ * Given `sessionToken`, the new inbox joins that session. The server answers
+ * 404 for a session it no longer knows; the caller decides whether to start
+ * a fresh one. `sessionExpiresAt` is the session's own lifetime, which the
+ * server keeps at least as long as its newest inbox.
  */
-export async function createInbox({ signal } = {}) {
+export async function createInbox({ sessionToken, signal } = {}) {
     if (MOCK) {
         await delay(400, signal);
+        // Lenient where the real server is strict: a reload wipes the mock's
+        // memory but not the tab's stored session, so an unknown token is
+        // adopted rather than refused.
+        const token = sessionToken ?? `mock_${Math.random().toString(36).slice(2, 10)}`;
+        if (!mockSessions.has(token)) {
+            mockSessions.set(token, { adopted: Boolean(sessionToken) });
+        }
         const id = mockId();
         const now = Date.now();
         const expiresAt = now + INBOX_TTL_MINUTES * 60_000;
-        mockState.set(id, { extendCount: 0, expiresAt });
+        const address = `mock-${Math.random().toString(36).slice(2, 8)}@tempmail.dev`;
+        mockState.set(id, { extendCount: 0, expiresAt, token, address, createdAt: now });
         return {
             id,
-            address: `mock-${Math.random().toString(36).slice(2, 8)}@tempmail.dev`,
-            token: `mock_${Math.random().toString(36).slice(2, 10)}`,
+            address,
+            token,
             createdAt: new Date(now).toISOString(),
             expiresAt: new Date(expiresAt).toISOString(),
+            sessionExpiresAt: new Date(expiresAt).toISOString(),
         };
     }
 
@@ -182,7 +200,11 @@ export async function createInbox({ signal } = {}) {
 
     const res = await guardedFetch(
         `${API_BASE}/inbox`,
-        { method: "POST", signal },
+        {
+            method: "POST",
+            ...(sessionToken ? { headers: authHeaders(sessionToken) } : {}),
+            signal,
+        },
         "createInbox",
     );
 
@@ -200,7 +222,54 @@ export async function createInbox({ signal } = {}) {
         address: data.address,
         token,
         expiresAt: data.expiresAt,
+        sessionExpiresAt: data.session?.expiresAt ?? data.expiresAt,
     };
+}
+
+/**
+ * GET /api/v1/session/inboxes -> { inboxes: [{ id, address, localPart,
+ *   domain, createdAt, expiresAt, messageCount }] }
+ *
+ * Every inbox the session owns, expired ones included: the server does not
+ * filter them, so the caller does.
+ */
+export async function getSessionInboxes(token, { signal } = {}) {
+    if (MOCK) {
+        await delay(150, signal);
+        // A session from before a reload: the mock cannot vouch for it, nor
+        // list the inboxes it lost, so it answers like an unreachable server
+        // and the tab keeps what it has - rather than ending, or shrinking, a
+        // session the real server would know in full.
+        if (!mockSessions.has(token) || mockSessions.get(token).adopted) {
+            throw new ApiError(0, "The mock backend has no record of this session.");
+        }
+        return [...mockState.entries()]
+            .filter(([, entry]) => entry.token === token)
+            .map(([id, entry]) => ({
+                id,
+                address: entry.address,
+                createdAt: new Date(entry.createdAt).toISOString(),
+                expiresAt: new Date(entry.expiresAt).toISOString(),
+                messageCount: 0,
+            }));
+    }
+
+    assertConfigured();
+
+    const res = await guardedFetch(
+        `${API_BASE}/session/inboxes`,
+        { headers: authHeaders(token), signal },
+        "getSessionInboxes",
+    );
+
+    const data = await readEnvelope(res, "getSessionInboxes");
+
+    if (!Array.isArray(data?.inboxes)) {
+        console.error("[inboxApi] getSessionInboxes contract mismatch", data);
+        throw new ApiError(res.status, "Session inboxes response was not a list");
+    }
+
+    return data.inboxes;
 }
 
 /**
@@ -213,9 +282,9 @@ export async function createInbox({ signal } = {}) {
 export async function getInboxInfo(id, token, { signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
-        const entry = [...mockState.entries()].at(-1)?.[1];
+        const entry = mockState.get(id) ?? [...mockState.entries()].at(-1)?.[1];
         return {
-            address: "mock@tempmail.dev",
+            address: entry?.address ?? "mock@tempmail.dev",
             localPart: "mock",
             domain: "tempmail.dev",
             extendCount: entry?.extendCount ?? 0,
@@ -246,13 +315,17 @@ export async function getInboxInfo(id, token, { signal } = {}) {
 export async function extendInbox(id, token, { signal } = {}) {
     if (MOCK) {
         await delay(250, signal);
-        const [id, entry] = [...mockState.entries()].at(-1) ?? [];
+        // The inbox asked for, falling back to the newest for callers that
+        // predate per-inbox ids.
+        const key = mockState.has(id) ? id : [...mockState.keys()].at(-1);
+        const entry = mockState.get(key);
         const base = Math.max(entry?.expiresAt ?? Date.now(), Date.now());
         const next = {
+            ...entry,
             extendCount: (entry?.extendCount ?? 0) + 1,
             expiresAt: base + EXTEND_MINUTES * 60_000,
         };
-        if (id) mockState.set(id, next);
+        if (key) mockState.set(key, next);
         return {
             expiresAt: new Date(next.expiresAt).toISOString(),
             lastExtendedAt: new Date().toISOString(),
