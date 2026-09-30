@@ -9,13 +9,18 @@ function isTypingTarget(el) {
     );
 }
 
-export default function Header({ status, generate, regenerate }) {
+export default function Header({
+    status,
+    generate,
+    regenerate,
+    onAddInbox,
+    canAddInbox = true,
+}) {
     const creating = status === "creating";
 
     // Generates from wherever the user is, and brings the generator into
-    // view so they see the result. An active inbox is left alone: replacing
-    // it from the header would silently throw away an address in use, so
-    // the button only scrolls to it.
+    // view so they see the result. With a session open it adds an inbox
+    // rather than replacing one, so no address in use is thrown away.
     const handleGenerate = () => {
         document
             .getElementById("generate")
@@ -23,6 +28,8 @@ export default function Header({ status, generate, regenerate }) {
 
         if (status === "expired") regenerate();
         else if (status === "idle" || status === "error") generate();
+        // With a session open, this adds one more inbox to it.
+        else if (status === "active" && canAddInbox) onAddInbox?.();
     };
 
     // "G" does what the button does, as the design's key hint promises. Read

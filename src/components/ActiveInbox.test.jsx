@@ -39,7 +39,14 @@ function setup(props = {}) {
         onExtend: vi.fn(),
         onRefresh: vi.fn(),
     };
-    render(<ActiveInbox inbox={INBOX} {...handlers} {...props} />);
+    render(
+        <ActiveInbox
+            inbox={INBOX}
+            messages={feed.value.messages}
+            {...handlers}
+            {...props}
+        />,
+    );
     return handlers;
 }
 
@@ -80,6 +87,17 @@ describe("ActiveInbox", () => {
                 "Destroy Temporary Inbox?",
             );
             expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+        });
+
+        it("names the inbox, and says the others stay", async () => {
+            const user = userEvent.setup();
+            setup({ otherInboxCount: 2 });
+
+            await user.click(screen.getByRole("button", { name: /destroy inbox/i }));
+
+            const dialog = screen.getByRole("alertdialog");
+            expect(dialog).toHaveTextContent(INBOX.address);
+            expect(dialog).toHaveTextContent("Your other 2 inboxes stay.");
         });
 
         it("keeps the inbox when cancelled", async () => {
