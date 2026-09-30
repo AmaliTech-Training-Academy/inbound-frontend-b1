@@ -62,20 +62,24 @@ export class ApiError extends Error {
 // --- Rate limit ------------------------------------------------------
 // The API allows each IP 100 requests per 15 minutes, across every route
 // (express-rate-limit in the backend's utils/rateLimit.js), and answers 429
-// past that. Every request counts against the same budget - the tab's own
-// background sync included - so once the server says stop, the whole client
-// stops: nothing is sent until the window the server named has passed.
+// past that. Every request counts against the same budget, so after a 429 the
+// client's own background traffic - the timed session sync, the sweep on each
+// socket join - holds off until rateLimitedFor() is back to 0. What the user
+// asks for by hand (Refresh, Extend, a new inbox) always goes out: blocking a
+// click on a guess of when the server will relent is worse than one more 429.
 //
-// The reset time comes from the server's RateLimit-Reset / Retry-After
-// headers when the browser is allowed to read them (CORS may hide them);
-// without them the wait doubles with each refusal, from 30 seconds up to the
-// 15-minute window itself.
+// How long to hold off: the server's own RateLimit-Reset / Retry-After when the
+// browser may read them, which it may not - the backend does not list them in
+// Access-Control-Expose-Headers - and otherwise 30 seconds, then 60. No longer:
+// the server's window is fixed, so asking again does not extend it, and a long
+// guess would only leave the inbox waiting after the server has relented. Any
+// request that succeeds ends the wait at once.
 const BACKOFF_START_MS = 30_000;
-const BACKOFF_MAX_MS = 15 * 60_000;
+const BACKOFF_MAX_MS = 60_000;
 let coolingUntil = 0;
 let refusals = 0;
 
-/** Milliseconds left before the client may call the API again; 0 when it may. */
+/** Milliseconds background requests should still hold off for; 0 when they need not. */
 export function rateLimitedFor() {
     return Math.max(0, coolingUntil - Date.now());
 }
@@ -100,19 +104,6 @@ function noteRateLimited(res) {
         serverResetMs(res) ??
         Math.min(BACKOFF_MAX_MS, BACKOFF_START_MS * 2 ** (refusals - 1));
     coolingUntil = Date.now() + wait;
-}
-
-function formatWait(ms) {
-    const seconds = Math.ceil(ms / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    return `${Math.ceil(seconds / 60)} min`;
-}
-
-function coolingDownError() {
-    return new ApiError(
-        429,
-        `The server asked us to slow down. Try again in ${formatWait(rateLimitedFor())}.`,
-    );
 }
 
 // --- Mock mode -------------------------------------------------------
@@ -167,9 +158,6 @@ function mockId() {
 // An abort is the caller's own timeout, so it passes through untouched -
 // useInbox checks for AbortError by name.
 async function guardedFetch(url, init, label) {
-    // Asking again inside the window only spends more of it.
-    if (rateLimitedFor() > 0) throw coolingDownError();
-
     let res;
     try {
         res = await fetch(url, init);
@@ -180,7 +168,7 @@ async function guardedFetch(url, init, label) {
     }
 
     if (res.status === 429) noteRateLimited(res);
-    else if (res.ok) refusals = 0;
+    else if (res.ok) resetRateLimit(); // the server is answering again
     return res;
 }
 
