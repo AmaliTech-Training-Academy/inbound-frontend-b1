@@ -190,11 +190,13 @@ export async function createInbox({ signal } = {}) {
 
     const data = await readEnvelope(res, "createInbox");
 
-    // Two credentials come back and they are not interchangeable: inbox and
-    // message routes are scoped by the inbox token, session routes by the
-    // session token. Nothing here calls a session route, so the inbox token is
-    // the one kept; the response's session token is deliberately dropped.
-    const token = data?.token;
+    // The published docs describe two credentials, a per-inbox `token` and a
+    // session token. The deployed server issues only the session one - checked
+    // on 2026-09-30, every create returned { session, id, address, expiresAt }
+    // and no `token` - and authenticates every inbox, message and socket call
+    // with it. So the session token is what the inbox carries; a per-inbox
+    // token is still taken if a later server sends one.
+    const token = data?.session?.token ?? data?.token;
 
     if (!data?.id || !data?.address || !token || !data?.expiresAt) {
         console.error("[inboxApi] createInbox contract mismatch", data);
@@ -218,7 +220,7 @@ export async function createInbox({ signal } = {}) {
  * and the response carries neither an id nor a token back, because the caller
  * already holds both from creation.
  */
-export async function getInboxInfo(token, { signal } = {}) {
+export async function getInboxInfo(token, { inboxId, signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
         const entry = [...mockState.entries()].at(-1)?.[1];
@@ -234,8 +236,13 @@ export async function getInboxInfo(token, { signal } = {}) {
 
     assertConfigured();
 
+    // A session token can own several inboxes, so it cannot say which one is
+    // meant: the deployed server serves GET /inbox/:id and answers 404 on
+    // /inbox/info. The id-less route is kept only for callers without an id.
     const res = await guardedFetch(
-        `${API_BASE}/inbox/info`,
+        inboxId
+            ? `${API_BASE}/inbox/${encodeURIComponent(inboxId)}`
+            : `${API_BASE}/inbox/info`,
         { headers: authHeaders(token), signal },
         "getInboxInfo",
     );
@@ -252,7 +259,7 @@ export async function getInboxInfo(token, { signal } = {}) {
  * MAX_EXTENDS in config.js are therefore display and courtesy values only -
  * see the note there.
  */
-export async function extendInbox(token, { signal } = {}) {
+export async function extendInbox(token, { inboxId, signal } = {}) {
     if (MOCK) {
         await delay(250, signal);
         const [id, entry] = [...mockState.entries()].at(-1) ?? [];
@@ -271,8 +278,12 @@ export async function extendInbox(token, { signal } = {}) {
 
     assertConfigured();
 
+    // PATCH /inbox/extend/:id on the deployed server, for the same reason as
+    // getInboxInfo; /inbox/extend there answers 404.
     const res = await guardedFetch(
-        `${API_BASE}/inbox/extend`,
+        inboxId
+            ? `${API_BASE}/inbox/extend/${encodeURIComponent(inboxId)}`
+            : `${API_BASE}/inbox/extend`,
         { method: "PATCH", headers: authHeaders(token), signal },
         "extendInbox",
     );
@@ -332,7 +343,7 @@ export async function fetchMessage(id, token, { signal } = {}) {
  * The inbox token already scopes the list to one inbox. The route declares no
  * query parameters at all, so there is nothing to narrow it with.
  */
-export async function fetchInboxMessages(token, { signal } = {}) {
+export async function fetchInboxMessages(token, { inboxId, signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
         // The mock backend stores no messages of its own, so there is nothing
@@ -342,11 +353,20 @@ export async function fetchInboxMessages(token, { signal } = {}) {
 
     assertConfigured();
 
+    const query = inboxId ? `?inboxId=${encodeURIComponent(inboxId)}` : "";
     const res = await guardedFetch(
-        `${API_BASE}/inbox/messages`,
+        `${API_BASE}/inbox/messages${query}`,
         { headers: authHeaders(token), signal },
         "fetchInboxMessages",
     );
+
+    // On the deployed server GET /inbox/messages is registered after
+    // GET /inbox/:id, which catches it and answers 404 "Inbox Not Found". Until
+    // the backend reorders its routes, recovery falls back to the unread list,
+    // which is reachable: the messages already read are the only ones lost.
+    if (res.status === 404) {
+        return await fetchUnreadMessages(token, { inboxId, signal });
+    }
 
     const data = await readEnvelope(res, "fetchInboxMessages");
     const messages = Array.isArray(data) ? data : data?.messages;
@@ -368,7 +388,7 @@ export async function fetchInboxMessages(token, { signal } = {}) {
  * but the endpoint is part of the published contract and is kept wrapped here
  * so a caller never has to know about the envelope.
  */
-export async function fetchUnreadMessages(token, { signal } = {}) {
+export async function fetchUnreadMessages(token, { inboxId, signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
         // The mock backend stores no messages of its own, so there is nothing
@@ -378,8 +398,11 @@ export async function fetchUnreadMessages(token, { signal } = {}) {
 
     assertConfigured();
 
+    // Scoped to one inbox: a session token alone would return unread mail for
+    // every inbox in the session.
+    const query = inboxId ? `?inboxId=${encodeURIComponent(inboxId)}` : "";
     const res = await guardedFetch(
-        `${API_BASE}/inbox/messages/unread/all`,
+        `${API_BASE}/inbox/messages/unread/all${query}`,
         { headers: authHeaders(token), signal },
         "fetchUnreadMessages",
     );

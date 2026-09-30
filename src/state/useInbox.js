@@ -87,6 +87,7 @@ export function useInbox() {
         (async () => {
             try {
                 const fresh = await getInboxInfo(stored.token, {
+                    inboxId: stored.id,
                     signal: controller.signal,
                 });
                 // The request may have settled just before a local action
@@ -263,7 +264,7 @@ export function useInbox() {
         setBusy("extending");
         setError(null);
         try {
-            const res = await extendInbox(inbox.token);
+            const res = await extendInbox(inbox.token, { inboxId: inbox.id });
             if (!res?.expiresAt) {
                 throw new ApiError(
                     500,
@@ -303,7 +304,7 @@ export function useInbox() {
         setBusy("refreshing");
         setError(null);
         try {
-            const fresh = await getInboxInfo(inbox.token);
+            const fresh = await getInboxInfo(inbox.token, { inboxId: inbox.id });
             if (
                 isPlausibleExpiry(fresh?.expiresAt) &&
                 fresh.expiresAt !== inbox.expiresAt
