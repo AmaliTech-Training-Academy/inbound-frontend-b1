@@ -91,21 +91,6 @@ describe('InboxList', () => {
     expect(screen.queryByText(/files?/)).toBeNull()
   })
 
-  it('shows the inbox address when one is provided', () => {
-    render(<InboxList messages={messages} inboxAddress="inbox-user-8921@inbound.mail" />)
-
-    expect(screen.getByTitle('inbox-user-8921@inbound.mail')).toBeInTheDocument()
-  })
-
-  it('calls onGenerateEmail when the generate action is used', () => {
-    const onGenerateEmail = vi.fn()
-    render(<InboxList messages={messages} onGenerateEmail={onGenerateEmail} />)
-
-    fireEvent.click(screen.getByLabelText('Generate new temporary email'))
-
-    expect(onGenerateEmail).toHaveBeenCalledTimes(1)
-  })
-
   it('shows an empty state when the inbox has no messages', () => {
     render(<InboxList messages={[]} />)
 

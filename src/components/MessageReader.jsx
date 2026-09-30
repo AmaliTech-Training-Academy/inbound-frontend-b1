@@ -4,12 +4,11 @@ import Card from './Card'
 import Badge from './Badge'
 import SafeHtmlEmail from './SafeHtmlEmail'
 import Attachments from './Attachments'
-import { MOCK_MESSAGES } from '../data/mockMessages'
 import { formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../utils/helpers'
 
 
 function MessageReader({
-  message = MOCK_MESSAGES[0],
+  message,
   onBack,
   inboxAddress,
   onGenerateEmail,
@@ -102,277 +101,253 @@ function MessageReader({
     (message?.contextLabel ? `Open ${message.contextLabel}` : 'Open link')
 
   return (
-    <div className="min-h-screen w-full bg-page text-text-primary font-sans flex flex-col antialiased selection:bg-dark-btn selection:text-surface">
-      <header className="w-full h-14 bg-header border-b border-border-default px-6 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-2.5 select-none">
-          <span className="w-3 h-3 bg-dark-btn rounded-full inline-block" aria-hidden="true" />
-          <span className="font-bold text-[15px] tracking-tight text-text-primary">Inbound</span>
+    <div className="w-full text-text-primary font-sans flex flex-col gap-4">
+      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-label="Inbox Actions">
+        <div>
+          <Button
+            variant="light"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm text-text-primary"
+            aria-label="Back to inbox"
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span>Back to inbox</span>
+            <kbd className="font-mono text-[10px] bg-chip border border-border-default text-text-secondary px-1.5 py-0.5 rounded-[3px] select-none ml-0.5">
+              ESC
+            </kbd>
+          </Button>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center flex-wrap gap-2 sm:gap-2.5">
           <Button
             variant="dark"
             onClick={onGenerateEmail}
-            className="text-[13px] font-semibold px-3 py-1.5 gap-2"
+            className="text-xs font-semibold h-8 px-3"
             aria-label="Generate new temporary email"
           >
-            <span>Generate Email</span>
-            <kbd className="font-mono text-[10px] bg-dark-btn-hover text-surface px-1.5 py-0.5 rounded-[3px] border border-surface/20 select-none">
-              G
-            </kbd>
+            Generate Email
           </Button>
 
-          <Button
-            variant="icon"
-            aria-label="Toggle theme"
-            title="Toggle theme (visual representation)"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          </Button>
-        </div>
-      </header>
-
-      <main className="w-full max-w-[1000px] mx-auto px-6 py-6 flex-1 flex flex-col gap-4">
-        <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-label="Inbox Actions">
-          <div>
-            <Button
-              variant="light"
-              onClick={onBack}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm text-text-primary"
-              aria-label="Back to inbox"
-            >
-              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              <span>Back to inbox</span>
-              <kbd className="font-mono text-[10px] bg-chip border border-border-default text-text-secondary px-1.5 py-0.5 rounded-[3px] select-none ml-0.5">
-                ESC
-              </kbd>
-            </Button>
-          </div>
-
-          <div className="flex items-center flex-wrap gap-2 sm:gap-2.5">
-            <div className="inline-flex items-center bg-surface border border-border-default rounded-[6px] text-xs overflow-hidden h-8">
-              <div className="flex items-center gap-1.5 px-2.5 text-text-secondary border-r border-border-default h-full font-mono">
-                <span className="text-text-tertiary" aria-hidden="true">@</span>
-                <span className="truncate max-w-[160px] sm:max-w-[220px] text-text-primary" title={activeAddress}>
-                  {activeAddress}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleCopyAddress}
-                className="px-2.5 h-full text-xs font-medium text-text-primary hover:bg-page transition-colors cursor-pointer flex items-center gap-1"
-                aria-label="Copy inbox address"
-              >
-                {copiedAddress ? (
-                  <span className="text-success font-semibold">Copied</span>
-                ) : (
-                  <span>Copy</span>
-                )}
-              </button>
+          <div className="inline-flex items-center bg-surface border border-border-default rounded-[6px] text-xs overflow-hidden h-8">
+            <div className="flex items-center gap-1.5 px-2.5 text-text-secondary border-r border-border-default h-full font-mono">
+              <span className="text-text-tertiary" aria-hidden="true">@</span>
+              <span className="truncate max-w-[160px] sm:max-w-[220px] text-text-primary" title={activeAddress}>
+                {activeAddress}
+              </span>
             </div>
-
-            <Button
-              variant="icon"
-              onClick={handlePrint}
-              aria-label="Print email"
-              title="Print email"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-            </Button>
-
-            <Button
-              variant="danger"
-              onClick={() => setShowDestroyConfirm(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium h-8"
-              aria-label="Destroy Inbox"
-            >
-              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              <span>Destroy Inbox</span>
-            </Button>
-          </div>
-        </section>
-
-        <Card className="p-6 sm:p-7">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-            <h1 className="text-xl sm:text-[22px] font-bold text-text-primary tracking-tight leading-snug break-words flex-1">
-              {message?.subject || '(No Subject)'}
-            </h1>
-
-            {message?.id && (
-              <Badge className="self-start sm:self-auto shrink-0 bg-chip text-text-secondary px-2.5 py-1 text-xs">
-                ID: #{message.id}
-              </Badge>
-            )}
-          </div>
-
-          <div className="border-t border-border-default my-4" />
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0">
-              <div
-                className="w-10 h-10 rounded-[8px] bg-chip text-text-primary font-semibold text-sm flex items-center justify-center shrink-0 select-none"
-                aria-hidden="true"
-              >
-                {senderInitials}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="font-semibold text-sm sm:text-base text-text-primary truncate">
-                    {message?.senderName || 'Unknown Sender'}
-                  </span>
-                  {message?.senderEmail && (
-                    <span className="font-mono text-xs text-text-secondary truncate">
-                      &lt;{message.senderEmail}&gt;
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1 mt-0.5 text-xs text-text-secondary">
-                  <span className="text-text-tertiary">to</span>
-                  <span className="font-mono text-text-secondary truncate">
-                    {message?.recipientEmail || activeAddress}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="sm:text-right shrink-0">
-              <time
-                dateTime={message?.receivedAt}
-                className="inline-flex items-center gap-1.5 font-mono text-xs text-text-secondary bg-page border border-border-default px-2.5 py-1 rounded-[4px]"
-              >
-                <svg className="w-3.5 h-3.5 text-text-tertiary shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{formatReceivedAt(message?.receivedAt)}</span>
-              </time>
-              {relativeTime && (
-                <div className="font-mono text-[11px] text-text-tertiary mt-1 sm:text-right">
-                  {relativeTime}
-                </div>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        {message?.verificationCode && (
-          <section
-            aria-label="Verification Code"
-            className="border-2 border-border-strong bg-surface rounded-[10px] p-6 flex flex-col gap-4"
-          >
-            <div className="flex items-center gap-2 font-mono text-xs font-semibold tracking-wider text-text-primary uppercase">
-              <span className="w-2 h-2 rounded-full bg-border-strong" aria-hidden="true" />
-              <span>VERIFICATION CODE (AUTO-EXTRACTED)</span>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="font-mono text-[30px] sm:text-[32px] font-bold tracking-widest text-text-primary bg-page border border-border-default rounded-[8px] px-6 py-2.5 select-all leading-none">
-                  {message.verificationCode}
-                </div>
-
-                <Button
-                  variant="dark"
-                  onClick={handleCopyCode}
-                  className="px-4 py-2 text-xs font-semibold h-11"
-                  aria-label="Copy verification code"
-                >
-                  {copiedCode ? (
-                    <span className="text-success flex items-center gap-1.5">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                      Copied
-                    </span>
-                  ) : (
-                    <span>Copy Code</span>
-                  )}
-                </Button>
-              </div>
-
-              {message?.contextUrl && (
-                <a
-                  href={message.contextUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 bg-page hover:bg-chip border border-border-strong text-text-primary text-xs font-semibold px-3.5 py-2 rounded-[6px] transition-colors cursor-pointer self-start sm:self-center"
-                >
-                  <span>{contextButtonLabel}</span>
-                  <span aria-hidden="true">→</span>
-                </a>
-              )}
-            </div>
-          </section>
-        )}
-
-        <Card className="overflow-hidden">
-          <div className="bg-page border-b border-border-default px-5 py-2.5 sm:px-6 sm:py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-text-secondary">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-text-primary shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-              <span>Images and remote assets sanitized for tracker protection. CSS strictly scoped.</span>
-            </div>
-
             <button
               type="button"
-              onClick={() => setIsFullScreen(true)}
-              className="inline-flex items-center gap-1.5 font-medium text-text-primary hover:text-text-secondary transition-colors cursor-pointer shrink-0"
-              aria-label="Expand email to full-screen view"
+              onClick={handleCopyAddress}
+              className="px-2.5 h-full text-xs font-medium text-text-primary hover:bg-page transition-colors cursor-pointer flex items-center gap-1"
+              aria-label="Copy inbox address"
             >
-              <span>Expand email</span>
-              <kbd className="font-mono text-[10px] bg-surface border border-border-default text-text-secondary px-1.5 py-0.5 rounded-[3px] shadow-2xs select-none">
-                F
-              </kbd>
+              {copiedAddress ? (
+                <span className="text-success font-semibold">Copied</span>
+              ) : (
+                <span>Copy</span>
+              )}
             </button>
           </div>
 
-          <div className="p-6 sm:p-7">
-            {message?.htmlBody ? (
-              <SafeHtmlEmail htmlContent={message.htmlBody} />
-            ) : (
-              <div className="flex flex-col gap-4">
-                <div className="font-sans text-text-primary text-sm leading-relaxed whitespace-pre-wrap break-words select-text">
-                  {message?.textBody || message?.body || '(Empty message body)'}
-                </div>
+          <Button
+            variant="icon"
+            onClick={handlePrint}
+            aria-label="Print email"
+            title="Print email"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+          </Button>
 
-                {message?.actionText && message?.contextUrl && (
-                  <div className="pt-2">
-                    <a
-                      href={message.contextUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 bg-dark-btn hover:bg-dark-btn-hover text-surface text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-[6px] transition-colors cursor-pointer shadow-xs"
-                    >
-                      <span>{message.actionText}</span>
-                      <span aria-hidden="true">→</span>
-                    </a>
-                  </div>
+          <Button
+            variant="danger"
+            onClick={() => setShowDestroyConfirm(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium h-8"
+            aria-label="Destroy Inbox"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Destroy Inbox</span>
+          </Button>
+        </div>
+      </section>
+
+      <Card className="p-6 sm:p-7">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <h1 className="text-xl sm:text-[22px] font-bold text-text-primary tracking-tight leading-snug break-words flex-1">
+            {message?.subject || '(No Subject)'}
+          </h1>
+
+          {message?.id && (
+            <Badge className="self-start sm:self-auto shrink-0 bg-chip text-text-secondary px-2.5 py-1 text-xs">
+              ID: #{message.id}
+            </Badge>
+          )}
+        </div>
+
+        <div className="border-t border-border-default my-4" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div
+              className="w-10 h-10 rounded-[8px] bg-chip text-text-primary font-semibold text-sm flex items-center justify-center shrink-0 select-none"
+              aria-hidden="true"
+            >
+              {senderInitials}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="font-semibold text-sm sm:text-base text-text-primary truncate">
+                  {message?.senderName || 'Unknown Sender'}
+                </span>
+                {message?.senderEmail && (
+                  <span className="font-mono text-xs text-text-secondary truncate">
+                    &lt;{message.senderEmail}&gt;
+                  </span>
                 )}
+              </div>
+
+              <div className="flex items-center gap-1 mt-0.5 text-xs text-text-secondary">
+                <span className="text-text-tertiary">to</span>
+                <span className="font-mono text-text-secondary truncate">
+                  {message?.recipientEmail || activeAddress}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sm:text-right shrink-0">
+            <time
+              dateTime={message?.receivedAt}
+              className="inline-flex items-center gap-1.5 font-mono text-xs text-text-secondary bg-page border border-border-default px-2.5 py-1 rounded-[4px]"
+            >
+              <svg className="w-3.5 h-3.5 text-text-tertiary shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{formatReceivedAt(message?.receivedAt)}</span>
+            </time>
+            {relativeTime && (
+              <div className="font-mono text-[11px] text-text-tertiary mt-1 sm:text-right">
+                {relativeTime}
               </div>
             )}
           </div>
-        </Card>
+        </div>
+      </Card>
 
-        <Attachments
-          attachments={message?.attachments}
-          totalAttachmentSize={totalAttachmentSize}
-          scanInfo={message?.scanInfo}
-          onDownloadAll={onDownloadAll}
-          onDownloadAttachment={onDownloadAttachment}
-          onViewAttachment={onViewAttachment}
-          variant="card"
-        />
-      </main>
+      {message?.verificationCode && (
+        <section
+          aria-label="Verification Code"
+          className="border-2 border-border-strong bg-surface rounded-[10px] p-6 flex flex-col gap-4"
+        >
+          <div className="flex items-center gap-2 font-mono text-xs font-semibold tracking-wider text-text-primary uppercase">
+            <span className="w-2 h-2 rounded-full bg-border-strong" aria-hidden="true" />
+            <span>VERIFICATION CODE (AUTO-EXTRACTED)</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="font-mono text-[30px] sm:text-[32px] font-bold tracking-widest text-text-primary bg-page border border-border-default rounded-[8px] px-6 py-2.5 select-all leading-none">
+                {message.verificationCode}
+              </div>
+
+              <Button
+                variant="dark"
+                onClick={handleCopyCode}
+                className="px-4 py-2 text-xs font-semibold h-11"
+                aria-label="Copy verification code"
+              >
+                {copiedCode ? (
+                  <span className="text-success flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied
+                  </span>
+                ) : (
+                  <span>Copy Code</span>
+                )}
+              </Button>
+            </div>
+
+            {message?.contextUrl && (
+              <a
+                href={message.contextUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 bg-page hover:bg-chip border border-border-strong text-text-primary text-xs font-semibold px-3.5 py-2 rounded-[6px] transition-colors cursor-pointer self-start sm:self-center"
+              >
+                <span>{contextButtonLabel}</span>
+                <span aria-hidden="true">→</span>
+              </a>
+            )}
+          </div>
+        </section>
+      )}
+
+      <Card className="overflow-hidden">
+        <div className="bg-page border-b border-border-default px-5 py-2.5 sm:px-6 sm:py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-text-secondary">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-text-primary shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <span>Images and remote assets sanitized for tracker protection. CSS strictly scoped.</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsFullScreen(true)}
+            className="inline-flex items-center gap-1.5 font-medium text-text-primary hover:text-text-secondary transition-colors cursor-pointer shrink-0"
+            aria-label="Expand email to full-screen view"
+          >
+            <span>Expand email</span>
+            <kbd className="font-mono text-[10px] bg-surface border border-border-default text-text-secondary px-1.5 py-0.5 rounded-[3px] shadow-2xs select-none">
+              F
+            </kbd>
+          </button>
+        </div>
+
+        <div className="p-6 sm:p-7">
+          {message?.htmlBody ? (
+            <SafeHtmlEmail htmlContent={message.htmlBody} />
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="font-sans text-text-primary text-sm leading-relaxed whitespace-pre-wrap break-words select-text">
+                {message?.textBody || message?.body || '(Empty message body)'}
+              </div>
+
+              {message?.actionText && message?.contextUrl && (
+                <div className="pt-2">
+                  <a
+                    href={message.contextUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-dark-btn hover:bg-dark-btn-hover text-surface text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-[6px] transition-colors cursor-pointer shadow-xs"
+                  >
+                    <span>{message.actionText}</span>
+                    <span aria-hidden="true">→</span>
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Attachments
+        attachments={message?.attachments}
+        totalAttachmentSize={totalAttachmentSize}
+        scanInfo={message?.scanInfo}
+        onDownloadAll={onDownloadAll}
+        onDownloadAttachment={onDownloadAttachment}
+        onViewAttachment={onViewAttachment}
+        variant="card"
+      />
 
       {isFullScreen && (
         <div

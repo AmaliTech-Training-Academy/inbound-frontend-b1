@@ -1,7 +1,6 @@
 import {describe,it,expect,vi} from 'vitest'
 import {render,screen,fireEvent,within,act} from '@testing-library/react'
 import MessageReader from '../src/components/MessageReader'
-import { MOCK_MESSAGES } from '../src/data/mockMessages'
 import { formatReceivedAt } from '../src/utils/helpers'
 
 const baseMessage = {
@@ -56,10 +55,12 @@ describe('MessageReader', () => {
       expect(screen.getByText('<notify@m.notion.so>')).toBeInTheDocument()
     })
 
-    it('renders the first mock message when no message prop is provided', () => {
+    it('renders placeholders rather than a message of its own when none is given', () => {
+      // No fallback message: an absent one must not render someone else's mail.
       render(<MessageReader />)
 
-      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(MOCK_MESSAGES[0].subject)
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('(No Subject)')
+      expect(screen.getByText('Unknown Sender')).toBeInTheDocument()
     })
 
     it('shows the message identifier badge', () => {
