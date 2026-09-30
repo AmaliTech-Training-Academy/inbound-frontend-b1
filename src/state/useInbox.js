@@ -1,12 +1,6 @@
-// Owns the inbox lifecycle. Every other IND-3 component reads from this.
-
+// Owns the session's inboxes and which one is active.
+//
 // status: 'idle' | 'creating' | 'active' | 'expired' | 'error'
-
-//   idle     - no inbox, show the Generate button
-//   creating - request in flight, button disabled + spinner
-//   active   - inbox exists and hasn't expired
-//   expired  - the clock ran out
-//   error    - creation failed, offer retry
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -16,24 +10,14 @@ import {
     ApiError,
 } from "../services/inboxApi.js";
 import { MAX_EXTENDS } from "../config.js";
-import {
-    saveInbox,
-    loadInbox,
-    clearInbox,
-    msRemaining,
-} from "./inboxStorage.js";
+import { saveInboxes, loadInboxes, msRemaining } from "./inboxStorage.js";
 
-// The timeout exists to turn a hung request into a retryable error
-// rather than a button stuck on "Generating…" forever.
+// Turns a hung request into a retryable error rather than a stuck spinner.
 const CREATE_TIMEOUT_MS = 8000;
 
-// Whether a server-supplied expiresAt is worth adopting.
-//
-// Only a sanity check that it parses and is still in the future. There is
-// deliberately no upper bound: the server owns the TTL (the API accepts no
-// ttlMinutes and extends by a fixed amount without a documented cap), so any
-// ceiling derived from our own config would reject valid expiries and pin the
-// countdown to a stale value.
+// Sanity check only - parses and is still in the future. Deliberately no upper
+// bound: the server owns the TTL, so a ceiling from our own config would reject
+// valid expiries and pin the countdown to a stale value.
 function isPlausibleExpiry(value) {
     if (!value) return false;
     const ms = new Date(value).getTime() - Date.now();
@@ -41,81 +25,123 @@ function isPlausibleExpiry(value) {
     return ms > 0;
 }
 
+/** Swaps one inbox out of the list, leaving the others untouched. */
+function replaceInbox(inboxes, id, patch) {
+    return inboxes.map((inbox) =>
+        inbox.id === id ? { ...inbox, ...patch } : inbox,
+    );
+}
+
 export function useInbox() {
-    // Restore straight from storage rather than showing a placeholder while
-    // the server confirms. loadInbox() has already discarded anything expired
-    // or malformed, so what comes back is displayable immediately: a refresh
-    // now redraws the same screen the user was on instead of blanking it for
-    // the length of a round trip. The confirmation below still runs, and
-    // still tears the inbox down if the server says it is gone.
-    const [restored] = useState(loadInbox);
-    const [status, setStatus] = useState(restored ? "active" : "idle");
-    const [inbox, setInbox] = useState(restored);
+    // Restore from storage so a refresh redraws the same screen instead of
+    // blanking it for a round trip.
+    const [session, setSession] = useState(loadInboxes);
+    const [status, setStatus] = useState(
+        session.activeId ? "active" : "idle",
+    );
     const [error, setError] = useState(null);
 
     // Which inbox action is in flight: 'extending' | 'refreshing' |
-    // 'destroying' | null. Drives the per-button disabled/loading state
-    // without collapsing it into the top-level `status` machine.
+    // 'destroying' | null. Drives per-button state without folding it into `status`.
     const [busy, setBusy] = useState(null);
 
-    // Guards against a double-click creating two inboxes. A ref rather than
-    // state because we need the value synchronously inside the handler.
+    const inbox =
+        session.inboxes.find((candidate) => candidate.id === session.activeId) ??
+        null;
+
+    // Single writer for storage, so a mutation cannot forget to persist.
+    useEffect(() => {
+        saveInboxes(session);
+    }, [session]);
+
+    // Guards against a double-click creating two inboxes; a ref so the handler
+    // reads it synchronously.
     const inFlight = useRef(false);
 
     const actionLock = useRef(false);
 
-    // The mount-time confirmation of a restored inbox. Kept so that any local
-    // lifecycle action can cancel it: the inbox is on screen before the server
-    // answers, so the user can destroy, replace or extend it first, and a late
-    // answer about the old inbox must not overwrite what they did - resurrecting
-    // a destroyed inbox, or clearing a newly generated one on a stale 401.
+    // Kept so a local action can cancel the mount-time confirmation: the inbox is
+    // on screen before the server answers, so a late answer must not resurrect a
+    // destroyed inbox or overwrite a newly selected one.
     const confirmation = useRef(null);
     const cancelConfirmation = useCallback(() => {
         confirmation.current?.abort();
         confirmation.current = null;
     }, []);
 
+    /**
+     * Drops one inbox and re-points the session at whatever is left. Only the
+     * active inbox's removal forces a new selection.
+     */
+    const removeInbox = useCallback(
+        (id, { expired = false } = {}) => {
+            const remaining = session.inboxes.filter(
+                (candidate) => candidate.id !== id,
+            );
+            const activeId =
+                session.activeId === id
+                    ? (remaining.at(-1)?.id ?? null)
+                    : session.activeId;
+
+            setSession({ inboxes: remaining, activeId });
+
+            if (remaining.length === 0) setStatus(expired ? "expired" : "idle");
+            else setStatus("active");
+        },
+        [session],
+    );
+
+    // Re-confirms the restored inbox on mount, so a refresh picks up an expiry
+    // changed elsewhere. Only runs on mount for the restored inbox.
+    const initialToken = useRef(inbox?.token ?? null);
+
     useEffect(() => {
-        const stored = loadInbox();
-        if (!stored) {
-            return;
-        }
+        const tokenToConfirm = initialToken.current;
+        if (!tokenToConfirm) return;
 
         const controller = new AbortController();
         confirmation.current = controller;
 
         (async () => {
             try {
-                const fresh = await getInboxInfo(stored.token, {
+                const fresh = await getInboxInfo(tokenToConfirm, {
                     signal: controller.signal,
                 });
                 // The request may have settled just before a local action
                 // cancelled it, so check again rather than trust the await.
                 if (controller.signal.aborted) return;
-                // /inbox/info returns no id and no token - the caller
-                // already holds both - so only the mutable fields are merged.
-                const expiryChanged =
-                    isPlausibleExpiry(fresh?.expiresAt) &&
-                    fresh.expiresAt !== stored.expiresAt;
 
-                const merged = {
-                    ...stored,
-                    ...(expiryChanged ? { expiresAt: fresh.expiresAt } : {}),
-                    ...(fresh?.createdAt
-                        ? { createdAt: fresh.createdAt }
-                        : {}),
-                    ...(fresh?.extendCount != null
-                        ? { extendCount: fresh.extendCount }
-                        : {}),
-                };
+                // /inbox/info returns no id and no token, so only mutable fields are merged.
+                setSession((prev) => {
+                    const current = prev.inboxes.find(
+                        (candidate) => candidate.token === tokenToConfirm,
+                    );
+                    if (!current) return prev;
 
-                // Only touch storage when the value actually changed.
-                // Compare the timestamp, not object identity: spreading
-                // `stored` mints a new object every time, so an identity check
-                // would rewrite an identical blob on every mount.
-                if (expiryChanged || fresh?.createdAt) saveInbox(merged);
+                    const expiryChanged =
+                        isPlausibleExpiry(fresh?.expiresAt) &&
+                        fresh.expiresAt !== current.expiresAt;
 
-                setInbox(merged);
+                    // Compare the timestamp, not object identity: a fresh object
+                    // every mount would rewrite an identical blob each time.
+                    if (!expiryChanged && !fresh?.createdAt) return prev;
+
+                    return {
+                        ...prev,
+                        inboxes: replaceInbox(prev.inboxes, current.id, {
+                            ...(expiryChanged
+                                ? { expiresAt: fresh.expiresAt }
+                                : {}),
+                            ...(fresh?.createdAt
+                                ? { createdAt: fresh.createdAt }
+                                : {}),
+                            ...(fresh?.extendCount != null
+                                ? { extendCount: fresh.extendCount }
+                                : {}),
+                        }),
+                    };
+                });
+
                 setStatus("active");
             } catch (err) {
                 if (controller.signal.aborted) return;
@@ -126,13 +152,25 @@ export function useInbox() {
                 );
 
                 if (err instanceof ApiError && err.isDead) {
-                    // 401/403/404/410 all mean the same thing to the user:
-                    // this inbox is gone. 410 in particular is the server
-                    // telling us it outlived its TTL.
-                    clearInbox();
+                    // 401/403/404/410 all mean the same thing to the user: this
+                    // inbox is gone. 410 is the server saying it outlived its TTL.
+                    // The others in the session are unaffected.
+                    setSession((prev) => {
+                        const target = prev.inboxes.find(
+                            (candidate) => candidate.token === tokenToConfirm,
+                        );
+                        if (!target) return prev;
+                        const remaining = prev.inboxes.filter(
+                            (candidate) => candidate.id !== target.id,
+                        );
+                        const activeId =
+                            prev.activeId === target.id
+                                ? (remaining.at(-1)?.id ?? null)
+                                : prev.activeId;
+                        return { inboxes: remaining, activeId };
+                    });
                     setStatus(err.isExpired ? "expired" : "idle");
                 } else {
-                    setInbox(stored);
                     setStatus("active");
                 }
             } finally {
@@ -145,22 +183,18 @@ export function useInbox() {
         return () => controller.abort();
     }, []);
 
-    // Flip to expired the moment the clock runs out. One timeout aimed at the
-    // exact expiry instant, re-armed whenever expiresAt changes (an extend
-    // pushes it out).
-
     useEffect(() => {
         if (status !== "active" || !inbox) return;
 
         const remaining = Math.max(0, msRemaining(inbox.expiresAt));
 
-        const t = setTimeout(() => {
-            clearInbox();
-            setStatus("expired");
-        }, remaining);
+        const t = setTimeout(
+            () => removeInbox(inbox.id, { expired: true }),
+            remaining,
+        );
 
         return () => clearTimeout(t);
-    }, [status, inbox]);
+    }, [status, inbox, removeInbox]);
 
     useEffect(() => {
         if (status !== "active" || !inbox) return;
@@ -168,8 +202,7 @@ export function useInbox() {
         const recheck = () => {
             if (document.visibilityState !== "visible") return;
             if (msRemaining(inbox.expiresAt) <= 0) {
-                clearInbox();
-                setStatus("expired");
+                removeInbox(inbox.id, { expired: true });
             }
         };
 
@@ -179,8 +212,10 @@ export function useInbox() {
             document.removeEventListener("visibilitychange", recheck);
             window.removeEventListener("focus", recheck);
         };
-    }, [status, inbox]);
+    }, [status, inbox, removeInbox]);
 
+    // Appends and activates, rather than replacing: the previously generated
+    // inboxes stay reachable for as long as their TTL lasts.
     const generate = useCallback(async () => {
         if (inFlight.current) return;
         inFlight.current = true;
@@ -193,10 +228,11 @@ export function useInbox() {
         const timer = setTimeout(() => controller.abort(), CREATE_TIMEOUT_MS);
 
         try {
-            // The API accepts no request body: lifetime is server-owned.
             const created = await createInbox({ signal: controller.signal });
-            saveInbox(created);
-            setInbox(created);
+            setSession((prev) => ({
+                inboxes: [...prev.inboxes, created],
+                activeId: created.id,
+            }));
             setStatus("active");
         } catch (err) {
             const isTimeout = err?.name === "AbortError";
@@ -219,9 +255,9 @@ export function useInbox() {
         }
     }, [cancelConfirmation]);
 
-    // Replaces an expired inbox. Same request as generate(), but flagged so
-    // the purged card can stay on screen for the length of it: the status in
-    // between is "creating", which would otherwise render the landing page.
+    // Same request as generate(), but flagged so the purged card can stay on
+    // screen: the status in between is "creating", which would otherwise render
+    // the landing page.
     const [regenerating, setRegenerating] = useState(false);
 
     const regenerate = useCallback(async () => {
@@ -233,28 +269,42 @@ export function useInbox() {
         }
     }, [generate]);
 
-    // Used by IND-19's "New address" and by the retry path after expiry.
-    // Local-only: does not touch the server.
+    /**
+     * Local-only: no request, because the address is already live server-side.
+     * A late confirmation for the previous inbox is cancelled so it cannot pull
+     * the selection back.
+     */
+    const switchInbox = useCallback(
+        (id) => {
+            if (!session.inboxes.some((inbox) => inbox.id === id)) return;
+
+            cancelConfirmation();
+            setSession((prev) => ({ ...prev, activeId: id }));
+            setError(null);
+            setStatus("active");
+        },
+        [session.inboxes, cancelConfirmation],
+    );
+
+    // Local-only, because the API has no DELETE: the address keeps receiving mail
+    // server-side until its TTL runs out, so discarding the token is the most this
+    // client can do. The session falls back to the newest inbox still alive.
+    const destroy = useCallback(() => {
+        if (!session.activeId) return;
+        cancelConfirmation();
+        setError(null);
+        removeInbox(session.activeId);
+    }, [session.activeId, cancelConfirmation, removeInbox]);
+
+    // Drops every inbox. Kept separate from destroy(), which removes only the
+    // active one.
     const reset = useCallback(() => {
         cancelConfirmation();
-        clearInbox();
-        setInbox(null);
+        setSession({ inboxes: [], activeId: null });
         setError(null);
         setStatus("idle");
     }, [cancelConfirmation]);
 
-    // "Destroy Inbox".
-    //
-    // Local-only, because the API has no DELETE: the address keeps receiving
-    // mail server-side until its TTL runs out. Discarding the token is the
-    // most this client can do - without it nothing here can read the inbox
-    // again. If a delete endpoint is added, this is where it goes.
-    const destroy = useCallback(() => {
-        reset();
-    }, [reset]);
-
-    // "+ Extend 5m". Pushes expiresAt out server-side, then adopts the new
-    // timestamp: the expiry timeout and the progress ring both key off it.
     const extend = useCallback(async () => {
         if (!inbox?.token) return;
         if (actionLock.current) return;
@@ -262,28 +312,24 @@ export function useInbox() {
         cancelConfirmation();
         setBusy("extending");
         setError(null);
+        const target = inbox;
         try {
-            const res = await extendInbox(inbox.token);
+            const res = await extendInbox(target.token);
             if (!res?.expiresAt) {
-                throw new ApiError(
-                    500,
-                    "CONTRACT_MISMATCH",
-                    "Extend response missing expiresAt",
-                );
+                throw new ApiError(500, "Extend response missing expiresAt");
             }
-            const next = {
-                ...inbox,
-                expiresAt: res.expiresAt,
-                extendCount: res.extendCount ?? (inbox.extendCount ?? 0) + 1,
-            };
-            saveInbox(next);
-            setInbox(next);
+            setSession((prev) => ({
+                ...prev,
+                inboxes: replaceInbox(prev.inboxes, target.id, {
+                    expiresAt: res.expiresAt,
+                    extendCount:
+                        res.extendCount ?? (target.extendCount ?? 0) + 1,
+                }),
+            }));
         } catch (err) {
             console.error("[useInbox] extend failed", err);
             if (err instanceof ApiError && err.isDead) {
-                clearInbox();
-                setInbox(null);
-                setStatus("expired");
+                removeInbox(target.id, { expired: true });
                 return;
             }
             setError(new Error("Could not extend the inbox. Try again."));
@@ -291,10 +337,10 @@ export function useInbox() {
             actionLock.current = false;
             setBusy(null);
         }
-    }, [inbox, cancelConfirmation]);
+    }, [inbox, cancelConfirmation, removeInbox]);
 
-    // "Refresh". Re-reads the inbox so an expiry changed elsewhere (another
-    // tab extending it) and, from IND-7, the message list are picked up.
+    // Re-reads the inbox so an expiry changed elsewhere (another tab extending
+    // it) is picked up.
     const refresh = useCallback(async () => {
         if (!inbox?.token) return;
         if (actionLock.current) return;
@@ -302,23 +348,24 @@ export function useInbox() {
         cancelConfirmation();
         setBusy("refreshing");
         setError(null);
+        const target = inbox;
         try {
-            const fresh = await getInboxInfo(inbox.token);
+            const fresh = await getInboxInfo(target.token);
             if (
                 isPlausibleExpiry(fresh?.expiresAt) &&
-                fresh.expiresAt !== inbox.expiresAt
+                fresh.expiresAt !== target.expiresAt
             ) {
-                const next = { ...inbox, expiresAt: fresh.expiresAt };
-                saveInbox(next);
-                setInbox(next);
+                setSession((prev) => ({
+                    ...prev,
+                    inboxes: replaceInbox(prev.inboxes, target.id, {
+                        expiresAt: fresh.expiresAt,
+                    }),
+                }));
             }
         } catch (err) {
             console.error("[useInbox] refresh failed", err);
             if (err instanceof ApiError && err.isDead) {
-                // Server says it is gone. Do not keep showing a dead address.
-                clearInbox();
-                setInbox(null);
-                setStatus("expired");
+                removeInbox(target.id, { expired: true });
                 return;
             }
             setError(new Error("Could not refresh the inbox. Try again."));
@@ -326,17 +373,20 @@ export function useInbox() {
             actionLock.current = false;
             setBusy(null);
         }
-    }, [inbox, cancelConfirmation]);
+    }, [inbox, cancelConfirmation, removeInbox]);
 
     return {
         status,
         inbox,
+        inboxes: session.inboxes,
+        activeId: session.activeId,
         error,
         busy,
         regenerating,
         canExtend: (inbox?.extendCount ?? 0) < MAX_EXTENDS,
         generate,
         regenerate,
+        switchInbox,
         reset,
         destroy,
         extend,

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import Button from "./ui/Button";
+import InboxSwitcher from "./InboxSwitcher.jsx";
 
 // Typing "g" in a field is text, not a shortcut.
 function isTypingTarget(el) {
@@ -9,13 +10,18 @@ function isTypingTarget(el) {
     );
 }
 
-export default function Header({ status, generate, regenerate }) {
+export default function Header({
+    status,
+    generate,
+    regenerate,
+    inboxes = [],
+    activeId = null,
+    onSwitchInbox,
+}) {
     const creating = status === "creating";
 
-    // Generates from wherever the user is, and brings the generator into
-    // view so they see the result. An active inbox is left alone: replacing
-    // it from the header would silently throw away an address in use, so
-    // the button only scrolls to it.
+    // An active inbox is left alone: replacing it from the header would silently
+    // throw away an address in use, so the button only scrolls to it.
     const handleGenerate = () => {
         document
             .getElementById("generate")
@@ -52,12 +58,18 @@ export default function Header({ status, generate, regenerate }) {
                     Inbound
                 </span>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
+                <InboxSwitcher
+                    inboxes={inboxes}
+                    activeId={activeId}
+                    onSwitch={onSwitchInbox}
+                    onGenerate={generate}
+                    disabled={creating}
+                />
                 <Button
                     onClick={handleGenerate}
                     disabled={creating}
-                    aria-keyshortcuts="G"
-                    className="h-8 gap-2 rounded-[2px] px-3 text-[13px]">
+                    aria-keyshortcuts="G">
                     {creating ? "Generating…" : "Generate Email"}
                     {!creating && (
                         <kbd

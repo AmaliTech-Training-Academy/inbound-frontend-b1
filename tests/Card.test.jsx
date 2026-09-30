@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest'
 import {render,screen} from '@testing-library/react'
-import Card from '../src/components/Card'
+import Card from '../src/components/ui/Card'
 
 
 describe('Card', () => {

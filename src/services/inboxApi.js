@@ -17,12 +17,13 @@
 // There is no DELETE endpoint. "Destroy Inbox" is local-only; see destroy()
 // in useInbox.js.
 
+import { API_BASE, USE_MOCK } from "../config.js";
 import {
-    API_BASE,
-    USE_MOCK,
-    INBOX_TTL_MINUTES,
-    EXTEND_MINUTES,
-} from "../config.js";
+    createInboxRecord,
+    getRecord,
+    extendRecord,
+    getMessage,
+} from "./mockBackend.js";
 
 function assertConfigured() {
     if (!API_BASE) throw new Error("VITE_API_BASE is not set.");
@@ -55,12 +56,10 @@ export class ApiError extends Error {
 }
 
 // --- Mock mode -------------------------------------------------------
-// Selected explicitly in config.js (VITE_USE_MOCK, or an unset VITE_API_BASE)
-// and deliberately not gated on DEV, so a preview build with no API base
-// still works. The mock returns exactly the shapes the real client returns
-// after unwrapping, so swapping between them changes nothing upstream.
+// Deliberately not gated on DEV, so a preview build with no VITE_API_BASE still
+// works. The store itself lives in mockBackend.js; this file only routes to it,
+// so the shapes below are identical in both modes.
 const MOCK = USE_MOCK;
-const mockState = new Map();
 
 if (MOCK) {
     console.warn(
@@ -88,19 +87,10 @@ function delay(ms, signal) {
     });
 }
 
-function mockId() {
-    return (
-        crypto.randomUUID?.() ??
-        `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    );
-}
-
 // --- Transport -------------------------------------------------------
 
-// fetch only rejects on network-level failure: DNS, CORS, offline, or an
-// abort. Non-2xx responses resolve normally and are handled by readEnvelope.
-// An abort is the caller's own timeout, so it passes through untouched -
-// useInbox checks for AbortError by name.
+// fetch only rejects on network-level failure (DNS, CORS, offline, or the
+// caller's own abort); non-2xx resolves normally and is handled by readEnvelope.
 async function guardedFetch(url, init, label) {
     try {
         return await fetch(url, init);
@@ -111,13 +101,7 @@ async function guardedFetch(url, init, label) {
     }
 }
 
-/**
- * Turn a response into its `data` payload, or throw an ApiError.
- *
- * The server's own `message` is preserved on the error: it is the only
- * human-readable detail the contract provides, and dropping it would leave
- * every failure indistinguishable from every other.
- */
+/** Unwrap `data`, or throw an ApiError keeping the server's own `message`. */
 async function readEnvelope(res, label) {
     let body;
     try {
@@ -156,28 +140,17 @@ function authHeaders(token) {
  * holds the per-inbox one, because that is what every other call - and the
  * socket's join-inbox - authenticates with.
  *
- * Takes no request body: the server owns the TTL, so ttlMinutes and
- * preferredLocalPart are not options the API offers.
- *
- * `createdAt` is added client-side. The create response omits it (only
- * /inbox/info returns one) but the progress ring needs a start point, and the
- * moment the response lands is within a round-trip of the real value. It is
- * used only for that denominator, never sent back to the server.
+ * Takes no request body: the server owns the TTL. `createdAt` is added
+ * client-side, since the create response omits it but the progress ring needs a
+ * start point; it is never sent back to the server.
  */
 export async function createInbox({ signal } = {}) {
     if (MOCK) {
         await delay(400, signal);
-        const id = mockId();
-        const now = Date.now();
-        const expiresAt = now + INBOX_TTL_MINUTES * 60_000;
-        mockState.set(id, { extendCount: 0, expiresAt });
-        return {
-            id,
-            address: `mock-${Math.random().toString(36).slice(2, 8)}@tempmail.dev`,
-            token: `mock_${Math.random().toString(36).slice(2, 10)}`,
-            createdAt: new Date(now).toISOString(),
-            expiresAt: new Date(expiresAt).toISOString(),
-        };
+        const record = createInboxRecord();
+        // The record carries its own seeded mail; the create contract does not.
+        const { id, address, token, createdAt, expiresAt } = record;
+        return { id, address, token, createdAt, expiresAt };
     }
 
     assertConfigured();
@@ -221,14 +194,21 @@ export async function createInbox({ signal } = {}) {
 export async function getInboxInfo(token, { signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
-        const entry = [...mockState.entries()].at(-1)?.[1];
+        const record = getRecord(token);
+        if (record) {
+            const { address, localPart, domain, extendCount, createdAt, expiresAt } =
+                record;
+            return { address, localPart, domain, extendCount, createdAt, expiresAt };
+        }
+
+        // Fallback for pre-seeded inboxes (e.g. in tests)
         return {
             address: "mock@tempmail.dev",
             localPart: "mock",
             domain: "tempmail.dev",
-            extendCount: entry?.extendCount ?? 0,
-            createdAt: undefined,
-            expiresAt: entry ? new Date(entry.expiresAt).toISOString() : undefined,
+            extendCount: 0,
+            createdAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
         };
     }
 
@@ -255,17 +235,19 @@ export async function getInboxInfo(token, { signal } = {}) {
 export async function extendInbox(token, { signal } = {}) {
     if (MOCK) {
         await delay(250, signal);
-        const [id, entry] = [...mockState.entries()].at(-1) ?? [];
-        const base = Math.max(entry?.expiresAt ?? Date.now(), Date.now());
-        const next = {
-            extendCount: (entry?.extendCount ?? 0) + 1,
-            expiresAt: base + EXTEND_MINUTES * 60_000,
-        };
-        if (id) mockState.set(id, next);
+        const record = extendRecord(token);
+        if (record) {
+            return {
+                expiresAt: record.expiresAt,
+                lastExtendedAt: new Date().toISOString(),
+                extendCount: record.extendCount,
+            };
+        }
+
         return {
-            expiresAt: new Date(next.expiresAt).toISOString(),
+            expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
             lastExtendedAt: new Date().toISOString(),
-            extendCount: next.extendCount,
+            extendCount: 1,
         };
     }
 
@@ -287,13 +269,12 @@ export async function extendInbox(token, { signal } = {}) {
     return data;
 }
 
-/**
- * GET /api/v1/inbox/messages/:id -> the full message, body sanitised server
- * side. IND-8's reader consumes this; IND-7 only needs the socket previews.
- */
+/** GET /api/v1/inbox/messages/:id -> the full message, body sanitised server side. */
 export async function fetchMessage(id, token, { signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
+        const message = getMessage(token, id);
+        if (message) return message;
         return {
             id,
             subject: "Mock message",
@@ -371,8 +352,6 @@ export async function fetchInboxMessages(token, { signal } = {}) {
 export async function fetchUnreadMessages(token, { signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
-        // The mock backend stores no messages of its own, so there is nothing
-        // to recover; live message:new previews still work.
         return [];
     }
 

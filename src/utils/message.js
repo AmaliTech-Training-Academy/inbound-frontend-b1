@@ -1,12 +1,10 @@
-// The feed hands out the API's message shape, while the reader was built
-// against the shape in data/mockMessages.js. This maps the first onto the
-// second, leaving anything the reader already understands untouched.
+// Maps the API's message shape onto the shape in data/mockMessages.js that the
+// reader was built against.
 
 import { extractVerificationCode } from "./verificationCode.js";
 
-// `sender` is a display projection like "Ada Lovelace <ada@example.com>",
-// while from/fromAddress hold the bare address. A preview row from
-// message:new has only the address, so split whatever is available.
+// `sender` is a display projection like "Ada Lovelace <ada@example.com>", while
+// from/fromAddress hold the bare address.
 function splitSender(message) {
     const raw = message?.sender || message?.from || message?.fromAddress || "";
     const angled = raw.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
@@ -15,14 +13,11 @@ function splitSender(message) {
         return { name: angled[1] || angled[2], email: angled[2] };
     }
 
-    // Display name and email fall back to the same string, so the reader
-    // shows the address once rather than twice.
     return { name: raw || "Unknown sender", email: "" };
 }
 
-// A tag, and not merely an angle bracket: `<` plus an optional `/`, a tag name,
-// then whitespace, `/` or `>`. So `<div>hi</div>` and `<br>` are markup, while
-// `5 < 6`, `2 <3` and a bare `<ada@example.com>` stay text.
+// A tag, and not merely an angle bracket, so `5 < 6` and a bare
+// `<ada@example.com>` stay text.
 const HTML_TAG = /<\/?[a-z][a-z0-9]*(?:\s[^<>]*)?\/?>/i;
 
 function looksLikeHtml(value) {
@@ -34,11 +29,10 @@ function toReaderMessage(message) {
 
     const sender = splitSender(message);
 
-    // The API documents one `body` field - "Sanitized HTML when available;
-    // otherwise plain text" - so it carries either and has to be routed to the
-    // right one of the reader's two keys. It cannot go to both: the text path
-    // collapses newlines, and HTML on the text path shows its tags literally.
-    // An explicit htmlBody/html/textBody/text always wins over classifying it.
+    // The API documents one `body` field, holding either sanitized HTML or plain
+    // text, so it has to be routed to the right one of the reader's two keys. It
+    // cannot go to both: the text path collapses newlines, and HTML on the text
+    // path shows its tags literally.
     const explicitHtml = message.htmlBody || message.html || null;
     const explicitText = message.textBody || message.text || null;
     const bodyIsHtml =
@@ -54,11 +48,8 @@ function toReaderMessage(message) {
         recipientEmail: message.recipientEmail || message.to || null,
         htmlBody,
         textBody,
-        // Settled here rather than in the reader, which only displays the field:
-        // a live message arrives with the body and nothing else, while the mock
-        // shape has this pre-filled. An explicit value is the backend's own
-        // word on it and wins; otherwise it is read out of the message, and is
-        // null when the message contains no code that can be trusted.
+        // An explicit value is the backend's own word on it and wins; otherwise
+        // the code is extracted here and is null when none can be trusted.
         verificationCode:
             message.verificationCode ||
             extractVerificationCode({

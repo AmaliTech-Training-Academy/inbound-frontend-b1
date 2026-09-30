@@ -5,8 +5,8 @@ import Card from "./ui/Card.jsx";
 import HowInboundWorks from "./HowInboundWorks.jsx";
 import ActiveInbox from "./ActiveInbox.jsx";
 
-// Inbox state is owned by App and passed in, so the header's Generate
-// button drives the same inbox as this one.
+// Inbox state is owned by App and passed in, so the header's Generate button
+// drives the same inbox as this one.
 export default function Hero({
     status,
     inbox,
@@ -73,9 +73,10 @@ export default function Hero({
                     ) : (
                         <div className="flex flex-col items-center">
                             <Button
+                                size="lg"
                                 onClick={generate}
                                 disabled={creating}
-                                className="flex h-11 items-center justify-center gap-2 rounded-sm border border-black bg-ink px-6.25 text-base font-medium tracking-[-0.16px] text-white shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-opacity hover:opacity-90 disabled:opacity-55">
+                                className="border border-black tracking-[-0.16px] shadow-[0_1px_1px_rgba(0,0,0,0.05)] transition-opacity hover:opacity-90 disabled:opacity-55">
                                 {creating
                                     ? "Generating\u2026"
                                     : "Generate temporary email"}
@@ -134,10 +135,11 @@ function Expired({ onGenerate, creating }) {
                 unrecoverable.
             </p>
             <Button
+                size="lg"
                 type="button"
                 onClick={onGenerate}
                 disabled={creating}
-                className="flex h-11 items-center gap-2 rounded-sm border border-black bg-ink px-6.25 text-base font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-55">
+                className="border border-black transition-opacity hover:opacity-90 disabled:opacity-55">
                 {creating ? "Generating…" : "Generate a new address"}
                 {!creating && <ArrowRight />}
             </Button>

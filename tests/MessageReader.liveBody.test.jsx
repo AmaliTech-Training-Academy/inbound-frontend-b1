@@ -1,18 +1,10 @@
-// A live message reaches the reader through toReaderMessage, and the API sends
-// a single `body` that can be HTML or plain text. This pins the end of that
-// flow - what the reader renders - rather than how the adapter labels it, which
-// src/utils/message.test.js covers.
-//
-// Kept out of tests/MessageReader.test.jsx on purpose: that file is IND-10's,
-// and this flow is IND-7's live body.
+// Pins what the reader renders for a live message body; how the adapter labels it is covered in src/utils/message.test.js.
 
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import MessageReader from "../src/components/MessageReader.jsx";
 import { toReaderMessage } from "../src/utils/message.js";
 
-// A live message as fetchMessage returns it: sender/fromAddress rather than the
-// reader's senderName/senderEmail, no htmlBody or textBody, one `body`.
 const live = (body) =>
     toReaderMessage({
         id: "live-body-1",

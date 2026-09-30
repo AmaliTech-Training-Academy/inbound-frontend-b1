@@ -44,9 +44,7 @@ describe("Hero", () => {
     });
 
     it("hides the landing copy while rehydrating a stored inbox", () => {
-        // On refresh useInbox starts at "loading" while it confirms the stored
-        // inbox with the server. Rendering the marketing headline during that
-        // window flashes the landing page before the address reappears.
+        // On refresh useInbox starts at "loading" while it confirms the stored inbox with the server; rendering the headline during that window flashes the landing page before the address reappears.
         render(<Hero {...inboxProps({ status: "loading" })} />);
         expect(screen.queryByText(HEADLINE)).not.toBeInTheDocument();
     });
@@ -84,9 +82,7 @@ describe("Hero", () => {
     });
 
     it("keeps the purged card up while the new address is generating", () => {
-        // Between the click and the new inbox arriving, useInbox reports
-        // "creating". Without the regenerating flag that status renders the
-        // landing page, flashing the headline and How Inbound Works.
+        // Between the click and the new inbox arriving, useInbox reports "creating"; without the regenerating flag that status flashes the landing page and How Inbound Works.
         render(
             <Hero {...inboxProps({ status: "creating", regenerating: true })} />,
         );

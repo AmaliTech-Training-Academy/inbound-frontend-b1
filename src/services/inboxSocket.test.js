@@ -2,8 +2,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Exercises the real transport path so the io() call itself is covered; the
-// fake socket stands in for what it returns.
+// Exercises the real transport path so the io() call itself is covered; the fake socket stands in for what it returns.
 const { ioMock } = vi.hoisted(() => ({ ioMock: vi.fn() }));
 
 vi.mock("socket.io-client", () => ({ io: ioMock }));

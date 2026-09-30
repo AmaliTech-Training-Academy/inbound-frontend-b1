@@ -1,38 +1,47 @@
+// Size lives in `size`, not in a className override: `h-8` and `h-11` are the
+// same utility family, so which one wins depends on stylesheet order rather
+// than on the order they are written in the class attribute.
+
+const SIZES = {
+    md: "h-8 px-3.5 gap-1.5 text-xs sm:text-sm",
+    lg: "h-11 px-6.25 gap-2 text-base",
+};
+
+const VARIANTS = {
+    dark: "bg-dark-btn text-surface hover:bg-dark-btn-hover",
+    light: "bg-surface border border-border-default text-text-primary hover:bg-page",
+    danger: "bg-surface border border-danger text-danger hover:bg-danger/10",
+    chip: "h-8 px-2.5 gap-1.5 text-xs sm:text-sm bg-chip text-text-primary hover:bg-border-default",
+    icon: "h-8 w-8 p-0 bg-surface border border-border-default text-text-secondary hover:text-text-primary hover:bg-page",
+};
+
 function Button({
     children,
     onClick,
     variant = "dark",
+    size = "md",
     className = "",
     type = "button",
     disabled = false,
     ...props
 }) {
-    const baseStyles =
-        "inline-flex items-center justify-center font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed rounded-[6px] text-xs sm:text-sm select-none";
+    // "secondary" is the older name for "light"; kept so either reads correctly.
+    const styles =
+        VARIANTS[variant] ??
+        (variant === "secondary" ? VARIANTS.light : VARIANTS.dark);
 
-    let variantStyles =
-        "bg-dark-btn text-white hover:bg-dark-btn-hover px-3.5 py-1.5";
+    // chip and icon carry their own box, so a size would only fight them.
+    const boxed = variant === "chip" || variant === "icon";
+    const sizing = boxed ? "" : SIZES[size];
 
-    if (variant === "light" || variant === "secondary") {
-        variantStyles =
-            "bg-white border border-[#e4e5e9] text-[#111213] hover:bg-[#f4f5f7] px-3 py-1.5";
-    } else if (variant === "danger") {
-        variantStyles =
-            "bg-white border border-[#d1293d] text-[#d1293d] hover:bg-[#d1293d]/10 px-3 py-1.5";
-    } else if (variant === "chip") {
-        variantStyles =
-            "bg-[#eef0f2] text-[#111213] hover:bg-[#e4e5e9] px-2.5 py-1 rounded-[4px]";
-    } else if (variant === "icon") {
-        variantStyles =
-            "w-8 h-8 p-0 bg-white border border-[#e4e5e9] text-[#6b6d73] hover:text-[#111213] hover:bg-[#f4f5f7] rounded-[6px]";
-    }
+    const radius = boxed ? "rounded-[6px]" : "rounded-[8px]";
 
     return (
         <button
             type={type}
             onClick={onClick}
             disabled={disabled}
-            className={`${baseStyles} ${variantStyles} ${className}`}
+            className={`inline-flex cursor-pointer select-none items-center justify-center font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${radius} ${sizing} ${styles} ${className}`}
             {...props}>
             {children}
         </button>

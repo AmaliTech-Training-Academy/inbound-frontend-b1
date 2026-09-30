@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Header from "./components/Header.jsx";
 import Hero from "./components/Hero.jsx";
 import Footer from "./components/Footer.jsx";
@@ -10,14 +10,8 @@ export default function App() {
 
     // The message the reader has open. Held as the message itself, because a
     // live arrival is not in any list this component could look an id up in.
-    const [activeMessage, setActiveMessage] = useState(null);
-
-    // Without this, the message would reopen on the next address generated.
-    useEffect(() => {
-        if (inbox.status !== "active") {
-            setActiveMessage(null);
-        }
-    }, [inbox.status]);
+    const [selectedMessage, setSelectedMessage] = useState(null);
+    const activeMessage = inbox.status === "active" ? selectedMessage : null;
 
     // The warm glow of the Figma landing page, and only there: the inbox and
     // the purged card sit on the plain page. See .app-backdrop in index.css.
@@ -32,13 +26,16 @@ export default function App() {
                 status={inbox.status}
                 generate={inbox.generate}
                 regenerate={inbox.regenerate}
+                inboxes={inbox.inboxes}
+                activeId={inbox.activeId}
+                onSwitchInbox={inbox.switchInbox}
             />
             <main className="flex-1">
                 <Hero
                     {...inbox}
                     activeMessage={activeMessage}
-                    onSelectMessage={setActiveMessage}
-                    onBack={() => setActiveMessage(null)}
+                    onSelectMessage={setSelectedMessage}
+                    onBack={() => setSelectedMessage(null)}
                 />
             </main>
             <Footer />

@@ -1,5 +1,5 @@
 
-// Central config. 
+// Central config.
 const env =
     typeof import.meta !== "undefined" && import.meta.env
         ? import.meta.env
@@ -53,7 +53,6 @@ export const SOCKET_PATH = env.VITE_SOCKET_PATH || socketTarget.path;
  * still has to work, because the mock is currently the only working path.
  */
 export const USE_MOCK = env.VITE_USE_MOCK === "true" || !env.VITE_API_BASE;
-
 
 /**
  * Inbox lifetime, in minutes.

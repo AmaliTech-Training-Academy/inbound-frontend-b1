@@ -31,8 +31,7 @@ describe("Header", () => {
     );
 
     it("replaces an expired inbox through regenerate", async () => {
-        // regenerate() keeps the purged card up while the request runs;
-        // plain generate() would flash the landing page in between.
+        // regenerate() keeps the purged card up while the request runs; plain generate() would flash the landing page in between.
         const user = userEvent.setup();
         const { generate, regenerate } = renderHeader("expired");
 

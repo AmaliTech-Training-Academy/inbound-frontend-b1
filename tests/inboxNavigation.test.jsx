@@ -13,9 +13,6 @@ import App from "../src/App";
 const HOME_HEADING = "Create a temporary email in seconds.";
 const INBOX_STORAGE_KEY = "inbound.inbox";
 
-// What inboxStorage.loadInbox accepts: an id, address, token and expiresAt,
-// all strings, and not yet expired. Seeding it is what puts the app on the
-// active inbox rather than the landing page.
 const STORED_INBOX = {
     id: "inbox-nav-1",
     address: "inbox-nav-1@inbound.mail",
@@ -24,9 +21,7 @@ const STORED_INBOX = {
     expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
 };
 
-// What the socket announces, in the shape message:new carries. The mock
-// fetchMessage answers with its own subject and sender, so the row that
-// appears is labelled from those, not from this payload.
+// The mock fetchMessage answers with its own subject and sender, so the row that appears is labelled from those, not from this payload.
 const ARRIVAL = {
     id: "live-nav-1",
     subject: "Your verification code",
@@ -43,14 +38,7 @@ function renderApp() {
     return render(<App />);
 }
 
-/**
- * Brings the seeded inbox up with one message in its list, and returns the row.
- *
- * The socket is created a tick after the inbox mounts, so an announcement can
- * land before anything is listening. Re-announcing is harmless - useMessages
- * claims an id before it fetches - so the call is simply repeated until the row
- * lands rather than guessing at a delay.
- */
+/** Re-announced until the row lands: the socket mounts a tick after the inbox, and repeating is harmless because useMessages claims an id before it fetches. */
 async function openInboxWithOneMessage() {
     renderApp();
 
@@ -103,8 +91,7 @@ describe("the inbox and the reader", () => {
 
         goBack();
 
-        // ...nor on the way back. Checked straight after the click, which is
-        // when a remount would still be restoring the inbox and showing it.
+        // ...nor on the way back - checked straight after the click, when a remount would still be restoring the inbox.
         expect(screen.queryByText(HOME_HEADING)).toBeNull();
 
         await waitFor(() =>

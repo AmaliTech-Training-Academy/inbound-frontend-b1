@@ -10,8 +10,7 @@ import {
 } from "./inboxApi.js";
 import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
 
-// No VITE_API_BASE in the test env, so config.js resolves USE_MOCK to true and
-// every call below exercises the in-browser mock rather than the network.
+// No VITE_API_BASE in the test env, so config.js resolves USE_MOCK to true and every call below exercises the in-browser mock rather than the network.
 describe("inboxApi", () => {
     beforeAll(() => {
         vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -32,8 +31,6 @@ describe("inboxApi", () => {
         });
 
         it("stamps createdAt, which the real API does not return", async () => {
-            // The 201 body has no createdAt, but the progress ring needs a start
-            // point, so the client adds one at the moment the response lands.
             const before = Date.now();
             const { createdAt } = await createInbox();
             const stamped = new Date(createdAt).getTime();
@@ -68,8 +65,6 @@ describe("inboxApi", () => {
 
     describe("getInboxInfo (mock mode)", () => {
         it("returns inbox metadata without an id or token", async () => {
-            // The bearer token identifies the inbox, so the response carries
-            // neither - the caller already holds both from creation.
             const inbox = await createInbox();
             const info = await getInboxInfo(inbox.token);
 
@@ -113,8 +108,7 @@ describe("inboxApi", () => {
         });
 
         it("keeps accumulating past MAX_EXTENDS, because the server has no cap", async () => {
-            // The API documents no limit; the extend ceiling is a UI courtesy
-            // only, so the service must not pretend to enforce one.
+            // The API documents no limit; the extend ceiling is a UI courtesy only, so the service must not pretend to enforce one.
             const inbox = await createInbox();
             let last;
             for (let i = 1; i <= 5; i++) {
@@ -155,8 +149,6 @@ describe("inboxApi", () => {
 
     describe("fetchUnreadMessages (mock mode)", () => {
         it("returns an empty recovery list, because the mock stores no mail", async () => {
-            // Nothing to recover here: the mock has no message store, so a
-            // re-join sweeps and finds nothing rather than failing.
             const inbox = await createInbox();
 
             await expect(fetchUnreadMessages(inbox.token)).resolves.toEqual([]);

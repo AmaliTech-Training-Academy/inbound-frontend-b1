@@ -41,6 +41,7 @@ export default function AddressBar({ address }) {
 
                 <Button
                     type="button"
+                    size="lg"
                     onClick={copy}
                     aria-label={
                         copyState === "copied"
@@ -49,7 +50,7 @@ export default function AddressBar({ address }) {
                               ? `Could not copy ${address} automatically; it is selected, press Ctrl+C`
                               : `Copy ${address}`
                     }
-                    className="flex shrink-0 items-center gap-2 rounded-sm bg-ink px-4 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90">
+                    className="shrink-0 transition-opacity hover:opacity-90">
                     {/* Copied reads in green, as on the reader's Copy Code. */}
                     {copyState === "copied" ? (
                         <span className="flex items-center gap-1.5 font-semibold text-success">

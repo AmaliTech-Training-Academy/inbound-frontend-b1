@@ -1,4 +1,5 @@
 import Card from "./ui/Card";
+import { Bolt, Dot, Envelope, Shred } from "./icons/icons.jsx";
 import { INBOX_TTL_MINUTES } from "../config.js";
 
 export default function HowInboundWorks() {
@@ -21,11 +22,7 @@ export default function HowInboundWorks() {
                             01
                         </span>
                         <span>
-                            <img
-                                src="/bolt.png"
-                                alt="bolt icon"
-                                className="w-[13.333px] h-[16.667px]"
-                            />
+                            <Bolt />
                         </span>
                     </div>
                     <h3 className="font-semibold text-[16px] leading-6 tracking-[-0.16px] text-ink mb-2">
@@ -37,8 +34,9 @@ export default function HowInboundWorks() {
                         created — only this tab keeps the address, so closing
                         it forgets the inbox.
                     </p>
-                    <div className="text-xs font-mono text-[#45464C] pt-4 border-t border-line-cool">
-                        ● Allocation: &lt; 20ms
+                    <div className="flex items-center gap-1.5 pt-4 border-t border-line-cool text-xs font-mono text-[#45464C]">
+                        <Dot className="text-muted" />
+                        Allocation: &lt; 20ms
                     </div>
                 </Card>
 
@@ -48,11 +46,7 @@ export default function HowInboundWorks() {
                             02
                         </span>
                         <span>
-                            <img
-                                src="/email.png"
-                                className="w-[16.667px] h-3.75"
-                                alt=""
-                            />
+                            <Envelope />
                         </span>
                     </div>
                     <h3 className="text-[16px] leading-6 tracking-[-0.16px] font-semibold text-ink mb-2">
@@ -63,8 +57,9 @@ export default function HowInboundWorks() {
                         code extraction. View plain-text safely without
                         rendering external trackers.
                     </p>
-                    <div className="text-xs font-mono text-[#45464C] pt-4 border-t border-line-cool">
-                        ● Streaming: End-to-end TLS
+                    <div className="flex items-center gap-1.5 pt-4 border-t border-line-cool text-xs font-mono text-[#45464C]">
+                        <Dot className="text-muted" />
+                        Streaming: End-to-end TLS
                     </div>
                 </Card>
 
@@ -73,8 +68,8 @@ export default function HowInboundWorks() {
                         <span className="text-xs text-[#BB0112] font-mono font-medium">
                             03
                         </span>
-                        <span className="text-[#BB0112]">
-                            <img src="/trash-2.svg" alt="trash icon" />
+                        <span className="text-danger">
+                            <Shred />
                         </span>
                     </div>
                     <h3 className="font-semibold text-[16px] leading-6 tracking-[-0.16px] text-ink mb-2">
@@ -85,8 +80,9 @@ export default function HowInboundWorks() {
                         {INBOX_TTL_MINUTES} minutes or instantly via manual
                         destruction. The entire namespace is recycled.
                     </p>
-                    <div className="text-xs font-mono text-danger pt-4 border-t border-line-cool">
-                        ● Purge: Unrecoverable
+                    <div className="flex items-center gap-1.5 pt-4 border-t border-line-cool text-xs font-mono text-danger">
+                        <Dot />
+                        Purge: Unrecoverable
                     </div>
                 </Card>
             </div>

@@ -1,6 +1,6 @@
 // The reader is built on the mock shape (senderName/senderEmail/htmlBody) while
-// the feed hands out the API's (sender/from/body), so the mapping between them
-// is worth pinning down here rather than through the reader's rendering.
+// the feed hands out the API's (sender/from/body), so the mapping is pinned down
+// here rather than through the reader's rendering.
 
 import { describe, it, expect } from "vitest";
 import { splitSender, toReaderMessage } from "./message.js";
@@ -62,9 +62,8 @@ describe("toReaderMessage", () => {
         expect(toReaderMessage({ html: "<p>Hello</p>" }).htmlBody).toBe("<p>Hello</p>");
     });
 
-    // The live backend sends one `body`, documented as "Sanitized HTML when
-    // available; otherwise plain text". Sending all of it to textBody is what
-    // made a live message's markup show up as its own tags in the reader.
+    // The live backend sends one `body`, documented as either sanitized HTML or
+    // plain text, so it has to be classified first.
     describe("the single live body field", () => {
         it("routes an HTML body to the HTML path", () => {
             const message = toReaderMessage({
@@ -99,8 +98,8 @@ describe("toReaderMessage", () => {
             const body = "<div>Hi</div><script>alert(1)</script>";
             const message = toReaderMessage({ id: "live-4", body });
 
-            // It reaches SafeHtmlEmail, which is what stops it running: that
-            // frame is sandboxed without allow-scripts and its document CSP is
+            // It reaches SafeHtmlEmail, which is what stops it running: that frame
+            // is sandboxed without allow-scripts and its document CSP is
             // script-src 'none'. See SafeHtmlEmail.test.jsx.
             expect(message.htmlBody).toBe(body);
             expect(message.textBody).toBeNull();
@@ -128,9 +127,8 @@ describe("toReaderMessage", () => {
         expect(toReaderMessage({ id: "live-1" }).attachments).toEqual([]);
     });
 
-    // The reader only displays this field, so which code it gets is settled
-    // here. The extraction rule itself is tested in verificationCode.test.js;
-    // these are about the adapter picking it up and not overriding the backend.
+    // Settled here rather than in the reader, which only displays it; the
+    // extraction rule itself is tested in verificationCode.test.js.
     describe("the verification code", () => {
         it("reads one out of a live message, which carries none of its own", () => {
             const message = toReaderMessage({
@@ -159,6 +157,38 @@ describe("toReaderMessage", () => {
             });
 
             expect(message.verificationCode).toBe("123456");
+        });
+
+        it("keeps the backend's own code when both it and the body are alphanumeric", () => {
+            const message = toReaderMessage({
+                id: "live-10",
+                body: "Your verification code is 849 201.",
+                verificationCode: "A7K92P",
+            });
+
+            expect(message.verificationCode).toBe("A7K92P");
+        });
+
+        it("reads an alphanumeric code out of a live HTML body", () => {
+            const message = toReaderMessage({
+                id: "live-11",
+                subject: "Your login code",
+                body: "<div><p>Your login code is <strong>7H4K9M</strong>.</p></div>",
+            });
+
+            expect(message.verificationCode).toBe("7H4K9M");
+        });
+
+        it("reads the body when the backend sends no code of its own", () => {
+            const message = toReaderMessage({
+                id: "live-12",
+                body: "Your verification code is 849 201.",
+                verificationCode: null,
+            });
+
+            // An explicit value is the backend's word on it and wins; null is
+            // the absence of one, so the body is still read.
+            expect(message.verificationCode).toBe("849 201");
         });
 
         it("leaves the field null when the message carries no code", () => {

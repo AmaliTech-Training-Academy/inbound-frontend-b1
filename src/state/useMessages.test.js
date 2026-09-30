@@ -1,6 +1,3 @@
-// What the list does with an arrival: fetch, order, de-duplicate, degrade -
-// and, after a re-join, recover what arrived while the socket was down.
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
@@ -72,8 +69,8 @@ async function rejoin() {
 
 /**
  * fetchMessage, answering with the arrival time the test assigned to each id.
- * The default mock stamps every message with the same instant, which would
- * leave the list order down to insertion order instead of receivedAt.
+ * The default mock stamps every message with the same instant, which would leave
+ * the list order down to insertion order instead of receivedAt.
  */
 function fetchWithTimes(times) {
     mocks.fetchMessage.mockImplementation(async (id) => ({
@@ -113,7 +110,6 @@ beforeEach(() => {
         return { close: closeMock };
     });
 
-    // Default: the full message comes back immediately.
     mocks.fetchMessage.mockImplementation(async (id) => ({
         id,
         subject: `Full ${id}`,
@@ -151,8 +147,7 @@ describe("useMessages", () => {
 
         await waitFor(() => expect(result.current.messages).toHaveLength(1));
 
-        // Only the first two arguments: the third carries an abort signal,
-        // which this test has no reason to pin.
+        // Only the first two arguments: the third carries an abort signal.
         const [calledId, calledToken] = mocks.fetchMessage.mock.calls[0];
         expect(calledId).toBe("msg-1");
         expect(calledToken).toBe(INBOX.token);
@@ -283,16 +278,16 @@ describe("useMessages", () => {
 
     describe("reconnect recovery", () => {
         it("fetches the message list with the inbox token when the socket re-joins", async () => {
-            const { result } = await renderMessages();
+            await renderMessages();
 
             await rejoin();
 
-            // The sweep is authenticated by the session token; the inbox it is
-            // scoped to travels in the options.
+            // Authenticated by the inbox token: the route carries no id, so
+            // the token is the whole address of the request.
             expect(mocks.fetchInboxMessages).toHaveBeenCalledTimes(1);
 
-            // Only the first argument: the second carries the inbox id and an
-            // abort signal, which this test has no reason to pin.
+            // Only the first argument: the second carries the abort signal,
+            // which this test has no reason to pin.
             const [calledToken] = mocks.fetchInboxMessages.mock.calls[0];
             expect(calledToken).toBe(INBOX.token);
         });

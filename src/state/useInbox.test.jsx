@@ -28,8 +28,7 @@ beforeEach(() => {
     sessionStorage.clear();
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
-    // Leave the confirmation hanging by default so the first render is what
-    // gets asserted, not the post-confirmation state.
+    // Left hanging by default so the first render is what gets asserted.
     getInboxInfo.mockReturnValue(new Promise(() => {}));
 });
 
@@ -47,7 +46,7 @@ describe("useInbox", () => {
     describe("restoring on mount", () => {
         it("shows the stored inbox on the very first render", () => {
             // A refresh must redraw the same screen, not blank it while the
-            // server confirms. Anything less flashes an empty page.
+            // server confirms.
             sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
 
             const { result } = renderHook(() => useInbox());

@@ -1,7 +1,6 @@
 import { io } from "socket.io-client";
 import { SOCKET_ORIGIN, SOCKET_PATH, USE_MOCK } from "../config.js";
-// TEMPORARY LATENCY DIAGNOSTICS - observation only, see utils/timingLog.js.
-import { noteArrival } from "../utils/timingLog.js";
+import { messagesFor } from "./mockBackend.js";
 
 export const SOCKET_STATUS = {
     CONNECTING: "connecting",
@@ -28,7 +27,7 @@ export function createInboxSocket({
     };
 
     const socket = USE_MOCK
-        ? createMockSocket()
+        ? createMockSocket({ address, token })
         : io(SOCKET_ORIGIN, {
               path: SOCKET_PATH,
               transports: ["websocket", "polling"],
@@ -46,8 +45,7 @@ export function createInboxSocket({
                 return;
             }
 
-            // A failed ack means connected but receiving nothing, so it must
-            // not be reported as joined.
+            // A failed ack means connected but receiving nothing, so it must not be reported as joined.
             console.error("[inboxSocket] join-inbox was rejected:", ack?.error);
             report(
                 SOCKET_STATUS.ERROR,
@@ -58,10 +56,6 @@ export function createInboxSocket({
 
     const handleMessageNew = (payload) => {
         if (!payload?.id) return;
-
-        // TEMPORARY DIAGNOSTICS: the true arrival moment - the first point in
-        // the app the browser has seen this event, before any handling.
-        noteArrival(payload.id, payload, "socket");
 
         if (typeof onMessageNew === "function") onMessageNew(payload);
     };
@@ -94,12 +88,19 @@ export function createInboxSocket({
     };
 }
 
-// Stands in for the real socket when there is no API to connect to. Call
-// window.__inboundSimulateMessage({...}) to fire a message:new by hand.
+// --- Mock transport --------------------------------------------------
+// Stands in for the real socket when there is no API to connect to. Joining an
+// inbox replays that inbox's seeded mail as live arrivals, so the list fills the
+// same way it does against the real server.
+
 const mockSockets = new Set();
 
-function createMockSocket() {
+// Spaced out so the arrivals land one at a time, as they would off a real feed.
+const REPLAY_INTERVAL_MS = 120;
+
+function createMockSocket({ address, token }) {
     const handlers = new Map();
+    let replayTimers = [];
 
     const on = (event, cb) => {
         if (!handlers.has(event)) handlers.set(event, new Set());
@@ -114,12 +115,26 @@ function createMockSocket() {
         handlers.get(event)?.forEach((cb) => cb(...args));
     };
 
+    // Each seeded message arrives as its own message:new, which is also what
+    // exercises the client's id de-duplication against the unread sweep.
+    const replaySeedMessages = () => {
+        replayTimers = messagesFor(token).map((message, index) =>
+            setTimeout(
+                () => fire("message:new", message),
+                index * REPLAY_INTERVAL_MS,
+            ),
+        );
+    };
+
     // Mirrors the real signature; only the ack matters here.
     const emit = (...args) => {
         const [event, , ack] = args;
-        if (event === "join-inbox") {
-            setTimeout(() => ack?.({ success: true, room: "inbox:mock" }), 0);
-        }
+        if (event !== "join-inbox") return;
+
+        setTimeout(() => {
+            ack?.({ success: true, room: `inbox:${address}` });
+            replaySeedMessages();
+        }, 0);
     };
 
     const socket = {
@@ -127,6 +142,8 @@ function createMockSocket() {
         off,
         emit,
         disconnect() {
+            replayTimers.forEach(clearTimeout);
+            replayTimers = [];
             mockSockets.delete(socket);
             fire("disconnect", "io client disconnect");
         },

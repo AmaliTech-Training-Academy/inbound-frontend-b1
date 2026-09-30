@@ -1,6 +1,3 @@
-// The live list and the empty state share this screen, so both are covered
-// here: the actions the parent wires up, and what the feed renders.
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -121,8 +118,7 @@ describe("ActiveInbox", () => {
     });
 
     it("disables every action while one is in flight", () => {
-        // useInbox serialises the three actions behind one lock, so the
-        // controls must not invite a click that would be silently dropped.
+        // useInbox serialises the three actions behind one lock, so the controls must not invite a click that would be silently dropped.
         setup({ busy: "refreshing" });
 
         expect(screen.getByRole("button", { name: /refreshing/i })).toBeDisabled();

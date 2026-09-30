@@ -19,8 +19,7 @@ describe("App", () => {
     });
 
     it("shows the inbox the header generated", async () => {
-        // Header and Hero must share one inbox. If each held its own, the
-        // header would create an inbox the page never displays.
+        // Header and Hero must share one inbox, or the header creates one the page never displays.
         const user = userEvent.setup();
         createInbox.mockResolvedValue({
             id: "i1",

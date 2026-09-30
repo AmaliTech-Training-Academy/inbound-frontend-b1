@@ -1,12 +1,11 @@
-function Card({ children, className = '', ...props }) {
-  return (
-    <div
-      className={`bg-surface border border-line rounded-[12px] ${className}`}
-      {...props}
-    >
-      {children}
-    </div>
-  )
+function Card({ children, className = "", ...props }) {
+    return (
+        <div
+            className={`rounded-[10px] border border-line bg-surface ${className}`}
+            {...props}>
+            {children}
+        </div>
+    );
 }
 
-export default Card
+export default Card;

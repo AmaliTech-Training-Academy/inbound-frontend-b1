@@ -105,10 +105,23 @@ export function useMessages(inbox) {
     // settles; the second sweep would find nothing new, so it is skipped.
     const recovering = useRef(false);
 
-    // The socket is created once per inbox, so it reads credentials through a
-    // ref rather than closing over a value that can go stale.
+    // Switching inboxes is a selection, not a reset: each inbox's list is filed
+    // here under its own key, so switching back shows its mail again instead of
+    // an empty column.
+    const cache = useRef(new Map());
+    const activeKey = useRef(null);
+
+    // The list as of the last commit, so the effect below can file it under the
+    // inbox it belongs to before the incoming list replaces it.
+    const messagesRef = useRef(messages);
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     const inboxRef = useRef(inbox);
-    inboxRef.current = inbox;
+    useEffect(() => {
+        inboxRef.current = inbox;
+    }, [inbox]);
 
     const insert = useCallback((message) => {
         // TEMPORARY DIAGNOSTICS: logged as the row goes into state. React
@@ -219,10 +232,21 @@ export function useMessages(inbox) {
     useEffect(() => {
         if (!inbox?.address || !inbox?.token) return;
 
-        // A different inbox means a different message history.
-        seenIds.current = new Set();
+        // A different inbox means a different message history: the one being
+        // left is filed away, the one being entered is restored.
+        const key = inbox.id ?? inbox.address;
+        const previousKey = activeKey.current;
+
+        if (previousKey && previousKey !== key) {
+            cache.current.set(previousKey, messagesRef.current);
+        }
+
+        const restored = cache.current.get(key) ?? [];
+        activeKey.current = key;
+
+        seenIds.current = new Set(restored.map((message) => message.id));
         queue.current = Promise.resolve();
-        setMessages([]);
+        setMessages(restored);
         setError(null);
         setConnection(SOCKET_STATUS.CONNECTING);
 
@@ -251,11 +275,13 @@ export function useMessages(inbox) {
             });
         }, 0);
 
+        // Closing on cleanup is what keeps exactly one socket alive: the old
+        // inbox's connection is torn down before the new one is created.
         return () => {
             clearTimeout(connectTimer);
             socket?.close();
         };
-    }, [inbox?.address, inbox?.token, handleMessageNew, recoverMessages]);
+    }, [inbox?.id, inbox?.address, inbox?.token, handleMessageNew, recoverMessages]);
 
     // The sweep above runs on every join, so a message the server no longer
     // counts as unread is still re-listed. `resync` is that same sweep, kept for

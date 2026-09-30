@@ -4,9 +4,11 @@ export default function Countdown({ expiresAt }) {
     const [now, setNow] = useState(() => Date.now());
 
     useEffect(() => {
+        // The display is whole seconds, so a faster tick would only re-render
+        // more often for the same output.
         const intervalId = setInterval(() => {
             setNow(Date.now());
-        }, 250);
+        }, 1000);
 
         return () => clearInterval(intervalId);
     }, []);

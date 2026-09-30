@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import Button from './Button'
+import Button from './ui/Button'
 
 // "Destroy Temporary Inbox?" - the confirmation from the message reader, shared
 // so the inbox page's Destroy button asks the same question the same way.

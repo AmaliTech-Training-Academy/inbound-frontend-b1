@@ -53,8 +53,7 @@ describe("Countdown", () => {
     });
 
     it("renders minutes above 59 without wrapping to hours", () => {
-        // The inbox never lives this long today, but the component should not
-        // silently misreport if a longer TTL is ever configured.
+        // The inbox never lives this long today, but the component should not silently misreport if a longer TTL is ever configured.
         render(<Countdown expiresAt={inSeconds(75 * 60)} />);
         expect(screen.getByText("75:00")).toBeInTheDocument();
     });

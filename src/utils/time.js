@@ -1,5 +1,4 @@
-// Relative timestamps for the inbox list. Pure, so it can be tested directly
-// rather than through a rendered component.
+// Relative timestamps for the inbox list.
 
 function formatRelativeTime(iso) {
     if (!iso) return "";

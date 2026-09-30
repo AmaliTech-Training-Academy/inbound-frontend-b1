@@ -5,9 +5,7 @@ import AddressBar from "./AddressBar.jsx";
 
 const ADDRESS = "mock-abc123@inbound.dev";
 
-// userEvent.setup() installs its own navigator.clipboard, so this must be
-// called AFTER setup() or the stub is silently replaced and the test passes
-// against userEvent's clipboard instead of ours.
+// userEvent.setup() installs its own navigator.clipboard, so call this AFTER setup() or the stub is silently replaced and the test passes against userEvent's clipboard instead of ours.
 function stubClipboard(impl) {
     Object.defineProperty(navigator, "clipboard", {
         value: { writeText: impl },
@@ -60,7 +58,6 @@ describe("AddressBar", () => {
 
         const alert = await screen.findByRole("alert");
         expect(alert).toHaveTextContent(/press ctrl\+c/i);
-        // Prince's review: the real reason must reach the console.
         expect(spy).toHaveBeenCalledWith(
             "[AddressBar] clipboard write failed",
             expect.any(Error),

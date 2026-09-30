@@ -1,11 +1,11 @@
 import { useState, useEffect, useEffectEvent } from 'react'
-import Button from './Button'
-import Card from './Card'
-import Badge from './Badge'
+import Button from './ui/Button'
+import Card from './ui/Card'
+import Badge from './ui/Badge'
 import SafeHtmlEmail from './SafeHtmlEmail'
 import Attachments from './Attachments'
 import ConfirmDestroyDialog from './ConfirmDestroyDialog'
-import { formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../utils/helpers'
+import { formatReceivedAt, formatRelativeTime, formatTotalAttachmentSize } from '../utils/helpers'
 
 
 function MessageReader({

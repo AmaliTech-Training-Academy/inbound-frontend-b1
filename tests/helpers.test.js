@@ -1,5 +1,5 @@
-import { describe,it, expect } from 'vitest'
-import { formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../src/utils/helpers'
+import { describe, it, expect } from 'vitest'
+import { formatReceivedAt, formatRelativeTime, formatTotalAttachmentSize } from '../src/utils/helpers'
 
 describe('helpers', () => {
   it ('returns unknown for falsy values', () => {

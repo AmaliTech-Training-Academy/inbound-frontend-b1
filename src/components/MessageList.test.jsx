@@ -1,5 +1,3 @@
-// AC #2: each entry shows sender, subject and the time received.
-
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
