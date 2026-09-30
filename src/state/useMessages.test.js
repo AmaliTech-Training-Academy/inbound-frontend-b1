@@ -458,6 +458,20 @@ describe("useMessages", () => {
         expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(1);
     });
 
+    it("sweeps by hand even while the automatic sweep is holding off", async () => {
+        // Refresh is the user asking: it goes out whatever the back-off says.
+        mocks.rateLimitedFor.mockReturnValue(30_000);
+        mocks.fetchUnreadMessages.mockResolvedValue([unread("asked-1", "2026-09-17T09:00:00.000Z")]);
+        const { result } = await renderMessages();
+
+        await act(async () => {
+            await result.current.resync();
+        });
+
+        await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual(["asked-1"]));
+        expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(1);
+    });
+
     it("exposes the sweep as resync", async () => {
             const { result } = await renderMessages();
 

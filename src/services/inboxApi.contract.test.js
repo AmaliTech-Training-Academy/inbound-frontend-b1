@@ -187,8 +187,8 @@ describe("inboxApi (session-token contract)", () => {
             );
         }
 
-        it("stops asking once the server says slow down", async () => {
-            fetchMock.mockReturnValueOnce(tooMany());
+        it("holds background traffic off after a 429, without blocking the next call", async () => {
+            fetchMock.mockReturnValueOnce(tooMany()).mockReturnValueOnce(reply({ inboxes: [] }));
 
             await expect(getSessionInboxes("tok")).rejects.toMatchObject({
                 status: 429,
@@ -196,12 +196,9 @@ describe("inboxApi (session-token contract)", () => {
             });
             expect(rateLimitedFor()).toBeGreaterThan(0);
 
-            // The next call is refused here, without spending another request.
-            await expect(getInboxInfo("inbox-1", "tok")).rejects.toMatchObject({
-                status: 429,
-                message: expect.stringMatching(/^The server asked us to slow down\. Try again in /),
-            });
-            expect(fetchMock).toHaveBeenCalledTimes(1);
+            // A click still goes out: blocking it on a guess helps nobody.
+            await expect(getSessionInboxes("tok")).resolves.toEqual([]);
+            expect(fetchMock).toHaveBeenCalledTimes(2);
         });
 
         it("waits as long as the server says, when it says", async () => {
@@ -213,27 +210,28 @@ describe("inboxApi (session-token contract)", () => {
             expect(rateLimitedFor()).toBeLessThanOrEqual(120_000);
         });
 
-        it("waits longer after each refusal when the server names no time", async () => {
-            vi.useFakeTimers();
+        it("guesses 30 seconds, then a minute, and never longer, when the server names no time", async () => {
+            // The server's window is fixed: asking again does not extend it,
+            // so a long guess would only keep the inbox waiting after it relents.
+            vi.useFakeTimers({ toFake: ["Date"] });
             fetchMock.mockImplementation(() => tooMany());
+            const waits = [];
 
-            await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
-            const first = rateLimitedFor();
-            vi.advanceTimersByTime(first);
+            for (let i = 0; i < 4; i += 1) {
+                await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
+                waits.push(rateLimitedFor());
+            }
 
-            await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
-            expect(rateLimitedFor()).toBe(first * 2);
+            expect(waits).toEqual([30_000, 60_000, 60_000, 60_000]);
         });
 
-        it("asks again once the wait is over", async () => {
-            vi.useFakeTimers();
+        it("ends the wait as soon as a request gets through", async () => {
             fetchMock.mockReturnValueOnce(tooMany()).mockReturnValueOnce(reply({ inboxes: [] }));
 
             await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
-            vi.advanceTimersByTime(rateLimitedFor());
+            await getSessionInboxes("tok");
 
-            await expect(getSessionInboxes("tok")).resolves.toEqual([]);
-            expect(fetchMock).toHaveBeenCalledTimes(2);
+            expect(rateLimitedFor()).toBe(0);
         });
     });
 });

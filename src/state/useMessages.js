@@ -208,14 +208,16 @@ export function useMessages(inbox) {
     //
     // A failure here must not cost the caller anything - live arrivals keep
     // working - so it is logged and swallowed rather than raised.
-    const recoverUnread = useCallback(async () => {
+    // `manual` is a sweep the user asked for (Refresh): it always goes out.
+    // The automatic one, on every socket join, holds off after a 429.
+    const recoverUnread = useCallback(async ({ manual = false } = {}) => {
         const token = inboxRef.current?.token;
         if (!token || recovering.current) return;
 
-        // Inside a rate-limit window the request is certain to be refused, and
-        // would only lengthen the wait. Sweep once the window has passed
-        // instead, so what arrived meanwhile is still recovered.
-        const wait = rateLimitedFor();
+        // Just after a 429 the request would most likely be refused too. The
+        // automatic sweep waits the back-off out instead, then runs, so what
+        // arrived meanwhile is still recovered.
+        const wait = manual ? 0 : rateLimitedFor();
         if (wait > 0) {
             clearTimeout(deferredSweep.current);
             deferredSweep.current = setTimeout(() => sweepRef.current?.(), wait + 1000);
@@ -302,5 +304,8 @@ export function useMessages(inbox) {
     //
     // `resync` is that same sweep, kept for a caller that wants to ask for one
     // by hand. Ids already on screen are skipped, so it is always safe to call.
-    return { messages, connection, error, resync: recoverUnread };
+    // The sweep, for a caller that wants one by hand - so never held off.
+    const resync = useCallback(() => recoverUnread({ manual: true }), [recoverUnread]);
+
+    return { messages, connection, error, resync };
 }
