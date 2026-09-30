@@ -5,12 +5,12 @@ import Badge from './Badge'
 import SafeHtmlEmail from './SafeHtmlEmail'
 import Attachments from './Attachments'
 import ConfirmDestroyDialog from './ConfirmDestroyDialog'
-import { MOCK_MESSAGES } from '../data/mockMessages'
 import { formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../utils/helpers'
 
 
 function MessageReader({
-  message = MOCK_MESSAGES[0],
+  // No fallback message: an absent one must not render someone else's mail.
+  message,
   onBack,
   inboxAddress,
   onGenerateEmail,
