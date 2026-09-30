@@ -19,6 +19,10 @@ export default function Hero({
     destroy,
     extend,
     refresh,
+    messages = [],
+    activeMessage = null,
+    onSelectMessage,
+    onBack,
 }) {
     const creating = status === "creating";
 
@@ -58,6 +62,11 @@ export default function Hero({
                             canExtend={canExtend}
                             busy={busy}
                             actionError={error}
+                            messages={messages}
+                            activeMessage={activeMessage}
+                            onSelectMessage={onSelectMessage}
+                            onBack={onBack}
+                            onGenerateEmail={generate}
                         />
                     ) : status === "expired" || regenerating ? (
                         <Expired
