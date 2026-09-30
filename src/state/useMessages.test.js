@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     createInboxSocket: vi.fn(),
     fetchMessage: vi.fn(),
     fetchUnreadMessages: vi.fn(),
+    rateLimitedFor: vi.fn(() => 0),
 }));
 
 vi.mock("../services/inboxSocket.js", () => ({
@@ -24,6 +25,7 @@ vi.mock("../services/inboxSocket.js", () => ({
 vi.mock("../services/inboxApi.js", () => ({
     fetchMessage: mocks.fetchMessage,
     fetchUnreadMessages: mocks.fetchUnreadMessages,
+    rateLimitedFor: mocks.rateLimitedFor,
 }));
 
 import { useMessages } from "./useMessages.js";
@@ -104,6 +106,7 @@ beforeEach(() => {
     mocks.createInboxSocket.mockReset();
     mocks.fetchMessage.mockReset();
     mocks.fetchUnreadMessages.mockReset();
+    mocks.rateLimitedFor.mockReset().mockReturnValue(0);
 
     closeMock = vi.fn();
     socketOptions = null;
@@ -158,6 +161,18 @@ describe("useMessages", () => {
         expect(calledToken).toBe(INBOX.token);
 
         expect(result.current.messages[0].subject).toBe("Full msg-1");
+    });
+
+    it("keeps the id it asked for when the full message comes back without one", async () => {
+        // Without it the row is listed but can never be opened: its link
+        // would point at /inbox/undefined.
+        mocks.fetchMessage.mockResolvedValue({ subject: "No id here", body: "Hello" });
+        const { result } = await renderMessages();
+
+        await deliver(preview("msg-1", "2026-09-17T09:00:00.000Z"));
+
+        await waitFor(() => expect(result.current.messages).toHaveLength(1));
+        expect(result.current.messages[0]).toMatchObject({ id: "msg-1", subject: "No id here" });
     });
 
     it("records a repeated id only once", async () => {
@@ -283,7 +298,7 @@ describe("useMessages", () => {
 
     describe("reconnect recovery", () => {
         it("fetches the unread list with the inbox token when the socket re-joins", async () => {
-            const { result } = await renderMessages();
+            await renderMessages();
 
             await rejoin();
 
@@ -421,7 +436,29 @@ describe("useMessages", () => {
             });
         });
 
-        it("exposes the sweep as resync", async () => {
+        it("puts the sweep off while the server has the client backing off", async () => {
+        mocks.rateLimitedFor.mockReturnValue(5_000);
+        mocks.fetchUnreadMessages.mockResolvedValue([unread("late-1", "2026-09-17T09:00:00.000Z")]);
+        const { result } = await renderMessages();
+        // After mounting, whose socket is created on a real tick.
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+        await rejoin();
+        // Refused for certain, so not asked.
+        expect(mocks.fetchUnreadMessages).not.toHaveBeenCalled();
+
+        // The window passes, and the sweep runs after all.
+        mocks.rateLimitedFor.mockReturnValue(0);
+        await act(async () => {
+            vi.advanceTimersByTime(6_000);
+        });
+        vi.useRealTimers();
+
+        await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual(["late-1"]));
+        expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(1);
+    });
+
+    it("exposes the sweep as resync", async () => {
             const { result } = await renderMessages();
 
             await act(async () => {

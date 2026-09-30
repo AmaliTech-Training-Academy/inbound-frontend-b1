@@ -28,3 +28,11 @@ export function inboxProgress(inbox, now) {
 export function isRunningOut(inbox, now) {
     return inboxProgress(inbox, now) <= CRITICAL_PERCENT;
 }
+
+/** Time left before `expiresAt`, as mm:ss, stopping at 00:00. */
+export function formatTimeLeft(expiresAt, now) {
+    const end = new Date(expiresAt).getTime();
+    const seconds = Number.isNaN(end) ? 0 : Math.max(0, Math.floor((end - now) / 1000));
+    const minutes = Math.floor(seconds / 60);
+    return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}

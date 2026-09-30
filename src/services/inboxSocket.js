@@ -114,10 +114,12 @@ function createMockSocket() {
         handlers.get(event)?.forEach((cb) => cb(...args));
     };
 
-    // Mirrors the real signature; only the ack matters here.
+    // Mirrors the real signature; only the ack matters here. The address it
+    // joined is kept so a simulated message can be sent to one inbox.
     const emit = (...args) => {
-        const [event, , ack] = args;
+        const [event, credentials, ack] = args;
         if (event === "join-inbox") {
+            socket.address = credentials?.address;
             setTimeout(() => ack?.({ success: true, room: "inbox:mock" }), 0);
         }
     };
@@ -126,6 +128,7 @@ function createMockSocket() {
         on,
         off,
         emit,
+        address: null,
         disconnect() {
             mockSockets.delete(socket);
             fire("disconnect", "io client disconnect");
@@ -139,8 +142,12 @@ function createMockSocket() {
     setTimeout(() => fire("connect"), 0);
 
     if (typeof window !== "undefined") {
+        // With a `to` address, only that inbox hears it; without one, every
+        // open inbox does.
         window.__inboundSimulateMessage = (payload) => {
-            mockSockets.forEach((s) => s.__fire("message:new", payload));
+            mockSockets.forEach((s) => {
+                if (!payload?.to || payload.to === s.address) s.__fire("message:new", payload);
+            });
         };
     }
 

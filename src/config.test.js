@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { splitSocketTarget } from "./config.js";
+import { splitSocketTarget, MAX_INBOXES } from "./config.js";
 
 describe("config", () => {
+    it("caps a session at five inboxes unless VITE_MAX_INBOXES says otherwise", () => {
+        expect(MAX_INBOXES).toBe(5);
+    });
+
     describe("splitSocketTarget", () => {
         it("moves a deployment prefix into the socket path", () => {
             // io("https://host/server") would ask for namespace "/server".

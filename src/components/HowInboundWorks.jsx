@@ -1,95 +1,59 @@
-import Card from "./ui/Card";
+import { MailOpen, Trash2, Zap } from "lucide-react";
 import { INBOX_TTL_MINUTES } from "../config.js";
 
-export default function HowInboundWorks() {
+// The original project's three steps, word for word, drawn as the design's
+// cards: glassy white, a hairline border, the step number and its icon on top.
+const STEPS = [
+    {
+        icon: Zap,
+        title: "Click Generate",
+        body: "Ephemeral mailbox instance bound instantly in volatile RAM. No account, password, or tracking cookie is ever created — only this tab keeps the address, so closing it forgets the inbox.",
+        note: "Allocation: < 20ms",
+    },
+    {
+        icon: MailOpen,
+        title: "Receive OTPs & Links",
+        body: "Real-time WebSocket streaming with 1-click verification code extraction. View plain-text safely without rendering external trackers.",
+        note: "Streaming: End-to-end TLS",
+    },
+    {
+        icon: Trash2,
+        title: "Auto-Shred & Purge",
+        body: `Permanent cryptographic zeroization after ${INBOX_TTL_MINUTES} minutes or instantly via manual destruction. The entire namespace is recycled.`,
+        note: "Purge: Unrecoverable",
+        danger: true,
+    },
+];
+
+export default function HowInboundWorks({ className = "" }) {
     return (
-        <div className="w-full max-w-5xl mx-auto mt-24 mb-16 text-left">
-            <div className="mb-8 pl-2">
-                <h2 className="text-[24px] leading-8 tracking-[-0.6px] font-semibold text-ink mb-1">
-                    How Inbound Works
-                </h2>
-                <p className="text-gray-600 text-sm">
-                    Engineered for absolute frictionlessness and mathematical
-                    privacy.
-                </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="p-6 shadow-sm flex flex-col">
-                    <div className="flex justify-between items-start mb-4 text-muted">
-                        <span className="text-xs font-mono font-medium">
-                            01
+        <ol className={`m-0 grid w-full list-none grid-cols-1 gap-4 p-0 md:grid-cols-3 ${className}`}>
+            {STEPS.map(({ icon: Icon, title, body, note, danger }, index) => (
+                <li
+                    key={title}
+                    className="flex flex-col rounded-3xl border border-slate-200 bg-white/70 p-6 text-left backdrop-blur">
+                    <div className="mb-5 flex items-center justify-between">
+                        <span
+                            className={`font-mono text-xs ${danger ? "text-rose-600" : "text-slate-400"}`}>
+                            {String(index + 1).padStart(2, "0")}
                         </span>
-                        <span>
-                            <img
-                                src="/bolt.png"
-                                alt="bolt icon"
-                                className="w-[13.333px] h-[16.667px]"
-                            />
+                        <span
+                            className={`flex size-10 items-center justify-center rounded-full ${
+                                danger ? "bg-rose-50 text-rose-600" : "bg-slate-800 text-white"
+                            }`}>
+                            <Icon size={17} aria-hidden="true" />
                         </span>
                     </div>
-                    <h3 className="font-semibold text-[16px] leading-6 tracking-[-0.16px] text-ink mb-2">
-                        Click Generate
-                    </h3>
-                    <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
-                        Ephemeral mailbox instance bound instantly in volatile
-                        RAM. No account, password, or tracking cookie is ever
-                        created — only this tab keeps the address, so closing
-                        it forgets the inbox.
+                    <h2 className="text-lg font-medium text-slate-900">{title}</h2>
+                    <p className="mt-2 grow text-sm leading-relaxed text-slate-600">{body}</p>
+                    <p
+                        className={`mt-6 border-t border-slate-200/70 pt-4 font-mono text-xs ${
+                            danger ? "text-rose-600" : "text-slate-500"
+                        }`}>
+                        ● {note}
                     </p>
-                    <div className="text-xs font-mono text-[#45464C] pt-4 border-t border-line-cool">
-                        ● Allocation: &lt; 20ms
-                    </div>
-                </Card>
-
-                <Card className="p-6 shadow-sm flex flex-col">
-                    <div className="flex justify-between items-start mb-4 text-muted">
-                        <span className="text-xs font-mono font-medium">
-                            02
-                        </span>
-                        <span>
-                            <img
-                                src="/email.png"
-                                className="w-[16.667px] h-3.75"
-                                alt=""
-                            />
-                        </span>
-                    </div>
-                    <h3 className="text-[16px] leading-6 tracking-[-0.16px] font-semibold text-ink mb-2">
-                        Receive OTPs & Links
-                    </h3>
-                    <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
-                        Real-time WebSocket streaming with 1-click verification
-                        code extraction. View plain-text safely without
-                        rendering external trackers.
-                    </p>
-                    <div className="text-xs font-mono text-[#45464C] pt-4 border-t border-line-cool">
-                        ● Streaming: End-to-end TLS
-                    </div>
-                </Card>
-
-                <Card className="p-6 shadow-sm flex flex-col">
-                    <div className="flex justify-between items-start mb-4 text-muted">
-                        <span className="text-xs text-[#BB0112] font-mono font-medium">
-                            03
-                        </span>
-                        <span className="text-[#BB0112]">
-                            <img src="/trash-2.svg" alt="trash icon" />
-                        </span>
-                    </div>
-                    <h3 className="font-semibold text-[16px] leading-6 tracking-[-0.16px] text-ink mb-2">
-                        Auto-Shred & Purge
-                    </h3>
-                    <p className="text-[#45464C] text-sm grow mb-6 leading-relaxed">
-                        Permanent cryptographic zeroization after{" "}
-                        {INBOX_TTL_MINUTES} minutes or instantly via manual
-                        destruction. The entire namespace is recycled.
-                    </p>
-                    <div className="text-xs font-mono text-danger pt-4 border-t border-line-cool">
-                        ● Purge: Unrecoverable
-                    </div>
-                </Card>
-            </div>
-        </div>
+                </li>
+            ))}
+        </ol>
     );
 }

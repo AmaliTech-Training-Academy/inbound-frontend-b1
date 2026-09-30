@@ -17,6 +17,8 @@ import {
     extendInbox,
     fetchUnreadMessages,
     getSessionInboxes,
+    rateLimitedFor,
+    resetRateLimit,
 } from "./inboxApi.js";
 
 const API = "https://api.test/server/api/v1";
@@ -37,6 +39,7 @@ describe("inboxApi (session-token contract)", () => {
         fetchMock = vi.fn();
         vi.stubGlobal("fetch", fetchMock);
         vi.spyOn(console, "error").mockImplementation(() => {});
+        resetRateLimit();
     });
 
     afterEach(() => {
@@ -171,5 +174,66 @@ describe("inboxApi (session-token contract)", () => {
             `${API}/inbox/messages/unread/all?inboxId=inbox-1`,
         );
         expect(unread).toEqual(rows);
+    });
+
+    describe("rate limiting", () => {
+        // What express-rate-limit sends past 100 requests in 15 minutes.
+        function tooMany(headers = {}) {
+            return Promise.resolve(
+                new Response(
+                    JSON.stringify({ status: 429, message: "Too many requests from this IP, please try again later." }),
+                    { status: 429, headers: { "Content-Type": "application/json", ...headers } },
+                ),
+            );
+        }
+
+        it("stops asking once the server says slow down", async () => {
+            fetchMock.mockReturnValueOnce(tooMany());
+
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({
+                status: 429,
+                message: "Too many requests from this IP, please try again later.",
+            });
+            expect(rateLimitedFor()).toBeGreaterThan(0);
+
+            // The next call is refused here, without spending another request.
+            await expect(getInboxInfo("inbox-1", "tok")).rejects.toMatchObject({
+                status: 429,
+                message: expect.stringMatching(/^The server asked us to slow down\. Try again in /),
+            });
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+
+        it("waits as long as the server says, when it says", async () => {
+            fetchMock.mockReturnValueOnce(tooMany({ "RateLimit-Reset": "120" }));
+
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
+
+            expect(rateLimitedFor()).toBeGreaterThan(119_000);
+            expect(rateLimitedFor()).toBeLessThanOrEqual(120_000);
+        });
+
+        it("waits longer after each refusal when the server names no time", async () => {
+            vi.useFakeTimers();
+            fetchMock.mockImplementation(() => tooMany());
+
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
+            const first = rateLimitedFor();
+            vi.advanceTimersByTime(first);
+
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
+            expect(rateLimitedFor()).toBe(first * 2);
+        });
+
+        it("asks again once the wait is over", async () => {
+            vi.useFakeTimers();
+            fetchMock.mockReturnValueOnce(tooMany()).mockReturnValueOnce(reply({ inboxes: [] }));
+
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
+            vi.advanceTimersByTime(rateLimitedFor());
+
+            await expect(getSessionInboxes("tok")).resolves.toEqual([]);
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+        });
     });
 });

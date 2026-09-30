@@ -1,129 +1,112 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-
 import InboxRail from "./InboxRail.jsx";
 
-const inMinutes = (m) => new Date(Date.now() + m * 60_000).toISOString();
+// The clock is pinned (Date only, so clicks and intervals still run), which
+// keeps "05:00 left" from ticking to 04:59 under a slow render.
+const NOW = new Date("2026-09-30T12:00:00Z");
+const IN_FIVE_MINUTES = "2026-09-30T12:05:00Z";
 
-const inbox = (id, extra = {}) => ({
-    id,
-    address: `${id}@inbound.dev`,
-    expiresAt: inMinutes(9),
-    ...extra,
-});
+const INBOXES = [
+    { id: "one", address: "first@inbound.mail", expiresAt: IN_FIVE_MINUTES },
+    { id: "two", address: "second@inbound.mail", expiresAt: IN_FIVE_MINUTES },
+];
+
+const rail = () => screen.getByRole("navigation", { name: "Inboxes" });
+const avatar = (address) =>
+    within(rail()).getByRole("button", { name: new RegExp(`^${address}`) });
 
 describe("InboxRail", () => {
-    it("lists every inbox by its local part, with the time it has left", () => {
-        render(<InboxRail inboxes={[inbox("alpha"), inbox("bravo")]} activeId="alpha" />);
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(NOW);
+    });
 
-        expect(screen.getByText("alpha")).toBeInTheDocument();
-        expect(screen.getByText("bravo")).toBeInTheDocument();
-        expect(screen.getAllByText(/0[89]:\d\d left/)).toHaveLength(2);
+    it("lists every inbox by its address, with the time it has left", () => {
+        render(<InboxRail inboxes={INBOXES} activeId="one" />);
+
+        expect(avatar("first@inbound.mail")).toHaveAccessibleName(
+            "first@inbound.mail, open, 05:00 left",
+        );
+        expect(avatar("second@inbound.mail")).toHaveAccessibleName(
+            "second@inbound.mail, 05:00 left",
+        );
     });
 
     it("marks the open inbox", () => {
-        render(<InboxRail inboxes={[inbox("alpha"), inbox("bravo")]} activeId="bravo" />);
+        render(<InboxRail inboxes={INBOXES} activeId="two" />);
 
-        expect(
-            screen.getByRole("button", { name: "bravo@inbound.dev, open" }),
-        ).toHaveAttribute("aria-current", "true");
-        expect(
-            screen.getByRole("button", { name: "alpha@inbound.dev" }),
-        ).not.toHaveAttribute("aria-current");
+        expect(avatar("second@inbound.mail")).toHaveAttribute("aria-current", "true");
+        expect(avatar("first@inbound.mail")).not.toHaveAttribute("aria-current");
     });
 
     it("shows unread mail waiting in an inbox", () => {
-        render(
-            <InboxRail
-                inboxes={[inbox("alpha"), inbox("bravo")]}
-                activeId="alpha"
-                unreadCounts={{ bravo: 3 }}
-            />,
-        );
+        render(<InboxRail inboxes={INBOXES} activeId="one" unreadCounts={{ two: 3 }} />);
 
-        expect(screen.getByText("3 new")).toBeInTheDocument();
-        expect(
-            screen.getByRole("button", { name: "bravo@inbound.dev, 3 unread" }),
-        ).toBeInTheDocument();
+        expect(avatar("second@inbound.mail")).toHaveAccessibleName(
+            "second@inbound.mail, 3 unread, 05:00 left",
+        );
+        expect(within(avatar("second@inbound.mail")).getByText("3")).toBeInTheDocument();
     });
 
-    it("switches to an inbox when its row is chosen", async () => {
+    it("keeps a large unread count to a badge's width", () => {
+        render(<InboxRail inboxes={INBOXES} activeId="one" unreadCounts={{ one: 120 }} />);
+
+        expect(within(avatar("first@inbound.mail")).getByText("99+")).toBeInTheDocument();
+    });
+
+    it("hands the chosen inbox to the caller", async () => {
         const user = userEvent.setup();
-        const onSelect = vi.fn();
-        render(
-            <InboxRail
-                inboxes={[inbox("alpha"), inbox("bravo")]}
-                activeId="alpha"
-                onSelect={onSelect}
-            />,
-        );
+        const onOpen = vi.fn();
+        render(<InboxRail inboxes={INBOXES} activeId="one" onOpen={onOpen} />);
 
-        await user.click(screen.getByRole("button", { name: "bravo@inbound.dev" }));
+        await user.click(avatar("second@inbound.mail"));
 
-        expect(onSelect).toHaveBeenCalledWith("bravo");
+        expect(onOpen).toHaveBeenCalledWith("two");
+    });
+
+    it("shows which inbox's profile is open", () => {
+        render(<InboxRail inboxes={INBOXES} activeId="one" openedId="two" />);
+
+        expect(avatar("second@inbound.mail")).toHaveAttribute("aria-pressed", "true");
+        expect(avatar("first@inbound.mail")).toHaveAttribute("aria-pressed", "false");
     });
 
     it("adds an inbox from the + button", async () => {
         const user = userEvent.setup();
         const onAdd = vi.fn();
-        render(<InboxRail inboxes={[inbox("alpha")]} activeId="alpha" onAdd={onAdd} />);
+        render(<InboxRail inboxes={INBOXES} activeId="one" onAdd={onAdd} />);
 
-        await user.click(screen.getByRole("button", { name: "+ New inbox" }));
+        await user.click(within(rail()).getByRole("button", { name: "New temporary inbox" }));
 
         expect(onAdd).toHaveBeenCalledTimes(1);
     });
 
-    it("copies an inbox's address without opening it", async () => {
-        const user = userEvent.setup();
-        const writeText = vi.fn().mockResolvedValue(undefined);
-        Object.defineProperty(navigator, "clipboard", {
-            value: { writeText },
-            configurable: true,
-        });
-        const onSelect = vi.fn();
+    it("shows an add in progress, and takes no second one", () => {
+        render(<InboxRail inboxes={INBOXES} activeId="one" adding canAdd={false} />);
+
+        expect(within(rail()).getByRole("button", { name: "Adding an inbox" })).toBeDisabled();
+    });
+
+    it("says the session is full rather than just greying + out", () => {
+        render(<InboxRail inboxes={INBOXES} activeId="one" limit={2} canAdd={false} />);
+
+        const add = within(rail()).getByRole("button", { name: "Inbox limit reached: 2 of 2" });
+        expect(add).toBeDisabled();
+        expect(add).toHaveAttribute("title", "Inbox limit reached: 2 of 2");
+    });
+
+    it("can be labelled for a second copy of itself", () => {
         render(
-            <InboxRail
-                inboxes={[inbox("alpha"), inbox("bravo")]}
-                activeId="alpha"
-                onSelect={onSelect}
-            />,
+            <InboxRail inboxes={INBOXES} activeId="one" orientation="horizontal" label="Switch inbox" />,
         );
 
-        await user.click(screen.getByRole("button", { name: "Copy bravo@inbound.dev" }));
-
-        expect(writeText).toHaveBeenCalledWith("bravo@inbound.dev");
-        expect(onSelect).not.toHaveBeenCalled();
+        expect(screen.getByRole("navigation", { name: "Switch inbox" })).toBeInTheDocument();
+        // The strip switches straight away, so it has no profile to be pressed for.
         expect(
-            screen.getByRole("button", { name: "bravo@inbound.dev copied to clipboard" }),
-        ).toBeInTheDocument();
-    });
-
-    it("drains each row's time bar, red on the timer card's rule", () => {
-        // Created 10 minutes ago with 1 left: 10% of its life, under 30%.
-        const ending = inbox("alpha", {
-            createdAt: inMinutes(-10),
-            expiresAt: inMinutes(1),
-        });
-        const { container } = render(<InboxRail inboxes={[ending]} activeId="alpha" />);
-
-        const fill = container.querySelector('[style*="width"]');
-        expect(parseFloat(fill.style.width)).toBeLessThan(30);
-        expect(fill.className).toMatch(/bg-red-600/);
-        expect(screen.getByText(/00:5\d left|01:00 left/)).toHaveClass("text-red-600");
-    });
-
-    it("notes that inboxes expire separately once there are several", () => {
-        const { rerender } = render(<InboxRail inboxes={[inbox("alpha")]} activeId="alpha" />);
-        expect(screen.queryByText("Each inbox expires on its own.")).toBeNull();
-
-        rerender(<InboxRail inboxes={[inbox("alpha"), inbox("bravo")]} activeId="alpha" />);
-        expect(screen.getByText("Each inbox expires on its own.")).toBeInTheDocument();
-    });
-
-    it("shows an add in progress", () => {
-        render(<InboxRail inboxes={[inbox("alpha")]} activeId="alpha" canAdd={false} adding />);
-
-        expect(screen.getByRole("button", { name: "Adding…" })).toBeDisabled();
+            within(screen.getByRole("navigation", { name: "Switch inbox" }))
+                .getByRole("button", { name: /^first@inbound\.mail/ }),
+        ).not.toHaveAttribute("aria-pressed");
     });
 });

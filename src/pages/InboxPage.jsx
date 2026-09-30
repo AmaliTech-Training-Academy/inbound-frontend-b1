@@ -1,0 +1,533 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { MailOpen, Plus, RefreshCw, Search, Timer, Trash2 } from 'lucide-react'
+import Avatar from '../components/Avatar.jsx'
+import CopyButton from '../components/CopyButton.jsx'
+import MessageList from '../components/MessageList.jsx'
+import MessageReader from '../components/MessageReader.jsx'
+import InboxRail from '../components/InboxRail.jsx'
+import InboxProfilePanel from '../components/InboxProfilePanel.jsx'
+import NewInboxDialog from '../components/NewInboxDialog.jsx'
+import ConfirmDestroyDialog from '../components/ConfirmDestroyDialog.jsx'
+import { SOCKET_STATUS } from '../services/inboxSocket.js'
+import { useNow } from '../state/useNow.js'
+import { formatTimeLeft, isRunningOut } from '../utils/inboxProgress.js'
+import { toReaderMessage } from '../utils/message.js'
+import { EXTEND_MINUTES } from '../config.js'
+import { INBOX_PATH, ROUTES, messageDetailsPath } from '../router'
+
+const MIN_SIDEBAR_WIDTH = 240
+const MAX_SIDEBAR_WIDTH = 480
+const DEFAULT_SIDEBAR_WIDTH = 300
+
+// The inbox from the design (app/inbox/page.tsx): the message list on the
+// left, the open message in the middle, the session's inboxes down the right.
+export default function InboxPage() {
+  const context = useOutletContext()
+  const navigate = useNavigate()
+  const { status, inbox, regenerating, regenerate } = context.session
+
+  if (status === 'expired' || regenerating) {
+    return (
+      <Purged
+        creating={status === 'creating'}
+        onGenerate={async () => {
+          await regenerate()
+          navigate(INBOX_PATH, { replace: true })
+        }}
+      />
+    )
+  }
+
+  // No session to show: the landing page is where one starts.
+  if (status !== 'active' || !inbox) return <Navigate to={ROUTES.home} replace />
+
+  return <InboxWorkspace {...context} />
+}
+
+function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) {
+  const {
+    inbox,
+    inboxes,
+    activeId,
+    select,
+    addInbox,
+    adding,
+    canAddInbox,
+    extend,
+    refresh,
+    destroy,
+    canExtend,
+    busy,
+    error,
+    notice,
+    maxInboxes,
+    atInboxLimit,
+  } = session
+  const { messageId } = useParams()
+  const navigate = useNavigate()
+  const now = useNow(1000)
+
+  const feed = feeds[inbox.id]
+  const messages = useMemo(() => (feed?.messages ?? []).map(toReaderMessage), [feed?.messages])
+
+  const [query, setQuery] = useState('')
+  const visible = useMemo(() => messages.filter((m) => matches(m, query)), [messages, query])
+
+  // The url only ever holds text, so the id is compared as text: a numeric id
+  // from the server would otherwise never match its own link.
+  const selected = messageId ? (messages.find((m) => String(m.id) === messageId) ?? null) : null
+  const selectedId = selected?.id
+
+  // Opened is opened, however it got on screen: a click or a link.
+  useEffect(() => {
+    if (selectedId) markOpened(selectedId)
+  }, [selectedId, markOpened])
+
+  const [panelId, setPanelId] = useState(null)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [confirmingDestroy, setConfirmingDestroy] = useState(false)
+
+  const panelInbox = inboxes.find((entry) => entry.id === panelId) ?? null
+
+  const openMessage = (message) => navigate(messageDetailsPath(message.id))
+  const closeMessage = useCallback(() => navigate(INBOX_PATH), [navigate])
+
+  // A message url belongs to the inbox it was opened in.
+  const leaveMessage = useCallback(() => {
+    if (messageId) navigate(INBOX_PATH, { replace: true })
+  }, [messageId, navigate])
+
+  const switchTo = (id) => {
+    select(id)
+    setPanelOpen(false)
+    leaveMessage()
+  }
+
+  const toggleProfile = (id) => {
+    if (panelOpen && panelId === id) {
+      setPanelOpen(false)
+      return
+    }
+    setPanelId(id)
+    setPanelOpen(true)
+  }
+
+  // A new inbox becomes the open one, so any message open belongs elsewhere.
+  const createInbox = useCallback(async () => {
+    const created = await addInbox()
+    if (created) leaveMessage()
+    return created
+  }, [addInbox, leaveMessage])
+
+  const closeAdd = useCallback(() => setAddOpen(false), [])
+  const cancelDestroy = useCallback(() => setConfirmingDestroy(false), [])
+
+  const confirmDestroy = () => {
+    setConfirmingDestroy(false)
+    destroy()
+    leaveMessage()
+  }
+
+  const onRefresh = () => {
+    refresh()
+    feed?.resync?.()
+  }
+
+  // --- The resizable list, as in the design (wide screens only) ---
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
+  const [isResizing, setIsResizing] = useState(false)
+  const sidebarRef = useRef(null)
+  const addressRef = useRef(null)
+
+  const clampWidth = (width) => Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width))
+
+  useEffect(() => {
+    if (!isResizing) return undefined
+    const onMove = (e) => {
+      const rect = sidebarRef.current?.getBoundingClientRect()
+      if (rect) setSidebarWidth(clampWidth(e.clientX - rect.left))
+    }
+    const onUp = () => setIsResizing(false)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [isResizing])
+
+  const ending = isRunningOut(inbox, now)
+  const extending = busy === 'extending'
+  const refreshing = busy === 'refreshing'
+
+  return (
+    <div
+      className={`flex h-screen w-full flex-col overflow-hidden bg-white font-sans text-[13px] text-slate-700 antialiased lg:flex-row print:block print:h-auto print:overflow-visible ${
+        isResizing ? 'cursor-col-resize select-none' : ''
+      }`}
+    >
+      {/* The list. On a phone it is the page until a message is opened. */}
+      <aside
+        ref={sidebarRef}
+        aria-label="Messages"
+        style={{ '--sidebar-w': `${sidebarWidth}px` }}
+        className={`relative order-2 min-h-0 w-full flex-col bg-white lg:order-none lg:w-(--sidebar-w) lg:flex-none lg:shrink-0 lg:border-r lg:border-slate-200 print:hidden ${
+          selected ? 'hidden lg:flex' : 'flex flex-1'
+        }`}
+      >
+        <div className="px-4 pb-4 pt-5 sm:px-5">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Inbox</h1>
+          <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
+            <span ref={addressRef} className="truncate">
+              {inbox.address}
+            </span>
+            <CopyButton text={inbox.address} fallbackRef={addressRef} size={12} />
+          </p>
+          <p className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span>Inbox expires {formatClock(inbox.expiresAt)}</span>
+            <span aria-hidden="true">·</span>
+            <ConnectionState connection={feed?.connection} error={feed?.error} />
+          </p>
+        </div>
+
+        <div className="px-4 pb-4 sm:px-5">
+          <label className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-slate-400">
+            <Search size={15} aria-hidden="true" />
+            <span className="sr-only">Search messages</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search"
+              className="w-full bg-transparent text-sm text-slate-600 outline-none placeholder:text-slate-400"
+            />
+          </label>
+        </div>
+
+        {/* Where the rail has no room: switch straight from the list. */}
+        <InboxRail
+          orientation="horizontal"
+          label="Switch inbox"
+          className="border-y border-slate-100 lg:hidden"
+          inboxes={inboxes}
+          activeId={activeId}
+          onOpen={switchTo}
+          onAdd={() => setAddOpen(true)}
+          canAdd={canAddInbox}
+          adding={adding}
+          limit={maxInboxes}
+          unreadCounts={unreadCounts}
+        />
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {visible.length > 0 ? (
+            <MessageList
+              messages={visible}
+              selectedId={selectedId}
+              isUnread={isUnread}
+              onSelectMessage={openMessage}
+            />
+          ) : messages.length > 0 ? (
+            <p className="px-6 py-10 text-center text-xs text-slate-400">
+              No messages match “{query.trim()}”.
+            </p>
+          ) : (
+            <EmptyInbox address={inbox.address} />
+          )}
+        </div>
+
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize message list"
+          aria-valuemin={MIN_SIDEBAR_WIDTH}
+          aria-valuemax={MAX_SIDEBAR_WIDTH}
+          aria-valuenow={sidebarWidth}
+          tabIndex={0}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            setIsResizing(true)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') setSidebarWidth((w) => clampWidth(w - 16))
+            if (e.key === 'ArrowRight') setSidebarWidth((w) => clampWidth(w + 16))
+          }}
+          className="group absolute inset-y-0 -right-1.5 z-10 hidden w-3 cursor-col-resize items-center justify-center focus-visible:outline-none lg:flex"
+        >
+          <div
+            className={`h-10 w-1 rounded-full transition-colors group-focus-visible:bg-slate-500 ${
+              isResizing ? 'bg-slate-400' : 'bg-slate-200 group-hover:bg-slate-300'
+            }`}
+          />
+        </div>
+      </aside>
+
+      <div
+        className={`order-1 flex min-w-0 overflow-hidden lg:order-none lg:min-h-0 lg:flex-1 print:block ${
+          selected ? 'min-h-0 flex-1' : 'flex-none'
+        }`}
+      >
+        <main className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 text-slate-500 sm:gap-4 sm:px-6 print:hidden">
+            <Link
+              to={ROUTES.home}
+              className="mr-auto flex items-center gap-2 text-sm font-semibold tracking-tight text-slate-900"
+            >
+              <span aria-hidden="true" className="size-2 rounded-full bg-slate-900" />
+              <span className="max-sm:sr-only">Inbound</span>
+            </Link>
+            <span
+              title="Time until this inbox self-destructs"
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium tabular-nums ${
+                ending ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              <Timer size={13} aria-hidden="true" />
+              {formatTimeLeft(inbox.expiresAt, now)}
+              <span className="sr-only"> left</span>
+            </span>
+            <button
+              type="button"
+              onClick={extend}
+              disabled={!canExtend || busy !== null}
+              title={canExtend ? undefined : 'This inbox cannot be extended any further.'}
+              className="text-xs font-medium enabled:hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {extending ? 'Extending…' : `+${EXTEND_MINUTES}m`}
+              <span className="sr-only"> extend inbox</span>
+            </button>
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={busy !== null}
+              className="enabled:hover:text-slate-800 disabled:opacity-40"
+              aria-label={refreshing ? 'Refreshing inbox' : 'Refresh inbox'}
+            >
+              <RefreshCw size={17} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDestroy(true)}
+              disabled={busy !== null}
+              className="text-rose-600 enabled:hover:text-rose-700 disabled:opacity-40"
+              aria-label="Destroy inbox"
+            >
+              <Trash2 size={17} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              disabled={!canAddInbox}
+              title={atInboxLimit ? `Inbox limit reached: ${inboxes.length} of ${maxInboxes}` : undefined}
+              className="relative ml-1 rounded-full disabled:opacity-60"
+              aria-label={atInboxLimit ? `Inbox limit reached: ${inboxes.length} of ${maxInboxes}` : 'Add an inbox'}
+            >
+              <Avatar seed={inbox.address} size={36} />
+              <span
+                aria-hidden="true"
+                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-white ring-2 ring-white"
+              >
+                <Plus size={10} />
+              </span>
+            </button>
+          </div>
+
+          {error && (
+            <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700 sm:px-6">
+              {error.message}
+            </p>
+          )}
+
+          <div
+            className={`min-h-0 flex-1 overflow-y-auto print:overflow-visible ${
+              selected || messageId ? '' : 'hidden lg:block'
+            }`}
+          >
+            {selected ? (
+              <MessageReader
+                key={selected.id}
+                message={selected}
+                inboxAddress={inbox.address}
+                onBack={closeMessage}
+              />
+            ) : messageId ? (
+              <MissingMessage />
+            ) : (
+              <NothingOpen address={inbox.address} count={messages.length} />
+            )}
+          </div>
+        </main>
+
+        <InboxProfilePanel
+          inbox={panelInbox}
+          open={panelOpen && panelInbox !== null}
+          isCurrent={panelInbox?.id === activeId}
+          unread={panelInbox ? (unreadCounts[panelInbox.id] ?? 0) : 0}
+          onClose={() => setPanelOpen(false)}
+          onSwitch={switchTo}
+        />
+      </div>
+
+      <InboxRail
+        className="order-3 hidden w-16 shrink-0 border-l border-slate-200 lg:order-none lg:flex print:hidden"
+        inboxes={inboxes}
+        activeId={activeId}
+        openedId={panelOpen ? panelId : null}
+        onOpen={toggleProfile}
+        onAdd={() => setAddOpen(true)}
+        canAdd={canAddInbox}
+        adding={adding}
+        limit={maxInboxes}
+        unreadCounts={unreadCounts}
+      />
+
+      {notice && (
+        <p
+          role="status"
+          className="fixed bottom-4 left-1/2 z-40 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800 shadow-sm"
+        >
+          {notice.addresses.map((address, index) => (
+            <span key={address}>
+              {index > 0 && (index === notice.addresses.length - 1 ? ' and ' : ', ')}
+              <span className="font-mono">{address}</span>
+            </span>
+          ))}{' '}
+          expired.
+          {notice.switched && ' Switched to your next inbox.'}
+        </p>
+      )}
+
+      {addOpen && (
+        <NewInboxDialog
+          onClose={closeAdd}
+          onCreate={createInbox}
+          count={inboxes.length}
+          limit={maxInboxes}
+          errorMessage={error?.message}
+        />
+      )}
+
+      <ConfirmDestroyDialog
+        open={confirmingDestroy}
+        address={inbox.address}
+        otherInboxCount={Math.max(0, inboxes.length - 1)}
+        onCancel={cancelDestroy}
+        onConfirm={confirmDestroy}
+      />
+    </div>
+  )
+}
+
+function matches(message, query) {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  const body = (message.textBody || message.htmlBody || '').replace(/<[^>]+>/g, ' ')
+  return [message.senderName, message.senderEmail, message.subject, body, message.verificationCode].some(
+    (value) => typeof value === 'string' && value.toLowerCase().includes(needle),
+  )
+}
+
+function formatClock(timestamp) {
+  const date = new Date(timestamp ?? '')
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+function ConnectionState({ connection, error }) {
+  if (connection === SOCKET_STATUS.JOINED) {
+    return (
+      <span className="flex items-center gap-1 text-emerald-600">
+        <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-500" />
+        Live
+      </span>
+    )
+  }
+  if (connection === SOCKET_STATUS.ERROR) {
+    return (
+      <span className="text-rose-600" title={error?.message}>
+        Offline — retrying
+      </span>
+    )
+  }
+  return (
+    <span className="text-amber-600">
+      {connection === SOCKET_STATUS.DISCONNECTED ? 'Reconnecting…' : 'Connecting…'}
+    </span>
+  )
+}
+
+function EmptyInbox({ address }) {
+  return (
+    <div className="flex flex-col items-center px-6 py-16 text-center">
+      <span className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+        <MailOpen size={20} aria-hidden="true" />
+      </span>
+      <h2 className="mt-4 text-sm font-medium text-slate-900">Your inbox is empty</h2>
+      <p className="mt-1 text-xs leading-relaxed text-slate-400">
+        New messages and verification codes sent to{' '}
+        <span className="break-all font-mono text-slate-600">{address}</span> will appear here
+        in real-time without refreshing.
+      </p>
+      <p className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500">
+        <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+        Waiting for incoming mail…
+      </p>
+    </div>
+  )
+}
+
+function NothingOpen({ address, count }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+      <Avatar seed={address} size={72} animate="always" />
+      <p className="mt-4 text-sm font-medium text-slate-900">
+        {count > 0 ? 'Select a message to read it' : 'Nothing here yet'}
+      </p>
+      <p className="mt-1 max-w-xs text-xs text-slate-400">
+        {count > 0
+          ? `${count} ${count === 1 ? 'message' : 'messages'} in this inbox.`
+          : 'Mail sent to this address shows up the moment it arrives.'}
+      </p>
+    </div>
+  )
+}
+
+function MissingMessage() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-6 py-16 text-center">
+      <p className="text-sm font-medium text-slate-900">This message isn’t here</p>
+      <p className="mt-1 max-w-xs text-xs text-slate-400">
+        It may belong to another inbox, or it can’t be listed again after a reload.
+      </p>
+      <Link to={INBOX_PATH} className="mt-4 text-xs font-medium text-sky-600 hover:underline">
+        Back to inbox
+      </Link>
+    </div>
+  )
+}
+
+function Purged({ onGenerate, creating }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-white px-4 font-sans">
+      <div className="flex max-w-md flex-col items-center gap-4 rounded-3xl border border-slate-200 p-8 text-center shadow-sm">
+        <p className="font-mono text-xs tracking-wide text-rose-600">INBOX PURGED</p>
+        <p className="text-sm text-slate-500">
+          This inbox expired. Its messages and attachments are unrecoverable.
+        </p>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={creating}
+          className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white enabled:hover:bg-slate-800 disabled:opacity-70"
+        >
+          {creating ? 'Generating…' : 'Generate a new address'}
+        </button>
+        <Link to={ROUTES.home} className="text-xs text-slate-400 hover:text-slate-700">
+          Back to home
+        </Link>
+      </div>
+    </div>
+  )
+}

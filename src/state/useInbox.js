@@ -18,9 +18,10 @@ import {
     getInboxInfo,
     getSessionInboxes,
     extendInbox,
+    rateLimitedFor,
     ApiError,
 } from "../services/inboxApi.js";
-import { MAX_EXTENDS } from "../config.js";
+import { MAX_EXTENDS, MAX_INBOXES } from "../config.js";
 import {
     saveSession,
     loadSession,
@@ -35,8 +36,11 @@ import {
 const CREATE_TIMEOUT_MS = 8000;
 
 // How often the inbox list is re-read from the server, for expiries changed
-// elsewhere and for the rail's message counts.
-const SYNC_INTERVAL_MS = 30_000;
+// elsewhere and for the rail's message counts. Every read counts against the
+// API's 100 requests per 15 minutes per IP, shared with everything else the
+// tab (and any other tab on the same connection) sends, so once a minute and
+// only while the tab is on screen.
+const SYNC_INTERVAL_MS = 60_000;
 
 // How long "<address> expired" stays up after an inbox runs out.
 const NOTICE_MS = 5000;
@@ -188,12 +192,17 @@ export function useInbox() {
         [cancelSync],
     );
 
+    // When the list was last asked for, so a tab coming back into view knows
+    // whether it is owed one.
+    const lastSyncAt = useRef(0);
+
     const sync = useCallback(async () => {
         const current = sessionRef.current;
         if (!current) return;
         cancelSync();
         const controller = new AbortController();
         pendingSync.current = controller;
+        lastSyncAt.current = Date.now();
 
         try {
             const remote = await getSessionInboxes(current.token, {
@@ -227,20 +236,29 @@ export function useInbox() {
         }
     }, [cancelSync, endSession]);
 
+    // The routine re-read, as opposed to one the user asked for. Skipped while
+    // nobody is looking, and while the server has told the client to back off:
+    // either way it would only spend the budget the user's own clicks need.
+    const backgroundSync = useCallback(() => {
+        if (document.visibilityState === "hidden") return;
+        if (rateLimitedFor() > 0) return;
+        sync();
+    }, [sync]);
+
     // Confirm a restored session once, then keep the list fresh.
     const hasSession = session !== null;
     useEffect(() => {
         if (!hasSession) return undefined;
         // Scheduled rather than called: the sync ends in state updates, which
         // belong after this commit, not inside it.
-        const first = setTimeout(sync, 0);
-        const id = setInterval(sync, SYNC_INTERVAL_MS);
+        const first = setTimeout(backgroundSync, 0);
+        const id = setInterval(backgroundSync, SYNC_INTERVAL_MS);
         return () => {
             clearTimeout(first);
             clearInterval(id);
             cancelSync();
         };
-    }, [hasSession, sync, cancelSync]);
+    }, [hasSession, backgroundSync, cancelSync]);
 
     // Drop every inbox whose clock has run out. When the active one goes and
     // others remain, the next takes over and a notice says what happened;
@@ -273,11 +291,14 @@ export function useInbox() {
         return () => clearTimeout(t);
     }, [session, expireDue]);
 
-    // Timers are throttled in a background tab, so check again on return.
+    // Timers are throttled in a background tab, and the sync skips one, so
+    // check again on return - and catch up on the list if a sync is owed.
     useEffect(() => {
         if (!hasSession) return undefined;
         const recheck = () => {
-            if (document.visibilityState === "visible") expireDue();
+            if (document.visibilityState !== "visible") return;
+            expireDue();
+            if (Date.now() - lastSyncAt.current >= SYNC_INTERVAL_MS) backgroundSync();
         };
         document.addEventListener("visibilitychange", recheck);
         window.addEventListener("focus", recheck);
@@ -285,7 +306,7 @@ export function useInbox() {
             document.removeEventListener("visibilitychange", recheck);
             window.removeEventListener("focus", recheck);
         };
-    }, [hasSession, expireDue]);
+    }, [hasSession, expireDue, backgroundSync]);
 
     useEffect(() => {
         if (!notice) return undefined;
@@ -306,12 +327,25 @@ export function useInbox() {
     const inbox = inboxes.find((entry) => entry.id === session?.activeId) ?? null;
 
     // Adds an inbox to the session, or starts the session with its first.
+    // Resolves to the inbox it added, or null when it added none, so a caller
+    // creating several in a row can list what it got.
     const addInbox = useCallback(async () => {
-        if (inFlight.current) return;
+        if (inFlight.current) return null;
         const current = sessionRef.current;
-        // No cap on how many: the server sets none. If the backend adds one,
-        // its refusal surfaces through the error below.
         const count = liveInboxes(current).length;
+
+        // The backend caps a session's inboxes; asking past the cap would only
+        // be refused. Destroying one here does not free a place server-side
+        // until its TTL runs out (there is no delete), so a refusal can still
+        // come back below, and it is shown as the server words it.
+        if (count >= MAX_INBOXES) {
+            setError(
+                new Error(
+                    `This session already holds ${MAX_INBOXES} inboxes, the most it can.`,
+                ),
+            );
+            return null;
+        }
 
         inFlight.current = true;
         cancelSync();
@@ -333,7 +367,12 @@ export function useInbox() {
             } catch (err) {
                 // The server no longer knows the session (404): start a new
                 // one. Its old inboxes cannot be read without it anyway.
-                if (!current?.token || !(err instanceof ApiError && err.isDead)) throw err;
+                //
+                // Only a 404. Any other refusal - the session's inbox cap, a
+                // rate limit - is the server saying no to this session, and
+                // quietly starting a fresh one would both dodge the cap and
+                // strand every inbox the session holds.
+                if (!current?.token || !(err instanceof ApiError && err.isNotFound)) throw err;
                 created = await createInbox({ signal: controller.signal });
             }
 
@@ -353,6 +392,7 @@ export function useInbox() {
                 };
             });
             setStatus("active");
+            return toEntry(created);
         } catch (err) {
             const isTimeout = err?.name === "AbortError";
             console.error(
@@ -364,9 +404,16 @@ export function useInbox() {
             const shown = isTimeout
                 ? new Error("That took too long. Check your connection.")
                 : err;
-            setError(first ? shown : new Error("Could not add an inbox. Try again."));
+            // A 4xx is the server declining on purpose - its cap, its rate
+            // limit - and its own words say which; anything else reads the same.
+            const refused =
+                err instanceof ApiError && err.status >= 400 && err.status < 500
+                    ? new Error(err.message)
+                    : null;
+            setError(first ? shown : (refused ?? new Error("Could not add an inbox. Try again.")));
             // Failing to add a second inbox leaves the first on screen.
             if (first) setStatus("error");
+            return null;
         } finally {
             clearTimeout(timer);
             inFlight.current = false;
@@ -487,7 +534,12 @@ export function useInbox() {
                 dropInbox(inbox.id);
                 return;
             }
-            setError(new Error("Could not extend the inbox. Try again."));
+            // A 429 carries how long to wait, which beats "try again".
+            setError(
+                err instanceof ApiError && err.isRateLimited
+                    ? new Error(err.message)
+                    : new Error("Could not extend the inbox. Try again."),
+            );
         } finally {
             actionLock.current = false;
             setBusy(null);
@@ -518,7 +570,12 @@ export function useInbox() {
                 dropInbox(inbox.id);
                 return;
             }
-            setError(new Error("Could not refresh the inbox. Try again."));
+            // A 429 carries how long to wait, which beats "try again".
+            setError(
+                err instanceof ApiError && err.isRateLimited
+                    ? new Error(err.message)
+                    : new Error("Could not refresh the inbox. Try again."),
+            );
         } finally {
             actionLock.current = false;
             setBusy(null);
@@ -537,7 +594,11 @@ export function useInbox() {
         notice,
         regenerating,
         canExtend: (inbox?.extendCount ?? 0) < MAX_EXTENDS,
-        canAddInbox: !adding,
+        canAddInbox: !adding && inboxes.length < MAX_INBOXES,
+        // The cap, and whether this session has reached it, so the page can
+        // say why it will not add another rather than just greying it out.
+        maxInboxes: MAX_INBOXES,
+        atInboxLimit: inboxes.length >= MAX_INBOXES,
         generate,
         regenerate,
         addInbox,

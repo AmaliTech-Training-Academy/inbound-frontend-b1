@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createInboxSocket, SOCKET_STATUS } from "../services/inboxSocket.js";
-import { fetchMessage, fetchUnreadMessages } from "../services/inboxApi.js";
+import { fetchMessage, fetchUnreadMessages, rateLimitedFor } from "../services/inboxApi.js";
 // TEMPORARY LATENCY DIAGNOSTICS - observation only: none of these calls change
 // control flow, ordering or timing. See utils/timingLog.js.
 import {
@@ -105,10 +105,33 @@ export function useMessages(inbox) {
     // settles; the second sweep would find nothing new, so it is skipped.
     const recovering = useRef(false);
 
+    // A sweep put off while the server has the client backing off, and the
+    // sweep itself, read through a ref so the timer never calls a stale one.
+    const deferredSweep = useRef(null);
+    const sweepRef = useRef(null);
+
     // The socket is created once per inbox, so it reads credentials through a
-    // ref rather than closing over a value that can go stale.
+    // ref rather than closing over a value that can go stale. Updated after
+    // each commit: nothing reads it while rendering, only the socket's
+    // handlers and the sweep, which run later.
     const inboxRef = useRef(inbox);
-    inboxRef.current = inbox;
+    useEffect(() => {
+        inboxRef.current = inbox;
+    });
+
+    // A different inbox means a different message history, so its list
+    // starts empty. Reset while rendering - React's way to reset state when a
+    // prop changes - rather than in the socket effect, which would paint the
+    // previous inbox's list for one more frame first.
+    const inboxKey =
+        inbox?.address && inbox?.token ? `${inbox.address}\n${inbox.token}` : null;
+    const [listFor, setListFor] = useState(inboxKey);
+    if (listFor !== inboxKey) {
+        setListFor(inboxKey);
+        setMessages([]);
+        setError(null);
+        setConnection(SOCKET_STATUS.CONNECTING);
+    }
 
     const insert = useCallback((message) => {
         // TEMPORARY DIAGNOSTICS: logged as the row goes into state. React
@@ -164,7 +187,10 @@ export function useMessages(inbox) {
 
             enqueue(async () => {
                 const full = await loadFullMessage(partial.id, token);
-                insert(full ?? toPreviewRow(partial));
+                // The id asked for is the message's id, whatever the reply
+                // carries: a row without one can be listed but never opened,
+                // since its link would lead to /inbox/undefined.
+                insert(full ? { ...full, id: full.id ?? partial.id } : toPreviewRow(partial));
             });
 
             // TEMPORARY DIAGNOSTICS: depth counts this task too, so "ahead" is
@@ -185,6 +211,16 @@ export function useMessages(inbox) {
     const recoverUnread = useCallback(async () => {
         const token = inboxRef.current?.token;
         if (!token || recovering.current) return;
+
+        // Inside a rate-limit window the request is certain to be refused, and
+        // would only lengthen the wait. Sweep once the window has passed
+        // instead, so what arrived meanwhile is still recovered.
+        const wait = rateLimitedFor();
+        if (wait > 0) {
+            clearTimeout(deferredSweep.current);
+            deferredSweep.current = setTimeout(() => sweepRef.current?.(), wait + 1000);
+            return;
+        }
 
         // Same guard as a single message load: without a timeout, one request
         // that never settles would leave `recovering` stuck on and silently end
@@ -216,14 +252,16 @@ export function useMessages(inbox) {
     }, [handleMessageNew]);
 
     useEffect(() => {
+        sweepRef.current = recoverUnread;
+    }, [recoverUnread]);
+
+    useEffect(() => {
         if (!inbox?.address || !inbox?.token) return;
 
-        // A different inbox means a different message history.
+        // A different inbox means a different message history (its list was
+        // emptied while rendering, above).
         seenIds.current = new Set();
         queue.current = Promise.resolve();
-        setMessages([]);
-        setError(null);
-        setConnection(SOCKET_STATUS.CONNECTING);
 
         // Created a tick late on purpose: StrictMode tears this effect down and
         // re-runs it on mount, and a socket created synchronously would open a
@@ -252,6 +290,7 @@ export function useMessages(inbox) {
 
         return () => {
             clearTimeout(connectTimer);
+            clearTimeout(deferredSweep.current);
             socket?.close();
         };
     }, [inbox?.address, inbox?.token, handleMessageNew, recoverUnread]);

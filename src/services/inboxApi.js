@@ -22,6 +22,7 @@ import {
     INBOX_TTL_MINUTES,
     EXTEND_MINUTES,
 } from "../config.js";
+import { MOCK_MESSAGES } from "../data/mockMessages.js";
 
 function assertConfigured() {
     if (!API_BASE) throw new Error("VITE_API_BASE is not set.");
@@ -51,6 +52,67 @@ export class ApiError extends Error {
     get isDead() {
         return this.isUnauthorized || this.isNotFound || this.isExpired;
     }
+
+    /** 429: the server is asking this client to slow down. */
+    get isRateLimited() {
+        return this.status === 429;
+    }
+}
+
+// --- Rate limit ------------------------------------------------------
+// The API allows each IP 100 requests per 15 minutes, across every route
+// (express-rate-limit in the backend's utils/rateLimit.js), and answers 429
+// past that. Every request counts against the same budget - the tab's own
+// background sync included - so once the server says stop, the whole client
+// stops: nothing is sent until the window the server named has passed.
+//
+// The reset time comes from the server's RateLimit-Reset / Retry-After
+// headers when the browser is allowed to read them (CORS may hide them);
+// without them the wait doubles with each refusal, from 30 seconds up to the
+// 15-minute window itself.
+const BACKOFF_START_MS = 30_000;
+const BACKOFF_MAX_MS = 15 * 60_000;
+let coolingUntil = 0;
+let refusals = 0;
+
+/** Milliseconds left before the client may call the API again; 0 when it may. */
+export function rateLimitedFor() {
+    return Math.max(0, coolingUntil - Date.now());
+}
+
+/** Forgets any back-off. For tests, which share this module's state. */
+export function resetRateLimit() {
+    coolingUntil = 0;
+    refusals = 0;
+}
+
+function serverResetMs(res) {
+    for (const name of ["Retry-After", "RateLimit-Reset"]) {
+        const seconds = Number(res.headers?.get?.(name));
+        if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+    }
+    return null;
+}
+
+function noteRateLimited(res) {
+    refusals += 1;
+    const wait =
+        serverResetMs(res) ??
+        Math.min(BACKOFF_MAX_MS, BACKOFF_START_MS * 2 ** (refusals - 1));
+    coolingUntil = Date.now() + wait;
+}
+
+function formatWait(ms) {
+    const seconds = Math.ceil(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    return `${Math.ceil(seconds / 60)} min`;
+}
+
+function coolingDownError() {
+    return new ApiError(
+        429,
+        `The server asked us to slow down. Try again in ${formatWait(rateLimitedFor())}.`,
+    );
 }
 
 // --- Mock mode -------------------------------------------------------
@@ -105,13 +167,21 @@ function mockId() {
 // An abort is the caller's own timeout, so it passes through untouched -
 // useInbox checks for AbortError by name.
 async function guardedFetch(url, init, label) {
+    // Asking again inside the window only spends more of it.
+    if (rateLimitedFor() > 0) throw coolingDownError();
+
+    let res;
     try {
-        return await fetch(url, init);
+        res = await fetch(url, init);
     } catch (err) {
         if (err?.name === "AbortError") throw err;
         console.error(`[inboxApi] ${label} could not reach ${url}`, err);
         throw new ApiError(0, "Could not reach the server.");
     }
+
+    if (res.status === 429) noteRateLimited(res);
+    else if (res.ok) refusals = 0;
+    return res;
 }
 
 /**
@@ -358,6 +428,10 @@ export async function extendInbox(id, token, { signal } = {}) {
 export async function fetchMessage(id, token, { signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
+        // A sample's id brings back the whole sample - HTML, a code, files -
+        // so the reader can be tried against real-looking mail. It arrives now.
+        const sample = MOCK_MESSAGES.find((candidate) => candidate.id === id);
+        if (sample) return { ...sample, receivedAt: new Date().toISOString(), isRead: false };
         return {
             id,
             subject: "Mock message",

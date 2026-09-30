@@ -1,106 +1,160 @@
 /*
- * Fonts are self-hosted from @fontsource (imported in main.jsx), never fetched
- * from Google Fonts: the product copy promises "Zero logs, zero tracking", and
- * a webfont request would hand every visitor's IP and User-Agent to a third
- * party on first paint. The files ship in our own bundle instead.
+ * Fonts are self-hosted, never fetched from Google Fonts: the product copy
+ * promises "Zero logs, zero tracking", and a webfont request would hand every
+ * visitor's IP and User-Agent to a third party on first paint. Haffer ships
+ * from /public/fonts; Poppins and JetBrains Mono from @fontsource (main.jsx).
  */
 @import "tailwindcss";
 
+@font-face {
+    font-family: "Haffer";
+    src: url("/fonts/HafferXH-Regular.otf") format("opentype");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Haffer";
+    src: url("/fonts/HafferXH-Medium.otf") format("opentype");
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Haffer";
+    src: url("/fonts/HafferXH-SemiBold.otf") format("opentype");
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Haffer";
+    src: url("/fonts/HafferXH-Bold.otf") format("opentype");
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+}
+
 @theme {
-    --color-page: #f6f7f9;
-    --color-surface: #ffffff;
-    --color-surface-subtle: #fcfdfe;
-    --color-header: #ffffff;
-    --color-border-default: #e5e7eb;
-    --color-border-strong: #111111;
-    --color-text-primary: #111827;
-    --color-text-secondary: #4b5563;
-    --color-text-tertiary: #9a9ca3;
-    --color-danger: #dc2626;
-    --color-success: #1f9d55;
-    --color-dark-btn: #111111;
-    --color-dark-btn-hover: #2a2a2a;
-    --color-chip: #eef0f2;
-    --color-ink: #111827;
-    --color-muted: #6b7280;
-    --color-canvas: #f9fafb;
-    --color-line: #e5e7eb;
-    --color-line-cool: #e5e7eb;
-
-    --shadow-tile: 0 1px 2px rgba(0, 0, 0, 0.05);
-
+    /* The inbox reads in Haffer, the landing page in Poppins, as designed. */
     --font-sans:
-        "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Haffer", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
         "Helvetica Neue", Arial, sans-serif;
+    --font-poppins: "Poppins", var(--font-sans);
     --font-mono:
         "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
         Consolas, "Liberation Mono", monospace;
+
+    --animate-fade-up: fade-up 0.35s ease-out both;
+    --animate-glow-pulse: glow-pulse 10s ease-in-out infinite;
+    --animate-shine: shine var(--shine-duration, 2.5s) linear infinite;
+    /* GSAP's power3.out, which the design's heading reveal was tuned with. */
+    --animate-split-in: split-in 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) both;
+
+    @keyframes fade-up {
+        from {
+            opacity: 0;
+            transform: translateY(6px) scale(0.98);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    @keyframes glow-pulse {
+        0%,
+        100% {
+            transform: translate(-50%, -50%) scale(1);
+            border-radius: 42% 58% 65% 35% / 45% 45% 55% 55%;
+            opacity: 0.3;
+        }
+        25% {
+            transform: translate(-50%, -50%) scale(1.08);
+            border-radius: 60% 40% 45% 55% / 55% 45% 60% 40%;
+            opacity: 0.38;
+        }
+        50% {
+            transform: translate(-50%, -50%) scale(0.94);
+            border-radius: 40% 60% 55% 45% / 40% 60% 45% 55%;
+            opacity: 0.25;
+        }
+        75% {
+            transform: translate(-50%, -50%) scale(1.05);
+            border-radius: 55% 45% 40% 60% / 60% 40% 55% 45%;
+            opacity: 0.33;
+        }
+    }
+
+    /* The shine enters from the right and leaves on the left. */
+    @keyframes shine {
+        from {
+            background-position: 150% center;
+        }
+        to {
+            background-position: -50% center;
+        }
+    }
+
+    @keyframes split-in {
+        from {
+            opacity: 0;
+            transform: translate3d(0, 40px, 0);
+        }
+        to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+        }
+    }
 }
 
 body {
     font-family: var(--font-sans);
-    background-color: var(--color-page);
-    color: var(--color-text-primary);
+    background-color: #ffffff;
+    color: #171717;
     margin: 0;
     padding: 0;
 }
 
 /*
- * The warm ambient backdrop from the Figma landing page (node 109:3790). The
- * landing page only: the inbox and reader frames sit on a plain page. Fixed to
- * the viewport, so the glow stays put while content scrolls over it.
+ * The landing page's backdrop: a soft amber glow over a perspective grid that
+ * fades in toward the bottom. The design pulled this in as an image from a
+ * third-party CDN; drawing it here keeps that request (and the visitor's IP)
+ * off someone else's server.
  */
-.app-backdrop {
-    position: relative;
-    isolation: isolate;
-    background: linear-gradient(
-        180deg,
-        #fdf7f1 0%,
-        #faf6f3 45%,
-        #f3efec 100%
-    );
-}
-
-.app-backdrop::before,
-.app-backdrop::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-}
-
-/* Peach centre, pink lower-left, lavender upper-right. */
-.app-backdrop::before {
-    background:
+.landing-backdrop {
+    background-color: #ffffff;
+    background-image:
         radial-gradient(
-            55% 38% at 50% 28%,
-            rgba(248, 186, 139, 0.5) 0%,
-            rgba(250, 215, 182, 0.24) 50%,
-            rgba(252, 236, 221, 0) 100%
+            38% 42% at 42% 45%,
+            rgba(247, 190, 94, 0.3) 0%,
+            rgba(240, 186, 92, 0.16) 45%,
+            rgba(240, 186, 92, 0) 100%
         ),
         radial-gradient(
-            40% 34% at 28% 42%,
-            rgba(244, 167, 176, 0.34) 0%,
-            rgba(248, 212, 216, 0) 100%
-        ),
-        radial-gradient(
-            30% 27% at 85% 20%,
-            rgba(169, 180, 245, 0.32) 0%,
-            rgba(219, 225, 250, 0) 100%
+            60% 50% at 50% 70%,
+            rgba(223, 199, 102, 0.12) 0%,
+            rgba(223, 199, 102, 0) 100%
         );
 }
 
-.app-backdrop::after {
-    background-image: radial-gradient(
-        rgba(28, 22, 19, 0.07) 1px,
-        transparent 1px
-    );
-    background-size: 22px 22px;
-    -webkit-mask-image: radial-gradient(
-        75% 55% at 50% 30%,
-        #000 0%,
-        transparent 80%
-    );
-    mask-image: radial-gradient(75% 55% at 50% 30%, #000 0%, transparent 80%);
+.landing-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 38%;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+        linear-gradient(rgba(119, 119, 85, 0.14) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(119, 119, 85, 0.14) 1px, transparent 1px);
+    background-size: 56px 56px;
+    background-position: center top;
+    transform: perspective(520px) rotateX(58deg);
+    transform-origin: center bottom;
+    -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 85%);
+    mask-image: linear-gradient(to top, #000 0%, transparent 85%);
 }
