@@ -55,6 +55,24 @@ describe("MessageList", () => {
         );
     });
 
+    it("prefers the sender a reader-shaped message already carries", () => {
+        render(
+            <MessageList
+                messages={[
+                    {
+                        id: "msg-1",
+                        senderName: "Notion Team",
+                        senderEmail: "notify@m.notion.so",
+                        subject: "Your login code",
+                        receivedAt: now(),
+                    },
+                ]}
+            />,
+        );
+
+        expect(screen.getByText("Notion Team")).toBeInTheDocument();
+    });
+
     it("shows a placeholder for a missing subject", () => {
         render(
             <MessageList
@@ -65,7 +83,7 @@ describe("MessageList", () => {
         expect(screen.getByText("(No Subject)")).toBeInTheDocument();
     });
 
-    it("counts attachments when the full message has them", () => {
+    it("says when a row carries attachments", () => {
         render(
             <MessageList
                 messages={[
@@ -77,10 +95,15 @@ describe("MessageList", () => {
                         attachments: [{ id: "a1" }, { id: "a2" }],
                     },
                 ]}
+                isUnread={() => false}
             />,
         );
 
-        expect(screen.getByText("2 files")).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", {
+                name: "Open message from a@b.c: Invoice, with attachments",
+            }),
+        ).toBeInTheDocument();
     });
 
     it("marks a row whose full message could not be loaded", () => {
@@ -121,7 +144,10 @@ describe("MessageList", () => {
             />,
         );
 
-        expect(screen.getAllByRole("listitem")).toHaveLength(2);
+        const rows = screen.getAllByRole("listitem");
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toHaveTextContent("First");
+        expect(rows[1]).toHaveTextContent("Second");
     });
 
     it("hands the clicked row back to the caller", async () => {
@@ -135,7 +161,11 @@ describe("MessageList", () => {
         };
 
         render(
-            <MessageList messages={[message]} onSelectMessage={onSelectMessage} />,
+            <MessageList
+                messages={[message]}
+                onSelectMessage={onSelectMessage}
+                isUnread={() => false}
+            />,
         );
 
         await user.click(
@@ -153,7 +183,11 @@ describe("MessageList", () => {
         const message = { id: "msg-1", from: "a@b.c", receivedAt: now() };
 
         render(
-            <MessageList messages={[message]} onSelectMessage={onSelectMessage} />,
+            <MessageList
+                messages={[message]}
+                onSelectMessage={onSelectMessage}
+                isUnread={() => false}
+            />,
         );
 
         await user.click(
@@ -165,38 +199,39 @@ describe("MessageList", () => {
         expect(onSelectMessage).toHaveBeenCalledWith(message);
     });
 
+    it("marks the open message as the current row", () => {
+        render(
+            <MessageList
+                messages={[
+                    { id: "a", subject: "One", fromAddress: "a@x.dev", receivedAt: now() },
+                    { id: "b", subject: "Two", fromAddress: "a@x.dev", receivedAt: now() },
+                ]}
+                selectedId="b"
+            />,
+        );
+
+        const [first, second] = screen.getAllByRole("button");
+        expect(first).not.toHaveAttribute("aria-current");
+        expect(second).toHaveAttribute("aria-current", "true");
+    });
+
     describe("read state", () => {
-        const minutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
+        const row = { id: "a", subject: "Hi", fromAddress: "a@x.dev", receivedAt: now() };
 
-        it("labels a message that just arrived as NEW", () => {
-            render(
-                <MessageList
-                    messages={[{ id: "a", subject: "Hi", fromAddress: "a@x.dev", receivedAt: now() }]}
-                    isUnread={() => true}
-                    now={Date.now()}
-                />,
-            );
-            expect(screen.getByText("NEW")).toBeInTheDocument();
+        it("announces an unopened message as unread", () => {
+            render(<MessageList messages={[row]} isUnread={() => true} />);
+
+            expect(
+                screen.getByRole("button", { name: "Open message from a@x.dev: Hi, unread" }),
+            ).toBeInTheDocument();
         });
 
-        it("labels an older unopened message UNREAD", () => {
-            render(
-                <MessageList
-                    messages={[{ id: "a", subject: "Hi", fromAddress: "a@x.dev", receivedAt: minutesAgo(3) }]}
-                    isUnread={() => true}
-                />,
-            );
-            expect(screen.getByText("UNREAD")).toBeInTheDocument();
-        });
+        it("drops the unread note once the message is opened", () => {
+            render(<MessageList messages={[row]} isUnread={() => false} />);
 
-        it("labels an opened message READ", () => {
-            render(
-                <MessageList
-                    messages={[{ id: "a", subject: "Hi", fromAddress: "a@x.dev", receivedAt: now() }]}
-                    isUnread={() => false}
-                />,
-            );
-            expect(screen.getByText("READ")).toBeInTheDocument();
+            expect(
+                screen.getByRole("button", { name: "Open message from a@x.dev: Hi" }),
+            ).toBeInTheDocument();
         });
     });
 
@@ -216,6 +251,23 @@ describe("MessageList", () => {
         expect(screen.getByText("OTP: 849201")).toBeInTheDocument();
     });
 
+    it("uses the code a reader-shaped message already worked out", () => {
+        render(
+            <MessageList
+                messages={[
+                    {
+                        id: "a",
+                        subject: "Welcome",
+                        fromAddress: "a@x.dev",
+                        receivedAt: now(),
+                        verificationCode: "112 358",
+                    },
+                ]}
+            />,
+        );
+        expect(screen.getByText("OTP: 112358")).toBeInTheDocument();
+    });
+
     it("follows the subject with a plain-text preview of the body", () => {
         render(
             <MessageList
@@ -230,9 +282,6 @@ describe("MessageList", () => {
                 ]}
             />,
         );
-        // The subject, the dash and the preview are separate spans in one row.
-        expect(screen.getByRole("button")).toHaveTextContent(
-            /Welcome\s*—\s*Two steps left/,
-        );
+        expect(screen.getByText("Two steps left")).toBeInTheDocument();
     });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../services/inboxApi.js", async () => {
@@ -9,11 +9,13 @@ vi.mock("../services/inboxApi.js", async () => {
         getInboxInfo: vi.fn(),
         getSessionInboxes: vi.fn(),
         extendInbox: vi.fn(),
+        rateLimitedFor: vi.fn(() => 0),
     };
 });
 
 import { useInbox } from "./useInbox.js";
-import { createInbox, getSessionInboxes, ApiError } from "../services/inboxApi.js";
+import { createInbox, getSessionInboxes, rateLimitedFor, ApiError } from "../services/inboxApi.js";
+import { MAX_INBOXES } from "../config.js";
 
 const LEGACY_KEY = "inbound.inbox";
 const SESSION_KEY = "inbound.session";
@@ -134,6 +136,46 @@ describe("useInbox", () => {
             expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
         });
 
+        describe("sparing the request budget", () => {
+            // Shared, per IP: 100 requests per 15 minutes across the whole API.
+            const setVisibility = (state) =>
+                Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+
+            afterEach(() => {
+                setVisibility("visible");
+                rateLimitedFor.mockReturnValue(0);
+            });
+
+            it("leaves the list alone while the tab is hidden, and catches up on return", async () => {
+                setVisibility("hidden");
+                storeSession();
+                getSessionInboxes.mockResolvedValue([]);
+
+                renderHook(() => useInbox());
+                await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+                expect(getSessionInboxes).not.toHaveBeenCalled();
+
+                setVisibility("visible");
+                await act(async () => {
+                    document.dispatchEvent(new Event("visibilitychange"));
+                });
+
+                await waitFor(() => expect(getSessionInboxes).toHaveBeenCalledTimes(1));
+            });
+
+            it("asks nothing while the server has the client backing off", async () => {
+                rateLimitedFor.mockReturnValue(60_000);
+                storeSession();
+
+                const { result } = renderHook(() => useInbox());
+                await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+
+                expect(getSessionInboxes).not.toHaveBeenCalled();
+                // Backing off costs nothing on screen.
+                expect(result.current.inboxes).toHaveLength(2);
+            });
+        });
+
         it("keeps the inboxes when the sync fails on the network", async () => {
             // A blip must not lose anyone their addresses.
             storeSession();
@@ -245,6 +287,47 @@ describe("useInbox", () => {
             expect(result.current.inboxes.map((i) => i.id)).toEqual(["a", "c"]);
             expect(result.current.inbox.id).toBe("c");
             expect(result.current.status).toBe("active");
+        });
+
+        it("stops at the session's inbox cap without asking the server", async () => {
+            const full = Array.from({ length: MAX_INBOXES }, (_, i) => ({
+                ...inboxA,
+                id: `full-${i}`,
+                address: `full-${i}@inbound.dev`,
+            }));
+            storeSession({ inboxes: full, activeId: "full-0" });
+
+            const { result } = renderHook(() => useInbox());
+            expect(result.current.canAddInbox).toBe(false);
+            expect(result.current.atInboxLimit).toBe(true);
+            expect(result.current.maxInboxes).toBe(MAX_INBOXES);
+
+            let added;
+            await act(async () => {
+                added = await result.current.addInbox();
+            });
+
+            expect(added).toBeNull();
+            expect(createInbox).not.toHaveBeenCalled();
+            expect(result.current.inboxes).toHaveLength(MAX_INBOXES);
+            expect(result.current.error?.message).toBe(
+                `This session already holds ${MAX_INBOXES} inboxes, the most it can.`,
+            );
+        });
+
+        it("keeps the session, and says why, when the server refuses an add", async () => {
+            // A refusal is the server saying no to this session. Starting a
+            // fresh session instead would dodge its cap and strand the inboxes.
+            storeSession({ inboxes: [inboxA] });
+            createInbox.mockRejectedValue(new ApiError(403, "Inbox limit reached for this session"));
+
+            const { result } = renderHook(() => useInbox());
+            await act(() => result.current.addInbox());
+
+            expect(createInbox).toHaveBeenCalledTimes(1);
+            expect(stored().token).toBe("tok");
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["a"]);
+            expect(result.current.error?.message).toBe("Inbox limit reached for this session");
         });
 
         it("starts a new session when the server no longer knows this one", async () => {

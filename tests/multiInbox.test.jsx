@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../src/App";
+import { MAX_INBOXES } from "../src/config.js";
 
 // An inbox stored by the one-inbox version, so this also covers migrating it.
 const STORED_INBOX = {
@@ -21,28 +22,28 @@ const ARRIVAL = {
     subject: "Your verification code",
     fromAddress: "ada@example.com",
     receivedAt: new Date().toISOString(),
+    // Only the first inbox hears it: the mock socket otherwise tells them all.
+    to: STORED_INBOX.address,
 };
 
 // The mock's fetchMessage answers with its own sender and subject.
-const ROW_LABEL = "Open message from Mock Sender: Mock message";
+const ROW_LABEL = /^Open message from Mock Sender: Mock message/;
 
 const rail = () => screen.getByRole("navigation", { name: "Inboxes" });
-const railRows = () =>
+// Every avatar is named by its address; + is named for what it does.
+const railInboxes = () =>
     within(rail())
         .getAllByRole("button")
-        // A row's label is its address; each row's copy button reads "Copy …".
-        .filter((button) => {
-            const label = button.getAttribute("aria-label") ?? "";
-            return /@/.test(label) && !label.startsWith("Copy ");
-        });
+        .filter((button) => /@/.test(button.getAttribute("aria-label") ?? ""));
+const profile = () => screen.getByRole("complementary", { name: "Inbox profile" });
 
 async function openFirstInboxWithAMessage() {
     render(
-        <MemoryRouter initialEntries={["/"]}>
+        <MemoryRouter initialEntries={["/inbox"]}>
             <App />
         </MemoryRouter>,
     );
-    await screen.findByRole("heading", { name: "Inbox" });
+    await screen.findByRole("heading", { level: 1, name: "Inbox" });
 
     // The socket joins a tick after the inbox mounts, so re-announce until
     // the row lands; useMessages claims an id before fetching, so repeats are
@@ -50,10 +51,21 @@ async function openFirstInboxWithAMessage() {
     await waitFor(
         () => {
             window.__inboundSimulateMessage?.(ARRIVAL);
-            return screen.getByLabelText(ROW_LABEL);
+            return screen.getByRole("button", { name: ROW_LABEL });
         },
         { timeout: 3000 },
     );
+}
+
+async function addAnInbox() {
+    fireEvent.click(within(rail()).getByRole("button", { name: "New temporary inbox" }));
+    const dialog = screen.getByRole("dialog", { name: "New temporary inbox" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Generate inbox" }));
+
+    await waitFor(() => expect(railInboxes()).toHaveLength(2), { timeout: 3000 });
+    expect(await within(dialog).findByText("Your new address")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog", { name: "New temporary inbox" })).toBeNull();
 }
 
 describe("several inboxes in one session", () => {
@@ -67,39 +79,79 @@ describe("several inboxes in one session", () => {
     it("adds a second inbox, switches back, and keeps the first one's mail", async () => {
         await openFirstInboxWithAMessage();
 
-        fireEvent.click(within(rail()).getByRole("button", { name: "+ New inbox" }));
-        await waitFor(() => expect(railRows()).toHaveLength(2), { timeout: 3000 });
+        await addAnInbox();
 
         // The new inbox is the open one, and it has no mail of its own.
-        expect(await screen.findByText("Your inbox is empty")).toBeInTheDocument();
-        expect(screen.queryByLabelText(ROW_LABEL)).toBeNull();
+        expect(screen.getByText("Your inbox is empty")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: ROW_LABEL })).toBeNull();
 
+        // The rail opens the inbox's profile; the profile switches to it.
         fireEvent.click(
-            within(rail()).getByRole("button", {
-                name: new RegExp(`^${STORED_INBOX.address}`),
-            }),
+            within(rail()).getByRole("button", { name: new RegExp(`^${STORED_INBOX.address}`) }),
         );
+        fireEvent.click(within(profile()).getByRole("button", { name: "Switch to first-inbox" }));
 
         // Its feed stayed alive while the other inbox was open.
-        expect(await screen.findByLabelText(ROW_LABEL)).toBeInTheDocument();
-        expect(screen.getByText(STORED_INBOX.address)).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: ROW_LABEL })).toBeInTheDocument();
+        expect(screen.getAllByText(STORED_INBOX.address)).not.toHaveLength(0);
+    });
+
+    it("counts unread mail waiting in an inbox that is not open", async () => {
+        await openFirstInboxWithAMessage();
+
+        await addAnInbox();
+
+        expect(
+            within(rail()).getByRole("button", { name: new RegExp(`^${STORED_INBOX.address}, 1 unread`) }),
+        ).toBeInTheDocument();
+    });
+
+    it("offers no more inboxes once the session holds its cap", async () => {
+        const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+        window.sessionStorage.clear();
+        window.sessionStorage.setItem(
+            "inbound.session",
+            JSON.stringify({
+                token: "token-full",
+                expiresAt,
+                inboxes: Array.from({ length: MAX_INBOXES }, (_, i) => ({
+                    id: `full-${i}`,
+                    address: `full-${i}@inbound.mail`,
+                    createdAt: new Date().toISOString(),
+                    expiresAt,
+                    extendCount: 0,
+                })),
+                activeId: "full-0",
+                hiddenIds: [],
+            }),
+        );
+        render(
+            <MemoryRouter initialEntries={["/inbox"]}>
+                <App />
+            </MemoryRouter>,
+        );
+        await screen.findByRole("heading", { level: 1, name: "Inbox" });
+
+        // Every way in says so: the rail, the phone strip and the toolbar.
+        const limit = `Inbox limit reached: ${MAX_INBOXES} of ${MAX_INBOXES}`;
+        const adds = screen.getAllByRole("button", { name: limit });
+        expect(adds).toHaveLength(3);
+        adds.forEach((button) => expect(button).toBeDisabled());
+        expect(screen.queryByRole("button", { name: "Add an inbox" })).toBeNull();
     });
 
     it("destroys only the open inbox and moves to the other", async () => {
         await openFirstInboxWithAMessage();
 
-        fireEvent.click(within(rail()).getByRole("button", { name: "+ New inbox" }));
-        await waitFor(() => expect(railRows()).toHaveLength(2), { timeout: 3000 });
+        await addAnInbox();
 
-        fireEvent.click(screen.getByRole("button", { name: /destroy inbox/i }));
+        fireEvent.click(screen.getByRole("button", { name: "Destroy inbox" }));
         const dialog = screen.getByRole("alertdialog");
         expect(dialog).toHaveTextContent("Your other inbox stays.");
         fireEvent.click(within(dialog).getByRole("button", { name: /yes, destroy inbox/i }));
 
-        await waitFor(() => expect(railRows()).toHaveLength(1));
-        expect(railRows()[0]).toHaveAccessibleName(
-            new RegExp(`^${STORED_INBOX.address}`),
-        );
-        expect(screen.getByRole("heading", { name: "Inbox" })).toBeInTheDocument();
+        await waitFor(() => expect(railInboxes()).toHaveLength(1));
+        expect(railInboxes()[0]).toHaveAccessibleName(new RegExp(`^${STORED_INBOX.address}`));
+        expect(screen.getByRole("heading", { level: 1, name: "Inbox" })).toBeInTheDocument();
     });
 });

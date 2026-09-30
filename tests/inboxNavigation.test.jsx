@@ -1,17 +1,17 @@
-// The reader is reached from the inbox and has to come back to it. The address,
-// the socket and the message list all belong to the home page's subtree, so the
-// trip to /inbox/:messageId must not tear any of them down.
+// The reader is opened from the inbox and has to come back to it. The address,
+// the socket and the message list all belong to the session, so the trip to
+// /inbox/:messageId must not tear any of them down.
 //
 // Driven through the real App and its real route table: the bug was in how
-// those two routes relate to each other, not inside either screen, so a test
-// of the screens alone could not see it.
+// those routes relate to each other, not inside either screen, so a test of
+// the screens alone could not see it.
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../src/App";
 
-const HOME_HEADING = "Create a temporary email in seconds.";
+const HOME_HEADING = "Generate Temporary Emails For Every Need";
 const INBOX_STORAGE_KEY = "inbound.inbox";
 
 // What inboxStorage.loadInbox accepts: an id, address, token and expiresAt,
@@ -36,13 +36,16 @@ const ARRIVAL = {
     receivedAt: new Date().toISOString(),
 };
 
-const ROW_LABEL = "Open message from Mock Sender: Mock message";
+// Read or not, the row starts with this.
+const ROW_LABEL = /^Open message from Mock Sender: Mock message/;
 const READER_SUBJECT = "Mock message";
 
-/** Renders the app at the home route, where the inbox is generated. */
+const list = () => screen.getByRole("complementary", { name: "Messages" });
+const row = () => within(list()).getByRole("button", { name: ROW_LABEL });
+
 function renderApp() {
     return render(
-        <MemoryRouter initialEntries={["/"]}>
+        <MemoryRouter initialEntries={["/inbox"]}>
             <App />
         </MemoryRouter>,
     );
@@ -59,20 +62,19 @@ function renderApp() {
 async function openInboxWithOneMessage() {
     renderApp();
 
-    // useInbox confirms the stored inbox with the API before it reports active.
-    await screen.findByRole("heading", { name: "Inbox" });
+    await screen.findByRole("heading", { level: 1, name: "Inbox" });
 
     return await waitFor(
         () => {
             window.__inboundSimulateMessage?.(ARRIVAL);
-            return screen.getByLabelText(ROW_LABEL);
+            return row();
         },
         { timeout: 3000 },
     );
 }
 
-async function openReaderFrom(row) {
-    fireEvent.click(row);
+async function openReaderFrom(button) {
+    fireEvent.click(button);
     await screen.findByLabelText("Back to inbox");
 }
 
@@ -83,10 +85,7 @@ function goBack() {
 describe("the inbox and the reader", () => {
     beforeEach(() => {
         window.sessionStorage.clear();
-        window.sessionStorage.setItem(
-            INBOX_STORAGE_KEY,
-            JSON.stringify(STORED_INBOX),
-        );
+        window.sessionStorage.setItem(INBOX_STORAGE_KEY, JSON.stringify(STORED_INBOX));
     });
 
     afterEach(() => window.sessionStorage.clear());
@@ -95,29 +94,24 @@ describe("the inbox and the reader", () => {
         await openReaderFrom(await openInboxWithOneMessage());
 
         expect(
-            screen.getByRole("heading", { level: 1, name: READER_SUBJECT }),
+            within(screen.getByRole("main")).getByRole("heading", { level: 2, name: READER_SUBJECT }),
         ).toBeInTheDocument();
+        expect(row()).toHaveAttribute("aria-current", "true");
     });
 
     it("comes back to the inbox, and never to the landing page", async () => {
         await openReaderFrom(await openInboxWithOneMessage());
 
-        // The reader covers the home page rather than replacing it, so the
-        // landing copy is never painted on the way in...
         expect(screen.queryByText(HOME_HEADING)).toBeNull();
 
         goBack();
 
-        // ...nor on the way back. Checked straight after the click, which is
-        // when a remount would still be restoring the inbox and showing it.
+        // Checked straight after the click, which is when a remount would still
+        // be restoring the inbox and showing the landing page.
         expect(screen.queryByText(HOME_HEADING)).toBeNull();
 
-        await waitFor(() =>
-            expect(screen.queryByLabelText("Back to inbox")).toBeNull(),
-        );
-        expect(
-            screen.getByRole("heading", { name: "Inbox" }),
-        ).toBeInTheDocument();
+        await waitFor(() => expect(screen.queryByLabelText("Back to inbox")).toBeNull());
+        expect(screen.getByRole("heading", { level: 1, name: "Inbox" })).toBeInTheDocument();
     });
 
     it("still holds the message it was opened from", async () => {
@@ -125,12 +119,52 @@ describe("the inbox and the reader", () => {
 
         goBack();
 
-        await waitFor(() =>
-            expect(screen.queryByLabelText("Back to inbox")).toBeNull(),
-        );
+        await waitFor(() => expect(screen.queryByLabelText("Back to inbox")).toBeNull());
 
         // The list was never unmounted, so the row is the same one that was
         // clicked - not a fresh fetch of whatever the server still calls unread.
-        expect(screen.getByLabelText(ROW_LABEL)).toBeInTheDocument();
+        expect(row()).toBeInTheDocument();
+    });
+
+    it("counts a message as read once it has been opened", async () => {
+        const button = await openInboxWithOneMessage();
+        expect(button).toHaveAccessibleName(/, unread$/);
+
+        await openReaderFrom(button);
+
+        expect(row()).toHaveAccessibleName("Open message from Mock Sender: Mock message");
+    });
+
+    it("opens a message whose id is a number", async () => {
+        // A url only holds text, so a numeric id has to be matched as text.
+        renderApp();
+        await screen.findByRole("heading", { level: 1, name: "Inbox" });
+        const numbered = await waitFor(
+            () => {
+                window.__inboundSimulateMessage?.({ ...ARRIVAL, id: 42 });
+                return row();
+            },
+            { timeout: 3000 },
+        );
+
+        await openReaderFrom(numbered);
+
+        expect(
+            within(screen.getByRole("main")).getByRole("heading", { level: 2, name: READER_SUBJECT }),
+        ).toBeInTheDocument();
+    });
+
+    it("finds a message by what it says", async () => {
+        await openInboxWithOneMessage();
+
+        fireEvent.change(screen.getByRole("searchbox", { name: "Search messages" }), {
+            target: { value: "nothing like it" },
+        });
+        expect(screen.getByText("No messages match “nothing like it”.")).toBeInTheDocument();
+
+        fireEvent.change(screen.getByRole("searchbox", { name: "Search messages" }), {
+            target: { value: "mock sender" },
+        });
+        expect(row()).toBeInTheDocument();
     });
 });

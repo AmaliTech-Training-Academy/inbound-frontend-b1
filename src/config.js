@@ -81,6 +81,23 @@ export const EXTEND_MINUTES = 5;
  */
 export const MAX_EXTENDS = 3;
 
+/**
+ * Most inboxes one session holds at once.
+ *
+ * The backend caps inboxes per session, and the client holds itself to the
+ * same number rather than letting the server be the first to say no. Keep
+ * VITE_MAX_INBOXES equal to the backend's cap. The default, 5, is the cap the
+ * rail carried before the backend had one; no number was in the backend's
+ * own code as of dev on 2026-09-30.
+ *
+ * Each open inbox also keeps a socket of its own (a socket joins one inbox
+ * room), so this bounds the connections as well as the rail.
+ */
+export const MAX_INBOXES = (() => {
+    const configured = Number.parseInt(env.VITE_MAX_INBOXES, 10);
+    return Number.isInteger(configured) && configured > 0 ? configured : 5;
+})();
+
 /** Timer colour thresholds, in seconds. */
 export const TIMER_WARN_SECONDS = 5 * 60;
 export const TIMER_DANGER_SECONDS = 60;
