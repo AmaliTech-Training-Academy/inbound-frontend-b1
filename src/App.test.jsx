@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 
 vi.mock("./services/inboxApi.js", async () => {
     const actual = await vi.importActual("./services/inboxApi.js");
@@ -31,12 +30,7 @@ describe("App", () => {
             expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
         });
 
-        // App renders a route table, so it needs a router around it to mount.
-        render(
-            <MemoryRouter initialEntries={["/"]}>
-                <App />
-            </MemoryRouter>,
-        );
+        render(<App />);
         await user.click(screen.getByRole("button", { name: /^generate email$/i }));
 
         // The active inbox renders the address in more than one place.

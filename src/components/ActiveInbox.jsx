@@ -3,10 +3,12 @@ import Card from "./ui/Card";
 import Countdown from "./Countdown";
 import ProgressRing from "./ProgressRing";
 import AddressBar from "./AddressBar";
+import Button from "./Button";
 import ConfirmDestroyDialog from "./ConfirmDestroyDialog";
-import ReaderButton from "./Button";
 import MessageList from "./MessageList";
+import MessageReader from "./MessageReader";
 import { useMessages } from "../state/useMessages.js";
+import { toReaderMessage } from "../utils/message.js";
 import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
 
 export default function ActiveInbox({
@@ -14,10 +16,13 @@ export default function ActiveInbox({
     onDestroy,
     onExtend,
     onRefresh,
-    onSelectMessage,
     canExtend = true,
     busy = null,
     actionError = null,
+    activeMessage = null,
+    onSelectMessage,
+    onBack,
+    onGenerateEmail,
 }) {
     const [now, setNow] = useState(() => Date.now());
 
@@ -76,7 +81,6 @@ export default function ActiveInbox({
 
     return (
         <div className="w-full max-w-[976px] mx-auto flex flex-col gap-6 mt-4 animate-in fade-in duration-500 text-left">
-            {/* Status Pill */}
             <div className="flex justify-center mb-2">
                 <div className="flex items-center gap-2 text-[11px] font-mono tracking-wide text-gray-700 bg-surface border border-line px-3 py-1.5 rounded-full shadow-sm">
                     <span className="text-emerald-500 animate-pulse">●</span>
@@ -84,7 +88,6 @@ export default function ActiveInbox({
                 </div>
             </div>
 
-            {/* Timer Card */}
             <Card className="flex items-center justify-between p-6 sm:p-8 shadow-sm">
                 <div className="flex flex-col gap-1">
                     <h2 className="text-[11px] font-bold tracking-widest text-gray-400 uppercase">
@@ -120,7 +123,6 @@ export default function ActiveInbox({
                 </div>
             </Card>
 
-            {/* Address Card */}
             <Card className="p-6 sm:p-8 shadow-sm">
                 <p className="text-[11px] font-bold tracking-widest text-muted mb-4">
                     Active Inbound Address
@@ -128,120 +130,156 @@ export default function ActiveInbox({
                 <AddressBar address={inbox.address} />
             </Card>
 
-            {/* Inbox Layout */}
-            <div className="mt-8 flex flex-col">
-                <div className="flex flex-wrap items-center justify-between mb-3 gap-4">
-                    <div className="flex items-center gap-2.5">
-                        <h2 className="text-xl font-bold tracking-[-0.5px] text-gray-900">
-                            Inbox
-                        </h2>
-                        <span className="rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 font-mono text-xs font-medium text-gray-600">
-                            {messages.length}{" "}
-                            {messages.length === 1 ? "message" : "messages"}
-                        </span>
-                        {unreadCount > 0 && (
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 font-mono text-xs font-semibold text-emerald-700">
-                                {unreadCount} unread
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <InboxAction onClick={onRefresh} disabled={anyBusy}>
-                            <span aria-hidden="true">↻</span>
-                            {refreshing ? "Refreshing…" : "Refresh"}
-                        </InboxAction>
-                        <InboxAction
-                            onClick={onExtend}
-                            disabled={!canExtend || anyBusy}
-                            title={
-                                canExtend
-                                    ? undefined
-                                    : "This inbox cannot be extended any further."
-                            }
-                            >
-                            {extending ? "Extending…" : extendLabel}
-                        </InboxAction>
-                        {/* The same button as the message reader's, icon included. */}
-                        <ReaderButton
-                            variant="danger"
-                            onClick={() => setConfirmingDestroy(true)}
-                            disabled={anyBusy}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium h-8">
-                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            <span>{destroying ? "Destroying…" : "Destroy Inbox"}</span>
-                        </ReaderButton>
-                    </div>
-                </div>
-
-                <ConfirmDestroyDialog
-                    open={confirmingDestroy}
-                    onCancel={() => setConfirmingDestroy(false)}
-                    onConfirm={() => {
-                        setConfirmingDestroy(false);
-                        onDestroy?.();
-                    }}
+            {/* Alternate screens, never stacked: each carries its own Destroy
+                Inbox control. */}
+            {activeMessage ? (
+                <MessageReader
+                    message={toReaderMessage(activeMessage)}
+                    inboxAddress={inbox.address}
+                    onBack={onBack}
+                    onGenerateEmail={onGenerateEmail}
+                    onDestroy={onDestroy}
                 />
-
-                {actionError && (
-                    <p
-                        role="alert"
-                        className="mb-4 px-2 text-[13px] text-danger">
-                        {actionError.message}
-                    </p>
-                )}
-
-                {messages.length > 0 ? (
-                    <>
-                        <MessageList
-                            messages={messages}
-                            onSelectMessage={openMessage}
-                            isUnread={isUnread}
-                            now={now}
-                        />
-                        <AutoExtractNote />
-                    </>
-                ) : (
-                    /* Empty State Body */
-                    <Card className="p-12 sm:p-16 shadow-sm flex flex-col items-center justify-center text-center">
-                        <div className="mb-5 text-muted bg-canvas border border-line-cool p-4 rounded-full">
-                            <svg
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round">
-                                <rect width="20" height="16" x="2" y="4" rx="2" />
-                                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                            </svg>
-                        </div>
-
-                        <h3 className="text-lg font-bold text-ink mb-2">
-                            Your inbox is empty
-                        </h3>
-
-                        <p className="text-[14px] text-muted max-w-112.5 mb-8 leading-relaxed">
-                            New messages and verification codes sent to{" "}
-                            <span className="font-mono text-ink font-medium">
-                                {inbox.address}
-                            </span>{" "}
-                            will appear here in real-time without refreshing.
-                        </p>
-
-                        <div className="flex items-center gap-2 text-[11px] font-mono text-gray-800 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
-                            <span className="text-emerald-500 animate-pulse">
-                                ●
+            ) : (
+                <div className="mt-8 flex flex-col">
+                    <div className="flex flex-wrap items-center justify-between mb-3 gap-4">
+                        <div className="flex items-center gap-2.5">
+                            <h2 className="text-xl font-bold tracking-[-0.5px] text-gray-900">
+                                Inbox
+                            </h2>
+                            <span className="rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 font-mono text-xs font-medium text-gray-600">
+                                {messages.length}{" "}
+                                {messages.length === 1 ? "message" : "messages"}
                             </span>
-                            Waiting for incoming transmissions...
+                            {unreadCount > 0 && (
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 font-mono text-xs font-semibold text-emerald-700">
+                                    {unreadCount} unread
+                                </span>
+                            )}
                         </div>
-                    </Card>
-                )}
-            </div>
+
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="dark"
+                                onClick={onGenerateEmail}
+                                aria-label="Generate new temporary email"
+                                className="inline-flex items-center gap-1.5 text-xs font-medium h-8">
+                                Generate Email
+                            </Button>
+                            <InboxAction onClick={onRefresh} disabled={anyBusy}>
+                                <span aria-hidden="true">↻</span>
+                                {refreshing ? "Refreshing…" : "Refresh"}
+                            </InboxAction>
+                            <InboxAction
+                                onClick={onExtend}
+                                disabled={!canExtend || anyBusy}
+                                title={
+                                    canExtend
+                                        ? undefined
+                                        : "This inbox cannot be extended any further."
+                                }>
+                                {extending ? "Extending…" : extendLabel}
+                            </InboxAction>
+                            {/* The same button as the message reader's, icon included. */}
+                            <Button
+                                variant="danger"
+                                onClick={() => setConfirmingDestroy(true)}
+                                disabled={anyBusy}
+                                aria-label="Destroy Inbox"
+                                className="inline-flex items-center gap-1.5 text-xs font-medium h-8">
+                                <svg
+                                    className="w-3.5 h-3.5 shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                    />
+                                </svg>
+                                <span>
+                                    {destroying ? "Destroying…" : "Destroy Inbox"}
+                                </span>
+                            </Button>
+                        </div>
+                    </div>
+
+                    <ConfirmDestroyDialog
+                        open={confirmingDestroy}
+                        onCancel={() => setConfirmingDestroy(false)}
+                        onConfirm={() => {
+                            setConfirmingDestroy(false);
+                            onDestroy?.();
+                        }}
+                    />
+
+                    {actionError && (
+                        <p
+                            role="alert"
+                            className="mb-4 px-2 text-[13px] text-danger">
+                            {actionError.message}
+                        </p>
+                    )}
+
+                    {messages.length > 0 ? (
+                        <>
+                            <MessageList
+                                messages={messages}
+                                onSelectMessage={openMessage}
+                                isUnread={isUnread}
+                                now={now}
+                            />
+                            <AutoExtractNote />
+                        </>
+                    ) : (
+                        <Card className="p-12 sm:p-16 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="mb-5 text-muted bg-canvas border border-line-cool p-4 rounded-full">
+                                <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round">
+                                    <rect
+                                        width="20"
+                                        height="16"
+                                        x="2"
+                                        y="4"
+                                        rx="2"
+                                    />
+                                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                                </svg>
+                            </div>
+
+                            <h3 className="text-lg font-bold text-ink mb-2">
+                                Your inbox is empty
+                            </h3>
+
+                            <p className="text-[14px] text-muted max-w-112.5 mb-8 leading-relaxed">
+                                New messages and verification codes sent to{" "}
+                                <span className="font-mono text-ink font-medium">
+                                    {inbox.address}
+                                </span>{" "}
+                                will appear here in real-time without
+                                refreshing.
+                            </p>
+
+                            <div className="flex items-center gap-2 text-[11px] font-mono text-gray-800 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
+                                <span className="text-emerald-500 animate-pulse">
+                                    ●
+                                </span>
+                                Waiting for incoming transmissions...
+                            </div>
+                        </Card>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

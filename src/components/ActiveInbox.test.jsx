@@ -38,6 +38,7 @@ function setup(props = {}) {
         onDestroy: vi.fn(),
         onExtend: vi.fn(),
         onRefresh: vi.fn(),
+        onGenerateEmail: vi.fn(),
     };
     render(<ActiveInbox inbox={INBOX} {...handlers} {...props} />);
     return handlers;
@@ -103,6 +104,20 @@ describe("ActiveInbox", () => {
             expect(onDestroy).not.toHaveBeenCalled();
             expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
         });
+    });
+
+    it("offers the generate action from the inbox toolbar", async () => {
+        // The app header's Generate Email only scrolls while an inbox is open.
+        const user = userEvent.setup();
+        const { onGenerateEmail } = setup();
+
+        await user.click(
+            screen.getByRole("button", {
+                name: "Generate new temporary email",
+            }),
+        );
+
+        expect(onGenerateEmail).toHaveBeenCalledTimes(1);
     });
 
     it("disables every action while one is in flight", () => {

@@ -147,6 +147,19 @@ describe("MessageList", () => {
         expect(onSelectMessage).toHaveBeenCalledWith(message);
     });
 
+    it("does not throw when a row is activated without a handler", async () => {
+        const user = userEvent.setup();
+        const message = { id: "msg-1", from: "a@b.c", receivedAt: now() };
+
+        render(<MessageList messages={[message]} />);
+
+        await user.click(
+            screen.getByRole("button", {
+                name: "Open message from a@b.c: (No Subject)",
+            }),
+        );
+    });
+
     it("gives a subjectless row something to be announced by", async () => {
         const user = userEvent.setup();
         const onSelectMessage = vi.fn();

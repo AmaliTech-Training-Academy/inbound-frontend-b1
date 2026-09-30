@@ -1,14 +1,13 @@
 // The reader is reached from the inbox and has to come back to it. The address,
-// the socket and the message list all belong to the home page's subtree, so the
-// trip to /inbox/:messageId must not tear any of them down.
+// the socket and the message list all belong to the same subtree, so opening the
+// reader must not tear any of them down.
 //
-// Driven through the real App and its real route table: the bug was in how
-// those two routes relate to each other, not inside either screen, so a test
-// of the screens alone could not see it.
+// Driven through the real App and its real socket mock: the bug was in how the
+// two states relate to each other, not inside either screen, so a test of the
+// screens alone could not see it.
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
 import App from "../src/App";
 
 const HOME_HEADING = "Create a temporary email in seconds.";
@@ -39,13 +38,9 @@ const ARRIVAL = {
 const ROW_LABEL = "Open message from Mock Sender: Mock message";
 const READER_SUBJECT = "Mock message";
 
-/** Renders the app at the home route, where the inbox is generated. */
+/** Renders the app, where the inbox is generated. */
 function renderApp() {
-    return render(
-        <MemoryRouter initialEntries={["/"]}>
-            <App />
-        </MemoryRouter>,
-    );
+    return render(<App />);
 }
 
 /**
@@ -102,8 +97,8 @@ describe("the inbox and the reader", () => {
     it("comes back to the inbox, and never to the landing page", async () => {
         await openReaderFrom(await openInboxWithOneMessage());
 
-        // The reader covers the home page rather than replacing it, so the
-        // landing copy is never painted on the way in...
+        // The reader replaces the inbox screen, so the landing copy is never
+        // painted on the way in...
         expect(screen.queryByText(HOME_HEADING)).toBeNull();
 
         goBack();
@@ -129,8 +124,9 @@ describe("the inbox and the reader", () => {
             expect(screen.queryByLabelText("Back to inbox")).toBeNull(),
         );
 
-        // The list was never unmounted, so the row is the same one that was
-        // clicked - not a fresh fetch of whatever the server still calls unread.
+        // The message list is owned by the inbox screen, which stayed mounted
+        // behind the reader, so the row is the same one that was clicked -
+        // not a fresh sweep of the server's list.
         expect(screen.getByLabelText(ROW_LABEL)).toBeInTheDocument();
     });
 });

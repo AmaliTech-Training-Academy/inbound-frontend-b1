@@ -86,7 +86,7 @@ export function useInbox() {
 
         (async () => {
             try {
-                const fresh = await getInboxInfo(stored.id, stored.token, {
+                const fresh = await getInboxInfo(stored.token, {
                     signal: controller.signal,
                 });
                 // The request may have settled just before a local action
@@ -256,14 +256,14 @@ export function useInbox() {
     // "+ Extend 5m". Pushes expiresAt out server-side, then adopts the new
     // timestamp: the expiry timeout and the progress ring both key off it.
     const extend = useCallback(async () => {
-        if (!inbox?.id || !inbox?.token) return;
+        if (!inbox?.token) return;
         if (actionLock.current) return;
         actionLock.current = true;
         cancelConfirmation();
         setBusy("extending");
         setError(null);
         try {
-            const res = await extendInbox(inbox.id, inbox.token);
+            const res = await extendInbox(inbox.token);
             if (!res?.expiresAt) {
                 throw new ApiError(
                     500,
@@ -296,14 +296,14 @@ export function useInbox() {
     // "Refresh". Re-reads the inbox so an expiry changed elsewhere (another
     // tab extending it) and, from IND-7, the message list are picked up.
     const refresh = useCallback(async () => {
-        if (!inbox?.id || !inbox?.token) return;
+        if (!inbox?.token) return;
         if (actionLock.current) return;
         actionLock.current = true;
         cancelConfirmation();
         setBusy("refreshing");
         setError(null);
         try {
-            const fresh = await getInboxInfo(inbox.id, inbox.token);
+            const fresh = await getInboxInfo(inbox.token);
             if (
                 isPlausibleExpiry(fresh?.expiresAt) &&
                 fresh.expiresAt !== inbox.expiresAt

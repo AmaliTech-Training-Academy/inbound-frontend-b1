@@ -19,13 +19,15 @@ export default function Hero({
     destroy,
     extend,
     refresh,
+    activeMessage = null,
     onSelectMessage,
+    onBack,
 }) {
     const creating = status === "creating";
 
     return (
-        // The ambient glow behind this section is the app-wide backdrop (see
-        // .app-backdrop), so every screen shares it rather than just this one.
+        // The ambient glow is the app-wide backdrop (.app-backdrop), applied by
+        // App; nothing in this section paints it.
         <section id="generate" className="relative">
             <div className="relative mx-auto flex max-w-[976px] flex-col items-center px-6 pb-12 pt-16">
                 {status !== "active" &&
@@ -55,10 +57,13 @@ export default function Hero({
                             onDestroy={destroy}
                             onExtend={extend}
                             onRefresh={refresh}
-                            onSelectMessage={onSelectMessage}
                             canExtend={canExtend}
                             busy={busy}
                             actionError={error}
+                            activeMessage={activeMessage}
+                            onSelectMessage={onSelectMessage}
+                            onBack={onBack}
+                            onGenerateEmail={generate}
                         />
                     ) : status === "expired" || regenerating ? (
                         <Expired

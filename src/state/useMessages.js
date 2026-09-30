@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createInboxSocket, SOCKET_STATUS } from "../services/inboxSocket.js";
-import { fetchMessage, fetchUnreadMessages } from "../services/inboxApi.js";
+import { fetchMessage, fetchInboxMessages } from "../services/inboxApi.js";
 // TEMPORARY LATENCY DIAGNOSTICS - observation only: none of these calls change
 // control flow, ordering or timing. See utils/timingLog.js.
 import {
@@ -40,8 +40,8 @@ function delay(ms) {
 
 // Shown when the full fetch fails. message:new already carries enough to show
 // that something arrived, which beats the message never appearing at all. The
-// unread rows from the recovery endpoint are already in this shape: a display
-// `sender` and no body.
+// rows from the recovery sweep are already in this shape: a display `sender`
+// and no body.
 function toPreviewRow(partial) {
     return {
         id: partial.id,
@@ -141,9 +141,9 @@ export function useMessages(inbox) {
     }, []);
 
     // One arrival, whichever way it was announced: the socket's message:new, or
-    // a row of the unread list after a re-join. Ids are claimed here, before the
-    // fetch, so an event the two paths both report costs one request and renders
-    // one row.
+    // a row of the recovery sweep after a re-join. Ids are claimed here, before
+    // the fetch, so an event the two paths both report costs one request and
+    // renders one row.
     const handleMessageNew = useCallback(
         (partial) => {
             if (!partial?.id) return;
@@ -175,14 +175,16 @@ export function useMessages(inbox) {
     );
 
     // Reconnect recovery. A re-join restores the transport but not the messages
-    // that arrived while it was down, so the unread endpoint is the only way
-    // back to them. Unread rows are list-shaped, so they go through
-    // handleMessageNew exactly like a socket preview: same de-duplication, same
-    // full-message load, same ordering.
+    // that arrived while it was down, so the inbox's full message list is what
+    // the client resynchronises against. Its rows are list-shaped, so they go
+    // through handleMessageNew exactly like a socket preview: same
+    // de-duplication, same full-message load, same ordering. Sending every
+    // message rather than only the unread ones is what lets a message that was
+    // read, or that the server has since marked read, come back into the list.
     //
     // A failure here must not cost the caller anything - live arrivals keep
     // working - so it is logged and swallowed rather than raised.
-    const recoverUnread = useCallback(async () => {
+    const recoverMessages = useCallback(async () => {
         const token = inboxRef.current?.token;
         if (!token || recovering.current) return;
 
@@ -196,19 +198,18 @@ export function useMessages(inbox) {
         noteSweepStarted(); // TEMPORARY DIAGNOSTICS
 
         try {
-            const unread = await fetchUnreadMessages(token, {
-                inboxId: inboxRef.current?.id,
+            const all = await fetchInboxMessages(token, {
                 signal: controller.signal,
             });
 
             // TEMPORARY DIAGNOSTICS: every row below becomes one fetch queued
             // ahead of anything that arrives while the sweep drains, so this
             // count is the length of the queue a live message lands behind.
-            noteSweepReturned(unread.length);
+            noteSweepReturned(all.length);
 
-            unread.forEach(handleMessageNew);
+            all.forEach(handleMessageNew);
         } catch (err) {
-            console.error("[useMessages] could not recover unread messages", err);
+            console.error("[useMessages] could not recover messages", err);
         } finally {
             clearTimeout(timer);
             recovering.current = false;
@@ -244,7 +245,7 @@ export function useMessages(inbox) {
                         // Every join, not just a re-join: a reloaded page has
                         // the same gap as a dropped socket, and it joins for the
                         // first time. Anything already on screen is skipped by id.
-                        recoverUnread();
+                        recoverMessages();
                     }
                 },
             });
@@ -254,14 +255,11 @@ export function useMessages(inbox) {
             clearTimeout(connectTimer);
             socket?.close();
         };
-    }, [inbox?.address, inbox?.token, handleMessageNew, recoverUnread]);
+    }, [inbox?.address, inbox?.token, handleMessageNew, recoverMessages]);
 
-    // Recovery is unread-only, because that is the only sweep the API offers:
-    // GET /inbox/messages/unread/all. There is still no all-messages endpoint,
-    // and GET /inbox/messages/:id needs an id this client never learned, so a
-    // message the server no longer counts as unread cannot be re-listed.
-    //
-    // `resync` is that same sweep, kept for a caller that wants to ask for one
-    // by hand. Ids already on screen are skipped, so it is always safe to call.
-    return { messages, connection, error, resync: recoverUnread };
+    // The sweep above runs on every join, so a message the server no longer
+    // counts as unread is still re-listed. `resync` is that same sweep, kept for
+    // a caller that wants to ask for one by hand; ids already on screen are
+    // skipped, so it is always safe to call.
+    return { messages, connection, error, resync: recoverMessages };
 }

@@ -14,14 +14,15 @@ export default defineConfig({
         // leaks in and inboxApi.test.js silently hits a real server instead
         // of the mock, passing or failing on whatever is running locally.
         env: { VITE_API_BASE: "", VITE_WS_BASE: "", VITE_USE_MOCK: "true" },
+        environment: "jsdom",
+        globals: true,
+        // Both layouts are in use: the co-located src/** suites and the
+        // reader's own tests/ directory. Dropping either include silently
+        // stops that half of the suite from running at all.
+        setupFiles: ["./src/test/setup.js", "./tests/setup.js"],
+        include: ["src/**/*.test.{js,jsx}", "tests/**/*.test.{js,jsx}"],
         // The unit tests live in their own PR; without this `npm test` here
         // exits non-zero with "no test files found".
         passWithNoTests: true,
-        environment: "jsdom",
-        globals: true,
-        setupFiles: "./src/test/setup.js",
-        // Both layouts: co-located specs under src/, and the specs under
-        // tests/. Neither needs a real browser.
-        include: ["src/**/*.test.{js,jsx}", "tests/**/*.test.{js,jsx}"],
     },
 });
