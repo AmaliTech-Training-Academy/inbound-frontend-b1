@@ -1,5 +1,6 @@
 import { io } from "socket.io-client";
 import { SOCKET_ORIGIN, SOCKET_PATH, USE_MOCK } from "../config.js";
+import { rememberMockMessage, sampleMessages } from "./mockMail.js";
 // TEMPORARY LATENCY DIAGNOSTICS - observation only, see utils/timingLog.js.
 import { noteArrival } from "../utils/timingLog.js";
 
@@ -143,11 +144,32 @@ function createMockSocket() {
 
     if (typeof window !== "undefined") {
         // With a `to` address, only that inbox hears it; without one, every
-        // open inbox does.
+        // open inbox does. The message is remembered, so opening it shows what
+        // was sent (see mockMail.js).
         window.__inboundSimulateMessage = (payload) => {
+            rememberMockMessage(payload);
             mockSockets.forEach((s) => {
                 if (!payload?.to || payload.to === s.address) s.__fire("message:new", payload);
             });
+        };
+
+        // The full set of samples, half a second apart, so they land as a
+        // live burst rather than all at once.
+        window.__inboundSendSamples = (to) => {
+            const samples = sampleMessages(to);
+            samples.forEach((message, index) => {
+                // Stamped as it is sent, so the list puts the newest on top.
+                setTimeout(
+                    () =>
+                        window.__inboundSimulateMessage({
+                            ...message,
+                            to,
+                            receivedAt: new Date().toISOString(),
+                        }),
+                    index * 500,
+                );
+            });
+            return `Sending ${samples.length} sample messages${to ? ` to ${to}` : ""}.`;
         };
     }
 
