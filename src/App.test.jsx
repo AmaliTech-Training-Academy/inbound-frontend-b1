@@ -9,7 +9,7 @@ vi.mock("./services/inboxApi.js", async () => {
 });
 
 import App from "./App.jsx";
-import { createInbox } from "./services/inboxApi.js";
+import { ApiError, createInbox } from "./services/inboxApi.js";
 
 const CREATED = {
     id: "i1",
@@ -49,10 +49,25 @@ describe("App", () => {
         expect(createInbox).toHaveBeenCalledTimes(1);
     });
 
+    it("says a timeout once, as one sentence", async () => {
+        const user = userEvent.setup();
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        // The create request is aborted by its own timer when it runs long.
+        createInbox.mockRejectedValue(new DOMException("Aborted", "AbortError"));
+        renderApp();
+
+        await user.click(screen.getByRole("button", { name: "Generate Inbox" }));
+
+        const alert = await screen.findByRole("alert");
+        expect(alert).toHaveTextContent("That took too long. Check your connection and try again.");
+        expect(alert.textContent.match(/Check your connection/g)).toHaveLength(1);
+    });
+
     it("offers a retry when an inbox cannot be made", async () => {
         const user = userEvent.setup();
         vi.spyOn(console, "error").mockImplementation(() => {});
-        createInbox.mockRejectedValue(new Error("Could not reach the server."));
+        // What the API client throws when fetch itself fails.
+        createInbox.mockRejectedValue(new ApiError(0, "Could not reach the server."));
         renderApp();
 
         await user.click(screen.getByRole("button", { name: "Generate Inbox" }));

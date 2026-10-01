@@ -401,9 +401,15 @@ export function useInbox() {
                     : "[useInbox] createInbox failed",
                 err,
             );
+            // Each message is a whole sentence, shown as it is: the page adds
+            // nothing, so "check your connection" is never said twice.
             const shown = isTimeout
-                ? new Error("That took too long. Check your connection.")
-                : err;
+                ? new Error("That took too long. Check your connection and try again.")
+                : err instanceof ApiError && err.status === 0
+                  ? new Error("Could not reach the server. Check your connection and try again.")
+                  : err instanceof ApiError && err.status >= 400 && err.status < 500
+                    ? new Error(err.message)
+                    : new Error("Could not create an inbox. Try again in a moment.");
             // A 4xx is the server declining on purpose - its cap, its rate
             // limit - and its own words say which; anything else reads the same.
             const refused =

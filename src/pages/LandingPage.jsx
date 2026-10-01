@@ -116,8 +116,7 @@ export default function LandingPage() {
 
             {status === 'error' && (
               <p role="alert" className="mt-3 text-center text-sm text-rose-600">
-                {error?.message || 'Could not create an inbox.'} Check your
-                connection and try again.
+                {error?.message || 'Could not create an inbox. Try again in a moment.'}
               </p>
             )}
           </div>
