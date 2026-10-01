@@ -66,13 +66,6 @@ describe("InboxRail", () => {
         expect(onOpen).toHaveBeenCalledWith("two");
     });
 
-    it("shows which inbox's profile is open", () => {
-        render(<InboxRail inboxes={INBOXES} activeId="one" openedId="two" />);
-
-        expect(avatar("second@inbound.mail")).toHaveAttribute("aria-pressed", "true");
-        expect(avatar("first@inbound.mail")).toHaveAttribute("aria-pressed", "false");
-    });
-
     it("adds an inbox from the + button", async () => {
         const user = userEvent.setup();
         const onAdd = vi.fn();
@@ -103,10 +96,5 @@ describe("InboxRail", () => {
         );
 
         expect(screen.getByRole("navigation", { name: "Switch inbox" })).toBeInTheDocument();
-        // The strip switches straight away, so it has no profile to be pressed for.
-        expect(
-            within(screen.getByRole("navigation", { name: "Switch inbox" }))
-                .getByRole("button", { name: /^first@inbound\.mail/ }),
-        ).not.toHaveAttribute("aria-pressed");
     });
 });

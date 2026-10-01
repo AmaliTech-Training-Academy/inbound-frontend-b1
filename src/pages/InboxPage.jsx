@@ -6,7 +6,6 @@ import CopyButton from '../components/CopyButton.jsx'
 import MessageList from '../components/MessageList.jsx'
 import MessageReader from '../components/MessageReader.jsx'
 import InboxRail from '../components/InboxRail.jsx'
-import InboxProfilePanel from '../components/InboxProfilePanel.jsx'
 import NewInboxDialog from '../components/NewInboxDialog.jsx'
 import ConfirmDestroyDialog from '../components/ConfirmDestroyDialog.jsx'
 import { SOCKET_STATUS } from '../services/inboxSocket.js'
@@ -84,12 +83,8 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     if (selectedId) markOpened(selectedId)
   }, [selectedId, markOpened])
 
-  const [panelId, setPanelId] = useState(null)
-  const [panelOpen, setPanelOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [confirmingDestroy, setConfirmingDestroy] = useState(false)
-
-  const panelInbox = inboxes.find((entry) => entry.id === panelId) ?? null
 
   const openMessage = (message) => navigate(messageDetailsPath(message.id))
   const closeMessage = useCallback(() => navigate(INBOX_PATH), [navigate])
@@ -99,19 +94,10 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     if (messageId) navigate(INBOX_PATH, { replace: true })
   }, [messageId, navigate])
 
+  // One click on the rail is the switch: no profile step in between.
   const switchTo = (id) => {
     select(id)
-    setPanelOpen(false)
     leaveMessage()
-  }
-
-  const toggleProfile = (id) => {
-    if (panelOpen && panelId === id) {
-      setPanelOpen(false)
-      return
-    }
-    setPanelId(id)
-    setPanelOpen(true)
   }
 
   // A new inbox becomes the open one, so any message open belongs elsewhere.
@@ -359,23 +345,13 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
             )}
           </div>
         </main>
-
-        <InboxProfilePanel
-          inbox={panelInbox}
-          open={panelOpen && panelInbox !== null}
-          isCurrent={panelInbox?.id === activeId}
-          unread={panelInbox ? (unreadCounts[panelInbox.id] ?? 0) : 0}
-          onClose={() => setPanelOpen(false)}
-          onSwitch={switchTo}
-        />
       </div>
 
       <InboxRail
         className="order-3 hidden w-16 shrink-0 border-l border-slate-200 lg:order-none lg:flex print:hidden"
         inboxes={inboxes}
         activeId={activeId}
-        openedId={panelOpen ? panelId : null}
-        onOpen={toggleProfile}
+        onOpen={switchTo}
         onAdd={() => setAddOpen(true)}
         canAdd={canAddInbox}
         adding={adding}
@@ -481,7 +457,7 @@ function EmptyInbox({ address }) {
 function NothingOpen({ address, count }) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-      <Avatar seed={address} size={72} animate="always" />
+      <Avatar seed={address} size={72} />
       <p className="mt-4 text-sm font-medium text-slate-900">
         {count > 0 ? 'Select a message to read it' : 'Nothing here yet'}
       </p>
