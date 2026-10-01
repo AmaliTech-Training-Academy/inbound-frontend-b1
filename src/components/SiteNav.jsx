@@ -22,13 +22,13 @@ export default function SiteNav({ session, unread = 0 }) {
 
   const link = ({ isActive }) =>
     `whitespace-nowrap font-medium transition-colors ${
-      isActive ? 'text-slate-900' : 'text-slate-500 hover:text-slate-900'
+      isActive ? 'text-ink' : 'text-slate-500 hover:text-ink'
     }`
 
   return (
     <nav className="relative z-20 flex w-full items-center justify-between gap-4 p-4 md:px-16 md:py-6 lg:px-24 xl:px-32">
-      <Link to={ROUTES.home} className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight text-slate-900">
-        <span aria-hidden="true" className="size-2.5 rounded-full bg-slate-900" />
+      <Link to={ROUTES.home} className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight text-ink">
+        <span aria-hidden="true" className="size-2.5 rounded-full bg-brand" />
         Inbound
       </Link>
 
@@ -41,17 +41,17 @@ export default function SiteNav({ session, unread = 0 }) {
         {active ? (
           <Link
             to={INBOX_PATH}
-            className="flex items-center gap-2 whitespace-nowrap rounded-full bg-gray-800 px-4 py-2.5 font-medium text-white transition hover:bg-black sm:px-6 sm:py-3"
+            className="flex items-center gap-2 whitespace-nowrap rounded-full bg-brand px-4 py-2.5 font-medium text-white transition-colors hover:bg-brand/90 sm:px-6 sm:py-3"
           >
             Open inbox
-            {unread > 0 && <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{unread}</span>}
+            {unread > 0 && <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">{unread}</span>}
           </Link>
         ) : (
           <button
             type="button"
             onClick={start}
             disabled={creating}
-            className="whitespace-nowrap rounded-full bg-gray-800 px-4 py-2.5 font-medium text-white transition hover:bg-black disabled:opacity-70 sm:px-6 sm:py-3"
+            className="whitespace-nowrap rounded-full bg-brand px-4 py-2.5 font-medium text-white transition-colors hover:bg-brand/90 disabled:opacity-70 sm:px-6 sm:py-3"
           >
             {creating ? 'Generating…' : 'Get an inbox'}
           </button>

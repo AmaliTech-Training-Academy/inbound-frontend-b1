@@ -259,9 +259,9 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
           <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 text-slate-500 sm:gap-4 sm:px-6 print:hidden">
             <Link
               to={ROUTES.home}
-              className="mr-auto flex items-center gap-2 text-sm font-semibold tracking-tight text-slate-900"
+              className="mr-auto flex items-center gap-2 text-sm font-semibold tracking-tight text-ink"
             >
-              <span aria-hidden="true" className="size-2 rounded-full bg-slate-900" />
+              <span aria-hidden="true" className="size-2 rounded-full bg-brand" />
               <span className="max-sm:sr-only">Inbound</span>
             </Link>
             <span

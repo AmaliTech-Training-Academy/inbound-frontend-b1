@@ -18,10 +18,11 @@ export default function LandingPage() {
   const unread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0)
 
   return (
-    <div className="font-poppins text-slate-900">
+    <div className="text-ink">
       <SiteHero session={session} unread={unread} className="min-h-screen">
         <div className="relative -top-8 flex flex-1 flex-col items-center justify-center px-4 md:-top-24">
-          <div className="mx-auto flex max-w-full items-center gap-2 rounded-full border border-slate-300 px-4 py-2 hover:border-slate-400/70">
+          <div className="mx-auto flex max-w-full items-center gap-2 rounded-full border border-slate-200 px-4 py-2 hover:border-slate-300">
+            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-brand" />
             {active ? (
               <>
                 <span className="truncate">
@@ -45,11 +46,33 @@ export default function LandingPage() {
             )}
           </div>
 
-          <h1 className="mx-auto mt-8 max-w-212.5 text-center text-4xl font-medium md:text-7xl">
-            Generate Temporary Emails For Every Need
-          </h1>
+          <div className="relative mx-auto mt-8 w-full max-w-212.5">
+            <h1 className="text-center text-4xl font-bold md:text-7xl">
+              Generate Temporary Emails For Every{' '}
+              {/* The design sets the last word in the brand colour, over a
+                  hand-drawn stroke. */}
+              <span className="relative inline-block text-brand">
+                Need
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 120 14"
+                  fill="none"
+                  className="absolute -bottom-2 left-0 h-auto w-full md:-bottom-3"
+                >
+                  <path
+                    d="M3 9.5C19 2.5 41 2 57 8c16 6 40 5.5 60-2.5"
+                    stroke="currentColor"
+                    strokeWidth="4.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+            </h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-center text-sm max-md:px-2 md:text-base">
+            <ExpiryStamp />
+          </div>
+
+          <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-slate-600 max-md:px-2 md:text-base">
             Protect your inbox with a disposable email address for sign-ups,
             verification codes, and temporary testing.
           </p>
@@ -75,10 +98,10 @@ export default function LandingPage() {
                 />
                 <Link
                   to={ROUTES.howItWorks}
-                  className="group flex items-center gap-3 rounded-full border border-slate-300 py-2 pl-8 pr-2 text-base font-medium transition hover:border-slate-400/70"
+                  className="group flex items-center gap-3 rounded-full border border-slate-200 py-2 pl-8 pr-2 text-base font-medium text-ink transition hover:border-slate-300"
                 >
                   <span>Learn More</span>
-                  <span className="flex items-center justify-center rounded-full border border-slate-300 bg-white p-3 text-slate-800 transition-transform duration-300 ease-out group-hover:translate-x-0.5">
+                  <span className="flex items-center justify-center rounded-full border border-slate-200 bg-white p-3 text-ink transition-transform duration-300 ease-out group-hover:translate-x-0.5">
                     <ArrowUpRight size={20} strokeWidth={2.25} aria-hidden="true" />
                   </span>
                 </Link>
@@ -96,6 +119,53 @@ export default function LandingPage() {
       </SiteHero>
 
       <SiteFooter />
+    </div>
+  )
+}
+
+// The tilted stamp the design sets at the right of the headline's first line:
+// a dashed circle around the expiry clock. Drawn as SVG rather than shipped as
+// an image so it takes its colour from the brand token, and hidden where the
+// headline has no room beside it.
+function ExpiryStamp() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute right-0 top-0 hidden size-24 -rotate-8 text-brand md:block"
+    >
+      <svg viewBox="0 0 100 100" className="size-full">
+        <circle
+          cx="50"
+          cy="50"
+          r="46"
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity="0.5"
+          strokeWidth="2"
+          strokeDasharray="4 4"
+        />
+        <text
+          x="50"
+          y="47"
+          textAnchor="middle"
+          fill="currentColor"
+          fontSize="23"
+          fontWeight="700"
+        >
+          10:00
+        </text>
+        <text
+          x="50"
+          y="65"
+          textAnchor="middle"
+          fill="currentColor"
+          fontSize="8.5"
+          fontWeight="600"
+          letterSpacing="0.9"
+        >
+          EXPIRES
+        </text>
+      </svg>
     </div>
   )
 }
