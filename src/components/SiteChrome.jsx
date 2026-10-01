@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, Mail } from 'lucide-react'
+import BrandMark from './BrandMark.jsx'
 import CopyButton from './CopyButton.jsx'
 import SiteNav from './SiteNav.jsx'
 import { INBOX_PATH } from '../router'
@@ -89,7 +90,10 @@ export function ArrowIcon() {
 export function SiteFooter() {
   return (
     <footer className="px-6 py-6 text-center text-xs text-slate-500">
-      <span className="font-semibold text-ink">Inbound</span>
+      <span className="inline-flex items-center gap-1.5 align-middle font-semibold text-ink">
+        <BrandMark size={14} />
+        Inbound
+      </span>
       <span aria-hidden="true" className="mx-2 text-slate-300">
         •
       </span>

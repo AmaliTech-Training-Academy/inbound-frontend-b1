@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { Loader2, MailOpen, Plus, RefreshCw, Search, Timer, TimerOff, Trash2 } from 'lucide-react'
 import Avatar from '../components/Avatar.jsx'
+import BrandMark from '../components/BrandMark.jsx'
 import CopyButton from '../components/CopyButton.jsx'
 import MessageList from '../components/MessageList.jsx'
 import MessageReader from '../components/MessageReader.jsx'
@@ -269,7 +270,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               to={ROUTES.home}
               className="mr-auto flex items-center gap-2 text-sm font-semibold tracking-tight text-ink"
             >
-              <span aria-hidden="true" className="size-2 rounded-full bg-brand" />
+              <BrandMark size={20} />
               <span className="max-sm:sr-only">Inbound</span>
             </Link>
             <span
