@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { INBOX_PATH, ROUTES } from '../router'
+import BrandMark from './BrandMark.jsx'
 
 // The top bar of the public pages, from the design's landing nav: the brand,
 // the page links, and one call to action - into the inbox when there is one,
@@ -28,7 +29,7 @@ export default function SiteNav({ session, unread = 0 }) {
   return (
     <nav className="relative z-20 flex w-full items-center justify-between gap-4 p-4 md:px-16 md:py-6 lg:px-24 xl:px-32">
       <Link to={ROUTES.home} className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight text-ink">
-        <span aria-hidden="true" className="size-2.5 rounded-full bg-brand" />
+        <BrandMark size={24} />
         Inbound
       </Link>
 
