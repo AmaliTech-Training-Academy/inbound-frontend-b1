@@ -502,8 +502,11 @@ function MissingMessage() {
 // glow, and one card that says what happened and offers the two ways on.
 function Purged({ session, onGenerate, onLeave, creating }) {
   return (
-    <div className="text-ink">
-      <SiteHero session={session} className="min-h-screen">
+    // One screen tall: the hero takes what the footer leaves, so the footer
+    // shows without scrolling on a laptop, and the page still scrolls when
+    // its content needs more room.
+    <div className="flex min-h-dvh flex-col text-ink">
+      <SiteHero session={session} className="flex-1">
         <div className="flex flex-1 items-center justify-center px-4 pb-24">
           <div
             role="status"
