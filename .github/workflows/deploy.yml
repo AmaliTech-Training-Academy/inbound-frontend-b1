@@ -44,7 +44,7 @@ jobs:
 
             cd /opt/inbound-frontend-b1
 
-            git pull origin dev
+            git pull origin feat/frontend-devops
 
             docker build -t inbound-frontend:latest .
 
