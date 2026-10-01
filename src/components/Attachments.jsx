@@ -1,4 +1,5 @@
 import { Download, FileText } from 'lucide-react'
+import { formatFileSize } from '../utils/helpers'
 
 // The chip colour for a file type, as the design's attachment tiles use them.
 const getFileTileStyle = (type) => {
@@ -21,6 +22,15 @@ const getFileTileStyle = (type) => {
   }
 }
 
+// The short type a tile shows: the one given, else the file's extension, else
+// nothing (the tile then says "File"). The API sends a MIME contentType rather
+// than a short type, so for live mail the extension is what there is.
+function fileType(att) {
+  if (att.type) return att.type
+  const extension = att.filename?.match(/\.([a-z0-9]{1,5})$/i)?.[1]
+  return extension ? extension.toUpperCase() : null
+}
+
 // A message's attachments as the design's file tiles. The actions are only
 // drawn when there is something behind them: the API has no attachment
 // download yet, and a button that does nothing is worse than none.
@@ -33,7 +43,13 @@ function Attachments({
   onViewAttachment,
   className = '',
 }) {
-  if (!attachments || attachments.length === 0) return null
+  // Said outright rather than left blank, so "no files" is never mistaken for
+  // "files still loading".
+  if (!attachments || attachments.length === 0) {
+    return (
+      <p className={`mt-8 text-xs text-slate-400 ${className}`.trim()}>No attachments</p>
+    )
+  }
 
   return (
     <section aria-label="Attachments" className={`mt-8 ${className}`.trim()}>
@@ -62,7 +78,7 @@ function Attachments({
           >
             <span
               aria-hidden="true"
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white ${getFileTileStyle(att.type)}`}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white ${getFileTileStyle(fileType(att))}`}
             >
               <FileText size={16} />
             </span>
@@ -71,8 +87,8 @@ function Attachments({
                 {att.filename}
               </p>
               <p className="text-[11px] text-slate-400">
-                <span className="uppercase">{att.type || 'File'}</span>
-                {att.size ? ` · ${att.size}` : ''}
+                <span className="uppercase">{fileType(att) || 'File'}</span>
+                {formatFileSize(att.size) ? ` · ${formatFileSize(att.size)}` : ''}
               </p>
             </div>
             {typeof onViewAttachment === 'function' && (

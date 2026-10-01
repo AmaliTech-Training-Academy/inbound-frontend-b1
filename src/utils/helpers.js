@@ -51,6 +51,40 @@ function formatRelativeTime(receivedAt) {
   return `${diffYears}y ago`
 }
 
+// A size in bytes, from either shape it arrives in: the API's bare byte count
+// (113) or a display string with a unit ("1.8 MB"). Null when it is neither.
+function toBytes(size) {
+  if (size === null || size === undefined || size === '') return null
+  const match = String(size).trim().match(/^([\d.]+)\s*(B|KB|MB|GB)?$/i)
+  if (!match) return null
+
+  const num = parseFloat(match[1])
+  const unit = (match[2] || 'B').toUpperCase()
+  if (unit === 'GB') return num * 1024 * 1024 * 1024
+  if (unit === 'MB') return num * 1024 * 1024
+  if (unit === 'KB') return num * 1024
+  return num
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+  }
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(0)} KB`
+  }
+  return `${bytes} B`
+}
+
+/** One attachment's size with its unit, or '' when it is unknown. */
+function formatFileSize(size) {
+  const bytes = toBytes(size)
+  return bytes ? formatBytes(bytes) : ''
+}
+
 function formatTotalAttachmentSize(attachments = []) {
   if (!attachments || attachments.length === 0) return ''
   let totalBytes = 0
@@ -58,29 +92,15 @@ function formatTotalAttachmentSize(attachments = []) {
 
   for (const att of attachments) {
     if (!att.size) continue
-    const match = String(att.size).trim().match(/^([\d.]+)\s*(B|KB|MB|GB)?$/i)
-    if (match) {
+    const bytes = toBytes(att.size)
+    if (bytes !== null) {
       hasValidSize = true
-      const num = parseFloat(match[1])
-      const unit = (match[2] || 'B').toUpperCase()
-      if (unit === 'GB') totalBytes += num * 1024 * 1024 * 1024
-      else if (unit === 'MB') totalBytes += num * 1024 * 1024
-      else if (unit === 'KB') totalBytes += num * 1024
-      else totalBytes += num
+      totalBytes += bytes
     }
   }
 
   if (!hasValidSize || totalBytes === 0) return ''
-  if (totalBytes >= 1024 * 1024 * 1024) {
-    return `${(totalBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-  }
-  if (totalBytes >= 1024 * 1024) {
-    return `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-  if (totalBytes >= 1024) {
-    return `${(totalBytes / 1024).toFixed(0)} KB`
-  }
-  return `${totalBytes} B`
+  return formatBytes(totalBytes)
 }
 
-export { formatReceivedAt, formatRelativeTime, formatTotalAttachmentSize }
+export { formatReceivedAt, formatRelativeTime, formatFileSize, formatTotalAttachmentSize }
