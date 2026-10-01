@@ -1,22 +1,22 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, Mail, Sparkles } from 'lucide-react'
-import ShinyText from './fx/ShinyText.jsx'
 import CopyButton from './CopyButton.jsx'
 import SiteNav from './SiteNav.jsx'
 import { INBOX_PATH } from '../router'
 
 // What the landing page and How it works share, so the two read as one site:
-// the warm backdrop with its drifting glow and the nav over it, the Generate
-// button, the pill a new address arrives in, and the footer.
+// the warm backdrop and the nav over it, the Generate button, the pill a new
+// address arrives in, and the footer.
+//
+// Nothing here animates on a loop. The design's drifting, heavily blurred glow
+// and the shine across the Generate button repainted large areas every frame
+// and made the page lag on ordinary laptops; the static glow in
+// .landing-backdrop gives the same warmth for one paint.
 
 export function SiteHero({ session, unread = 0, className = '', children }) {
   return (
     <section className={`landing-backdrop relative isolate flex w-full flex-col overflow-hidden text-sm ${className}`}>
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-105 w-105 -translate-x-1/2 -translate-y-1/2 animate-glow-pulse bg-orange-400/60 mix-blend-screen blur-[130px] will-change-transform motion-reduce:animate-none"
-      />
       <SiteNav session={session} unread={unread} />
       {children}
     </section>
@@ -33,19 +33,7 @@ export function GenerateButton({ onClick, creating, label = null }) {
       className="group flex items-center gap-3 rounded-full bg-slate-800 py-2 pl-8 pr-2 text-base font-medium text-white transition-colors hover:bg-black disabled:hover:bg-slate-800"
     >
       <span>
-        {creating ? (
-          'Generating'
-        ) : label ? (
-          label
-        ) : (
-          <ShinyText
-            text="Generate Inbox"
-            color="rgba(255, 255, 255, 0.82)"
-            shineColor="#ffffff"
-            speed={2.5}
-            spread={120}
-          />
-        )}
+        {creating ? 'Generating' : label || 'Generate Inbox'}
       </span>
       <span className="flex items-center justify-center rounded-full bg-white/15 p-3">
         {creating ? (
@@ -68,7 +56,7 @@ export function ActiveAddress({ inbox, others = 0 }) {
 
   return (
     <div key="result" className="animate-fade-up">
-      <div className="flex items-center gap-1 rounded-full border border-slate-300 bg-white/70 p-2 pl-6 backdrop-blur sm:pl-8">
+      <div className="flex items-center gap-1 rounded-full border border-slate-300 bg-white/90 p-2 pl-6 sm:pl-8">
         <span ref={addressRef} className="min-w-0 flex-1 truncate text-base text-slate-800">
           {inbox.address}
         </span>

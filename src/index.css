@@ -49,10 +49,6 @@
         Consolas, "Liberation Mono", monospace;
 
     --animate-fade-up: fade-up 0.35s ease-out both;
-    --animate-glow-pulse: glow-pulse 10s ease-in-out infinite;
-    --animate-shine: shine var(--shine-duration, 2.5s) linear infinite;
-    /* GSAP's power3.out, which the design's heading reveal was tuned with. */
-    --animate-split-in: split-in 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) both;
 
     @keyframes fade-up {
         from {
@@ -62,51 +58,6 @@
         to {
             opacity: 1;
             transform: translateY(0) scale(1);
-        }
-    }
-
-    @keyframes glow-pulse {
-        0%,
-        100% {
-            transform: translate(-50%, -50%) scale(1);
-            border-radius: 42% 58% 65% 35% / 45% 45% 55% 55%;
-            opacity: 0.3;
-        }
-        25% {
-            transform: translate(-50%, -50%) scale(1.08);
-            border-radius: 60% 40% 45% 55% / 55% 45% 60% 40%;
-            opacity: 0.38;
-        }
-        50% {
-            transform: translate(-50%, -50%) scale(0.94);
-            border-radius: 40% 60% 55% 45% / 40% 60% 45% 55%;
-            opacity: 0.25;
-        }
-        75% {
-            transform: translate(-50%, -50%) scale(1.05);
-            border-radius: 55% 45% 40% 60% / 60% 40% 55% 45%;
-            opacity: 0.33;
-        }
-    }
-
-    /* The shine enters from the right and leaves on the left. */
-    @keyframes shine {
-        from {
-            background-position: 150% center;
-        }
-        to {
-            background-position: -50% center;
-        }
-    }
-
-    @keyframes split-in {
-        from {
-            opacity: 0;
-            transform: translate3d(0, 40px, 0);
-        }
-        to {
-            opacity: 1;
-            transform: translate3d(0, 0, 0);
         }
     }
 }

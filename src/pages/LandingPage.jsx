@@ -1,6 +1,5 @@
 import { Link, useOutletContext } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
-import SplitText from '../components/fx/SplitText.jsx'
 import { ActiveAddress, ArrowIcon, GenerateButton, SiteFooter, SiteHero } from '../components/SiteChrome.jsx'
 import { INBOX_TTL_MINUTES } from '../config.js'
 import { INBOX_PATH, ROUTES } from '../router'
@@ -46,11 +45,9 @@ export default function LandingPage() {
             )}
           </div>
 
-          <SplitText
-            text="Generate Temporary Emails For Every Need"
-            tag="h1"
-            className="mx-auto mt-8 max-w-212.5 text-center text-4xl font-medium md:text-7xl"
-          />
+          <h1 className="mx-auto mt-8 max-w-212.5 text-center text-4xl font-medium md:text-7xl">
+            Generate Temporary Emails For Every Need
+          </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-center text-sm max-md:px-2 md:text-base">
             Protect your inbox with a disposable email address for sign-ups,

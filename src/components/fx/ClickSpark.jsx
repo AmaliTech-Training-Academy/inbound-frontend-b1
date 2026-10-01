@@ -1,9 +1,13 @@
 import { useEffect, useRef } from "react";
 
 // Every click throws a small ring of sparks from the pointer, drawn on one
-// canvas over the whole app. Ported from the design's circleSpark.tsx; the one
-// change is that the frame loop only runs while sparks are alive, rather than
-// redrawing an empty canvas sixty times a second for as long as the tab is open.
+// canvas over the whole app. Ported from the design's circleSpark.tsx, with two
+// changes that keep it cheap:
+//  - the frame loop only runs while sparks are alive (about 0.4s per click),
+//    rather than redrawing an empty canvas sixty times a second;
+//  - the canvas is pinned to the viewport, not stretched over the whole page,
+//    so its size - and the area cleared each frame - is one screen, however
+//    long the page is.
 
 const EASINGS = {
     linear: (t) => t,
@@ -33,16 +37,14 @@ export default function ClickSpark({
         optionsRef.current = { sparkColor, sparkSize, sparkRadius, duration, easing, extraScale };
     });
 
-    // The canvas tracks its parent's size. jsdom has no ResizeObserver, and a
-    // browser without one still gets a canvas sized once.
+    // The canvas is the size of the viewport, following the window.
     useEffect(() => {
         const canvas = canvasRef.current;
-        const parent = canvas?.parentElement;
-        if (!parent) return undefined;
+        if (!canvas) return undefined;
 
         let resizeTimeout;
         const resizeCanvas = () => {
-            const { width, height } = parent.getBoundingClientRect();
+            const { innerWidth: width, innerHeight: height } = window;
             if (canvas.width !== width || canvas.height !== height) {
                 canvas.width = width;
                 canvas.height = height;
@@ -50,14 +52,13 @@ export default function ClickSpark({
         };
         resizeCanvas();
 
-        if (typeof ResizeObserver === "undefined") return undefined;
-        const ro = new ResizeObserver(() => {
+        const onResize = () => {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(resizeCanvas, 100);
-        });
-        ro.observe(parent);
+        };
+        window.addEventListener("resize", onResize);
         return () => {
-            ro.disconnect();
+            window.removeEventListener("resize", onResize);
             clearTimeout(resizeTimeout);
         };
     }, []);
@@ -110,11 +111,11 @@ export default function ClickSpark({
     }, []);
 
     const handleClick = (event) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const rect = canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+        if (!canvasRef.current) return;
+        // The canvas sits at the viewport's origin, so client coordinates are
+        // canvas coordinates.
+        const x = event.clientX;
+        const y = event.clientY;
         const now = performance.now();
 
         sparksRef.current.push(
@@ -133,7 +134,7 @@ export default function ClickSpark({
             <canvas
                 ref={canvasRef}
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 z-50 motion-reduce:hidden print:hidden"
+                className="pointer-events-none fixed inset-0 z-50 motion-reduce:hidden print:hidden"
             />
             {children}
         </div>
