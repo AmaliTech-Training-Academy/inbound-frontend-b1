@@ -240,13 +240,23 @@ function MessageReader({
         {attachments}
       </article>
 
+      {/* Two layers. The tinted, blurred backdrop sits still underneath; the
+          email scrolls on a clear layer above it. With the blur on the layer
+          that scrolls (as it was), the browser redrew the blur on every
+          scroll frame and scrolling dragged. Same look, blur drawn once. */}
+      {isFullScreen && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-sm"
+        />
+      )}
       {isFullScreen && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Fullscreen email reader"
           data-reader-fullscreen=""
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/30 p-0 backdrop-blur-sm sm:p-6"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain p-0 sm:p-6"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsFullScreen(false)
           }}
