@@ -9,16 +9,17 @@ const attachments = [
 ]
 
 describe('Attachments', () => {
-  it('renders nothing when no attachments are provided', () => {
-    const { container } = render(<Attachments />)
+  it('says so when no attachments are provided', () => {
+    render(<Attachments />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByText('No attachments')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Attachments' })).toBeNull()
   })
 
-  it('renders nothing for an empty attachment list', () => {
-    const { container } = render(<Attachments attachments={[]} />)
+  it('says so for an empty attachment list', () => {
+    render(<Attachments attachments={[]} />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByText('No attachments')).toBeInTheDocument()
   })
 
   it('labels a single attachment as one', () => {
@@ -48,6 +49,22 @@ describe('Attachments', () => {
     render(<Attachments attachments={[{ id: 'x', filename: 'mystery', size: '1 KB' }]} />)
 
     expect(screen.getByRole('listitem')).toHaveTextContent('File · 1 KB')
+  })
+
+  it('gives a live attachment its unit and its type from the file name', () => {
+    // The API sends a bare byte count and a MIME contentType, not a short type.
+    render(
+      <Attachments
+        attachments={[
+          { id: 'a', filename: 'invoice-INV-2026-0931.txt', contentType: 'text/plain', size: 113 },
+          { id: 'b', filename: 'photo.png', contentType: 'image/png', size: 248000 },
+        ]}
+      />
+    )
+
+    const tiles = screen.getAllByRole('listitem')
+    expect(tiles[0]).toHaveTextContent('TXT · 113 B')
+    expect(tiles[1]).toHaveTextContent('PNG · 242 KB')
   })
 
   it('treats a null type as a generic file rather than failing', () => {
