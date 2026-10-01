@@ -16,10 +16,33 @@ export const API_BASE = (
     env.VITE_API_BASE || "http://localhost:9001/api/v1"
 ).replace(/\/+$/, ""); // a trailing slash would build ".../api/v1//inbox"
 
-/** WebSocket origin */
-export const WS_BASE =
-    env.VITE_WS_BASE ||
-    API_BASE.replace(/^http/, "ws").replace(/\/api\/v1\/?$/, "");
+/**
+ * Socket.IO origin and path, split from the API base.
+ *
+ * socket.io-client reads the path of the URL it is given as a NAMESPACE, not
+ * as a mount point: io("https://host/server") asks for namespace "/server" on
+ * the default "/socket.io" and never connects. A deployment prefix therefore
+ * has to travel in the `path` option, with the URL cut back to the origin.
+ *
+ *   http://localhost:9001/api/v1  -> origin http://localhost:9001, path /socket.io
+ *   https://host/server/api/v1    -> origin https://host, path /server/socket.io
+ */
+export function splitSocketTarget(apiBase) {
+    try {
+        const url = new URL(apiBase.replace(/\/api\/v1\/?$/, ""));
+        const prefix = url.pathname.replace(/\/+$/, "");
+        return { origin: url.origin, path: `${prefix}/socket.io` };
+    } catch {
+        // Relative or unparseable: fall back to same-origin defaults.
+        return { origin: undefined, path: "/socket.io" };
+    }
+}
+
+const socketTarget = splitSocketTarget(API_BASE);
+
+export const SOCKET_ORIGIN = env.VITE_SOCKET_ORIGIN || socketTarget.origin;
+
+export const SOCKET_PATH = env.VITE_SOCKET_PATH || socketTarget.path;
 
 /**
  * Flip this on to run entirely against the in-memory mock backend — no API,
@@ -57,6 +80,23 @@ export const EXTEND_MINUTES = 5;
  * count is a UI choice, not a contract.
  */
 export const MAX_EXTENDS = 3;
+
+/**
+ * Most inboxes one session holds at once.
+ *
+ * The backend caps inboxes per session, and the client holds itself to the
+ * same number rather than letting the server be the first to say no. Keep
+ * VITE_MAX_INBOXES equal to the backend's cap. The default, 5, is the cap the
+ * rail carried before the backend had one; no number was in the backend's
+ * own code as of dev on 2026-09-30.
+ *
+ * Each open inbox also keeps a socket of its own (a socket joins one inbox
+ * room), so this bounds the connections as well as the rail.
+ */
+export const MAX_INBOXES = (() => {
+    const configured = Number.parseInt(env.VITE_MAX_INBOXES, 10);
+    return Number.isInteger(configured) && configured > 0 ? configured : 5;
+})();
 
 /** Timer colour thresholds, in seconds. */
 export const TIMER_WARN_SECONDS = 5 * 60;
