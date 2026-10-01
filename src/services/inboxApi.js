@@ -23,6 +23,7 @@ import {
     EXTEND_MINUTES,
 } from "../config.js";
 import { MOCK_MESSAGES } from "../data/mockMessages.js";
+import { recallMockMessage } from "./mockMail.js";
 
 function assertConfigured() {
     if (!API_BASE) throw new Error("VITE_API_BASE is not set.");
@@ -416,6 +417,14 @@ export async function extendInbox(id, token, { signal } = {}) {
 export async function fetchMessage(id, token, { signal } = {}) {
     if (MOCK) {
         await delay(200, signal);
+        // A message simulated in the browser with a body comes back as it was
+        // sent. A bare preview (an id and a subject) falls through, so a
+        // sample's id still brings back the whole sample.
+        const remembered = recallMockMessage(id);
+        if (remembered && (remembered.htmlBody || remembered.textBody || remembered.body)) {
+            return { isRead: false, attachments: [], ...remembered };
+        }
+
         // A sample's id brings back the whole sample - HTML, a code, files -
         // so the reader can be tried against real-looking mail. It arrives now.
         const sample = MOCK_MESSAGES.find((candidate) => candidate.id === id);
