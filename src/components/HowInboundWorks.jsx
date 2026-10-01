@@ -13,7 +13,7 @@ const STEPS = [
     {
         icon: MailOpen,
         title: "Receive OTPs & Links",
-        body: "Real-time WebSocket streaming with 1-click verification code extraction. View plain-text safely without rendering external trackers.",
+        body: "Real-time WebSocket streaming with 1-click verification code extraction. Emails open in a sandbox: no scripts, no forms, no tracking pixels.",
         note: "Streaming: End-to-end TLS",
     },
     {
@@ -31,7 +31,7 @@ export default function HowInboundWorks({ className = "" }) {
             {STEPS.map(({ icon: Icon, title, body, note, danger }, index) => (
                 <li
                     key={title}
-                    className="flex flex-col rounded-3xl border border-slate-200 bg-white/70 p-6 text-left backdrop-blur">
+                    className="flex flex-col rounded-3xl border border-slate-200 bg-white/90 p-6 text-left">
                     <div className="mb-5 flex items-center justify-between">
                         <span
                             className={`font-mono text-xs ${danger ? "text-rose-600" : "text-slate-400"}`}>

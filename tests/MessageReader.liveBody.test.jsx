@@ -65,11 +65,12 @@ describe("a live message body", () => {
             />,
         );
 
-        // The script travels as inert text inside the sandboxed document: the
-        // frame has no allow-scripts, and its CSP is script-src 'none'.
-        expect(bodyFrame().getAttribute("sandbox")).toBe("allow-same-origin");
+        // The script is removed before the email is shown, and the frame it
+        // would have landed in has no allow-scripts and a script-src 'none'.
+        expect(bodyFrame().getAttribute("sandbox")).not.toContain("allow-scripts");
         expect(bodyFrame().getAttribute("srcdoc")).toContain("script-src 'none'");
-        expect(bodyFrame().getAttribute("srcdoc")).toContain("<script>");
+        expect(bodyFrame().getAttribute("srcdoc")).not.toContain("<script>");
+        expect(bodyFrame().getAttribute("srcdoc")).toContain("<div>Hi</div>");
 
         // It is not a real script element in the page, and not shown as text.
         expect(container.querySelector("script")).toBeNull();
@@ -77,19 +78,21 @@ describe("a live message body", () => {
         expect(window.__liveBodyRan).toBeUndefined();
     });
 
-    it("does not load remote content carried by the body", () => {
+    it("shows the body's images, but only inside the sandbox", () => {
         const { container } = render(
             <MessageReader
                 message={live(
-                    '<div>Hi</div><img src="https://tracker.example.com/pixel.png">',
+                    '<div>Hi</div><img src="https://cdn.example.com/logo.png">',
                 )}
             />,
         );
 
-        // Nothing remote is fetched by the page itself: the img stays inside
-        // the sandboxed document, whose CSP is img-src 'none' and whose CSS
-        // hides images as a second line of defence.
+        // The img lives in the sandboxed document, never in the page itself,
+        // and that document lets images load while nothing else remote does.
         expect(container.querySelector('img[src^="https://"]')).toBeNull();
-        expect(bodyFrame().getAttribute("srcdoc")).toContain("img-src 'none'");
+        const doc = bodyFrame().getAttribute("srcdoc");
+        expect(doc).toContain('<img src="https://cdn.example.com/logo.png">');
+        expect(doc).toContain("img-src https: http: data:");
+        expect(doc).toContain("connect-src 'none'");
     });
 });
