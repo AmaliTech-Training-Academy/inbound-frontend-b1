@@ -1,5 +1,3 @@
-:80 {
-    root * /usr/share/caddy
-    try_files {path} /index.html
-    file_server
+54.73.161.140.nip.io {
+    reverse_proxy localhost:8080
 }
