@@ -57,20 +57,26 @@ export default function LandingPage() {
                 <ExpiryStamp />
               </span>{' '}
               Emails For Every{' '}
-              {/* The design sets the last word in the brand colour, over a
-                  hand-drawn stroke. */}
+              {/* The design sets the last word in the brand colour, over two
+                  hand-drawn strokes. */}
               <span className="relative inline-block text-brand">
                 Need
                 <svg
                   aria-hidden="true"
-                  viewBox="0 0 120 14"
+                  viewBox="0 0 120 22"
                   fill="none"
-                  className="absolute -bottom-2 left-0 h-auto w-full md:-bottom-3"
+                  className="absolute -bottom-4 left-0 h-auto w-full md:-bottom-6"
                 >
                   <path
-                    d="M3 9.5C19 2.5 41 2 57 8c16 6 40 5.5 60-2.5"
+                    d="M3 8.5C19 2.5 41 2 57 7c16 5 40 4.5 60-2"
                     stroke="currentColor"
-                    strokeWidth="4.5"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M8 17.5C23 12 43 11.5 58 16c15 4.5 37 4 54-1.5"
+                    stroke="currentColor"
+                    strokeWidth="3.5"
                     strokeLinecap="round"
                   />
                 </svg>
