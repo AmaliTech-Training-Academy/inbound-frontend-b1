@@ -10,9 +10,12 @@ export default function HowItWorksPage() {
   const unread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0)
 
   return (
-    <div className="text-ink">
-      <SiteHero session={session} unread={unread} className="min-h-screen">
-        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-4 pb-20 pt-6 md:pt-10">
+    // One screen tall: the hero takes what the footer leaves, so the footer
+    // shows without scrolling on a laptop, and the page still scrolls when
+    // its content needs more room.
+    <div className="flex min-h-dvh flex-col text-ink">
+      <SiteHero session={session} unread={unread} className="flex-1">
+        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-4 pb-10 pt-4 md:pt-6">
           <div className="mx-auto max-w-full rounded-full border border-slate-200 px-4 py-2">
             <span className="block truncate">
               No account. No tracking. Gone in {INBOX_TTL_MINUTES} minutes.
@@ -27,7 +30,7 @@ export default function HowItWorksPage() {
             Engineered for absolute frictionlessness and mathematical privacy.
           </p>
 
-          <HowInboundWorks className="mt-12" />
+          <HowInboundWorks className="mt-10" />
         </div>
       </SiteHero>
 
