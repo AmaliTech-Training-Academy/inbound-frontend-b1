@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - dev
-      - feat/IND-7-live-inbox-reconnect
+      - feat/frontend-devops
 
 jobs:
   ci:
