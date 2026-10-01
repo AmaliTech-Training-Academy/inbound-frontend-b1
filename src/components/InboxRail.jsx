@@ -8,8 +8,8 @@ import { formatTimeLeft, isRunningOut } from "../utils/inboxProgress.js";
 // right edge on wide screens; a strip that scrolls sideways where there is no
 // room for it.
 //
-// `onOpen` is what choosing an inbox does - the wide rail opens its profile,
-// the strip switches straight to it.
+// `onOpen` is what choosing an inbox does: both the rail and the strip switch
+// straight to it, in one click.
 export default function InboxRail({
     inboxes = [],
     activeId,
@@ -18,8 +18,6 @@ export default function InboxRail({
     canAdd = true,
     adding = false,
     unreadCounts = {},
-    // The inbox whose profile is showing, so its avatar reads as pressed.
-    openedId = null,
     orientation = "vertical",
     label = "Inboxes",
     // The session's inbox cap, when it has reached it, so + can say why it is off.
@@ -67,7 +65,6 @@ export default function InboxRail({
                         type="button"
                         onClick={() => onOpen?.(inbox.id)}
                         aria-current={active ? "true" : undefined}
-                        aria-pressed={vertical ? inbox.id === openedId : undefined}
                         aria-label={`${inbox.address}${unread > 0 ? `, ${unread} unread` : ""}${
                             active ? ", open" : ""
                         }, ${left} left`}
@@ -77,7 +74,7 @@ export default function InboxRail({
                                 ? `ring-2 ring-offset-2 ${ending ? "ring-rose-500" : "ring-slate-900"}`
                                 : "hover:ring-2 hover:ring-slate-200 hover:ring-offset-2"
                         }`}>
-                        <Avatar seed={inbox.address} size={32} animate="always" />
+                        <Avatar seed={inbox.address} size={32} />
                         {unread > 0 && (
                             <span
                                 aria-hidden="true"

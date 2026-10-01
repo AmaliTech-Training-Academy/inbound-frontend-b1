@@ -35,7 +35,6 @@ const railInboxes = () =>
     within(rail())
         .getAllByRole("button")
         .filter((button) => /@/.test(button.getAttribute("aria-label") ?? ""));
-const profile = () => screen.getByRole("complementary", { name: "Inbox profile" });
 
 async function openFirstInboxWithAMessage() {
     render(
@@ -85,11 +84,11 @@ describe("several inboxes in one session", () => {
         expect(screen.getByText("Your inbox is empty")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: ROW_LABEL })).toBeNull();
 
-        // The rail opens the inbox's profile; the profile switches to it.
+        // One click on the rail switches to the inbox: no profile in between.
         fireEvent.click(
             within(rail()).getByRole("button", { name: new RegExp(`^${STORED_INBOX.address}`) }),
         );
-        fireEvent.click(within(profile()).getByRole("button", { name: "Switch to first-inbox" }));
+        expect(screen.queryByRole("complementary", { name: "Inbox profile" })).toBeNull();
 
         // Its feed stayed alive while the other inbox was open.
         expect(await screen.findByRole("button", { name: ROW_LABEL })).toBeInTheDocument();
