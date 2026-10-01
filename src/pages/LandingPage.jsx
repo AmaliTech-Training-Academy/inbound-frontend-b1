@@ -18,9 +18,12 @@ export default function LandingPage() {
   const unread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0)
 
   return (
-    <div className="text-ink">
-      <SiteHero session={session} unread={unread} className="min-h-screen">
-        <div className="relative -top-8 flex flex-1 flex-col items-center justify-center px-4 md:-top-24">
+    // One screen tall: the hero takes what the footer leaves, so the footer
+    // shows without scrolling on a laptop, and the page still scrolls when
+    // its content needs more room.
+    <div className="flex min-h-dvh flex-col text-ink">
+      <SiteHero session={session} unread={unread} className="flex-1">
+        <div className="relative -top-6 flex flex-1 flex-col items-center justify-center px-4 md:-top-12">
           <div className="mx-auto flex max-w-full items-center gap-2 rounded-full border border-slate-200 px-4 py-2 hover:border-slate-300">
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-brand" />
             {active ? (
