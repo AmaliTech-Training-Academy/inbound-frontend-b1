@@ -1,5 +1,4 @@
 import { useOutletContext } from 'react-router-dom'
-import SplitText from '../components/fx/SplitText.jsx'
 import HowInboundWorks from '../components/HowInboundWorks.jsx'
 import { SiteFooter, SiteHero } from '../components/SiteChrome.jsx'
 import { INBOX_TTL_MINUTES } from '../config.js'
@@ -20,11 +19,9 @@ export default function HowItWorksPage() {
             </span>
           </div>
 
-          <SplitText
-            text="How Inbound Works"
-            tag="h1"
-            className="mx-auto mt-8 text-center text-4xl font-medium md:text-6xl"
-          />
+          <h1 className="mx-auto mt-8 text-center text-4xl font-medium md:text-6xl">
+            How Inbound Works
+          </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-center text-sm max-md:px-2 md:text-base">
             Engineered for absolute frictionlessness and mathematical privacy.
