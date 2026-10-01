@@ -33,9 +33,7 @@ export default function SiteNav({ session, unread = 0 }) {
       </Link>
 
       <div className="flex items-center gap-4 sm:gap-8">
-        <NavLink to={ROUTES.home} end className={({ isActive }) => `${link({ isActive })} max-sm:hidden`}>
-          Home
-        </NavLink>
+        {/* No Home link: the brand on the left already goes home. */}
         <NavLink to={ROUTES.howItWorks} className={link}>
           How it works
         </NavLink>

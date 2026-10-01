@@ -108,7 +108,9 @@ describe('App', () => {
       fireEvent.click(screen.getByRole('link', { name: /Learn More/ }))
       expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
 
-      fireEvent.click(within(nav()).getByRole('link', { name: 'Home' }))
+      // There is no Home link; the brand is the way back.
+      expect(within(nav()).queryByRole('link', { name: 'Home' })).toBeNull()
+      fireEvent.click(within(nav()).getByRole('link', { name: 'Inbound' }))
       fireEvent.click(screen.getByRole('link', { name: /Read more/ }))
       expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
     })
