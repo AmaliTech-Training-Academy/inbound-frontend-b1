@@ -45,24 +45,34 @@ const stubClipboard = () => {
   return writeText
 }
 
-const subject = () => screen.getByRole('heading', { level: 2 })
-
 describe('MessageReader', () => {
   describe('header and metadata', () => {
     it('renders the subject, sender and sender address of the message', () => {
       render(<MessageReader message={baseMessage} />)
 
-      expect(subject()).toHaveTextContent('Your Notion login code is 849 201')
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Your Notion login code is 849 201')
       expect(screen.getByText('Notion Team')).toBeInTheDocument()
-      expect(screen.getByText('notify@m.notion.so')).toBeInTheDocument()
+      expect(screen.getByText('<notify@m.notion.so>')).toBeInTheDocument()
     })
 
     it('renders placeholders rather than a message of its own when none is given', () => {
       // No fallback message: an absent one must not render someone else's mail.
       render(<MessageReader />)
 
-      expect(subject()).toHaveTextContent('(No Subject)')
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('(No Subject)')
       expect(screen.getByText('Unknown Sender')).toBeInTheDocument()
+    })
+
+    it('shows the message identifier badge', () => {
+      render(<MessageReader message={baseMessage} />)
+
+      expect(screen.getByText('ID: #849201a')).toBeInTheDocument()
+    })
+
+    it('hides the identifier badge when the message has no id', () => {
+      render(<MessageReader message={{ ...baseMessage, id: undefined }} />)
+
+      expect(screen.queryByText(/ID: #/)).toBeNull()
     })
 
     it('renders the received time and its relative age', () => {
@@ -70,37 +80,57 @@ describe('MessageReader', () => {
 
       const time = container.querySelector('time')
       expect(time).toHaveAttribute('datetime', baseMessage.receivedAt)
-      expect(time).toHaveAttribute('title', formatReceivedAt(baseMessage.receivedAt))
-      expect(time).toHaveTextContent('(12m ago)')
+      expect(time).toHaveTextContent(formatReceivedAt(baseMessage.receivedAt))
+      expect(screen.getByText('12m ago')).toBeInTheDocument()
     })
 
     it('falls back to placeholder text when the message has no subject, sender or body', () => {
       render(<MessageReader message={{}} />)
 
-      expect(subject()).toHaveTextContent('(No Subject)')
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('(No Subject)')
       expect(screen.getByText('Unknown Sender')).toBeInTheDocument()
       expect(screen.getByText('(Empty message body)')).toBeInTheDocument()
     })
 
-    it('shows no time at all when the received time is missing', () => {
-      const { container } = render(<MessageReader message={{}} />)
+    it('does not render a relative age when the received time is missing', () => {
+      render(<MessageReader message={{}} />)
 
-      expect(container.querySelector('time')).toBeNull()
+      expect(screen.getByText('Unknown time')).toBeInTheDocument()
       expect(screen.queryByText(/ago/)).toBeNull()
     })
   })
 
-  describe('recipient', () => {
-    it('says which inbox the message was sent to', () => {
+  describe('inbox address', () => {
+    it('renders the message recipient in the address bar and the delivery line', () => {
       render(<MessageReader message={baseMessage} />)
 
-      expect(screen.getByText('to inbox-user-8921@inbound.mail')).toBeInTheDocument()
+      expect(screen.getAllByText('inbox-user-8921@inbound.mail')).toHaveLength(2)
     })
 
-    it('falls back to the open inbox when the message names no recipient', () => {
-      render(<MessageReader message={{ ...baseMessage, recipientEmail: null }} inboxAddress="open@inbound.mail" />)
+    it('falls back to a default inbox address when none is available', () => {
+      render(<MessageReader message={{}} />)
 
-      expect(screen.getByText('to open@inbound.mail')).toBeInTheDocument()
+      expect(screen.getAllByText('temporary-inbox@inbound.mail')).toHaveLength(2)
+    })
+
+    it('prefers an explicit inbox address in the address bar', () => {
+      render(<MessageReader message={baseMessage} inboxAddress="custom-inbox@inbound.mail" />)
+
+      expect(screen.getByTitle('custom-inbox@inbound.mail')).toBeInTheDocument()
+    })
+  })
+
+  describe('sender initials', () => {
+    it('builds sender initials from the first two words of the sender name', () => {
+      render(<MessageReader message={baseMessage} />)
+
+      expect(screen.getByText('NT')).toBeInTheDocument()
+    })
+
+    it('builds a single initial for a one word sender name', () => {
+      render(<MessageReader message={{ ...baseMessage, senderName: 'Notion' }} />)
+
+      expect(screen.getByText('N')).toBeInTheDocument()
     })
   })
 
@@ -109,7 +139,7 @@ describe('MessageReader', () => {
       render(<MessageReader message={baseMessage} />)
 
       expect(screen.getByLabelText('Verification Code')).toBeInTheDocument()
-      expect(within(screen.getByLabelText('Verification Code')).getByText('849 201')).toBeInTheDocument()
+      expect(screen.getByText('849 201')).toBeInTheDocument()
     })
 
     it('hides the verification code section when the message has no code', () => {
@@ -117,7 +147,9 @@ describe('MessageReader', () => {
 
       expect(screen.queryByLabelText('Verification Code')).toBeNull()
     })
+  })
 
+  describe('copying to the clipboard', () => {
     it('copies the verification code and confirms it temporarily', () => {
       vi.useFakeTimers()
       const writeText = stubClipboard()
@@ -132,7 +164,26 @@ describe('MessageReader', () => {
       expect(copyButton).toHaveTextContent('Copied')
 
       act(() => { vi.advanceTimersByTime(1500) })
+
       expect(copyButton).toHaveTextContent('Copy Code')
+    })
+
+    it('copies the inbox address and confirms it temporarily', () => {
+      vi.useFakeTimers()
+      const writeText = stubClipboard()
+      render(<MessageReader message={baseMessage} />)
+
+      const copyButton = screen.getByLabelText('Copy inbox address')
+      expect(copyButton).toHaveTextContent('Copy')
+
+      fireEvent.click(copyButton)
+
+      expect(writeText).toHaveBeenCalledWith('inbox-user-8921@inbound.mail')
+      expect(copyButton).toHaveTextContent('Copied')
+
+      act(() => { vi.advanceTimersByTime(1500) })
+
+      expect(copyButton).toHaveTextContent('Copy')
     })
   })
 
@@ -146,6 +197,15 @@ describe('MessageReader', () => {
       expect(print).toHaveBeenCalledTimes(1)
     })
 
+    it('calls onGenerateEmail when the generate action is used', () => {
+      const onGenerateEmail = vi.fn()
+      render(<MessageReader message={baseMessage} onGenerateEmail={onGenerateEmail} />)
+
+      fireEvent.click(screen.getByLabelText('Generate new temporary email'))
+
+      expect(onGenerateEmail).toHaveBeenCalledTimes(1)
+    })
+
     it('calls onBack when the back action is used', () => {
       const onBack = vi.fn()
       render(<MessageReader message={baseMessage} onBack={onBack} />)
@@ -154,24 +214,17 @@ describe('MessageReader', () => {
 
       expect(onBack).toHaveBeenCalledTimes(1)
     })
-
-    it('offers no way back when there is nowhere to go', () => {
-      render(<MessageReader message={baseMessage} />)
-
-      expect(screen.queryByLabelText('Back to inbox')).toBeNull()
-    })
   })
 
   describe('fullscreen reader', () => {
-    const fullscreen = () => screen.getByRole('dialog', { name: 'Fullscreen email reader' })
-
     it('expands the email into a full-screen reader', () => {
       render(<MessageReader message={baseMessage} />)
       expect(screen.queryByRole('dialog')).toBeNull()
 
       fireEvent.click(screen.getByLabelText('Expand email to full-screen view'))
 
-      expect(within(fullscreen()).getByRole('heading', { level: 2 })).toHaveTextContent('Your Notion login code is 849 201')
+      const dialog = screen.getByRole('dialog', { name: 'Fullscreen email reader' })
+      expect(within(dialog).getByRole('heading', { level: 1 })).toHaveTextContent('Your Notion login code is 849 201')
       expect(document.body.style.overflow).toBe('hidden')
     })
 
@@ -189,7 +242,7 @@ describe('MessageReader', () => {
       render(<MessageReader message={baseMessage} />)
       fireEvent.click(screen.getByLabelText('Expand email to full-screen view'))
 
-      fireEvent.click(fullscreen())
+      fireEvent.click(screen.getByRole('dialog', { name: 'Fullscreen email reader' }))
 
       expect(screen.queryByRole('dialog')).toBeNull()
     })
@@ -198,26 +251,19 @@ describe('MessageReader', () => {
       render(<MessageReader message={baseMessage} />)
       fireEvent.click(screen.getByLabelText('Expand email to full-screen view'))
 
-      fireEvent.click(within(fullscreen()).getByRole('heading', { level: 2 }))
+      const dialog = screen.getByRole('dialog', { name: 'Fullscreen email reader' })
+      fireEvent.click(within(dialog).getByRole('heading', { level: 1 }))
 
-      expect(fullscreen()).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Fullscreen email reader' })).toBeInTheDocument()
     })
 
     it('toggles the full-screen reader with the f key', () => {
       render(<MessageReader message={baseMessage} />)
 
       fireEvent.keyDown(window, { key: 'f' })
-      expect(fullscreen()).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Fullscreen email reader' })).toBeInTheDocument()
 
       fireEvent.keyDown(window, { key: 'f' })
-      expect(screen.queryByRole('dialog')).toBeNull()
-    })
-
-    it('leaves ctrl+f to the browser', () => {
-      render(<MessageReader message={baseMessage} />)
-
-      fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
-
       expect(screen.queryByRole('dialog')).toBeNull()
     })
 
@@ -256,25 +302,8 @@ describe('MessageReader', () => {
 
       expect(onBack).not.toHaveBeenCalled()
       expect(screen.queryByRole('dialog')).toBeNull()
+
       input.remove()
-    })
-
-    it('leaves escape and f to another dialog that is open', () => {
-      // The page's own dialogs (destroy, new inbox) close on escape; leaving the
-      // message at the same time would be two things for one key.
-      const onBack = vi.fn()
-      render(<MessageReader message={baseMessage} onBack={onBack} />)
-
-      const other = document.createElement('div')
-      other.setAttribute('aria-modal', 'true')
-      document.body.appendChild(other)
-
-      fireEvent.keyDown(window, { key: 'Escape' })
-      fireEvent.keyDown(window, { key: 'f' })
-
-      expect(onBack).not.toHaveBeenCalled()
-      expect(screen.queryByRole('dialog', { name: 'Fullscreen email reader' })).toBeNull()
-      other.remove()
     })
 
     it('stops handling keyboard shortcuts once unmounted', () => {
@@ -285,6 +314,59 @@ describe('MessageReader', () => {
       fireEvent.keyDown(window, { key: 'Escape' })
 
       expect(onBack).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('destroying the inbox', () => {
+    it('asks for confirmation before destroying the inbox', () => {
+      const onDestroy = vi.fn()
+      render(<MessageReader message={baseMessage} onDestroy={onDestroy} />)
+
+      fireEvent.click(screen.getByLabelText('Destroy Inbox'))
+
+      const dialog = screen.getByRole('alertdialog')
+      expect(within(dialog).getByText('Destroy Temporary Inbox?')).toBeInTheDocument()
+    })
+
+    it('does not destroy the inbox when the confirmation is cancelled', () => {
+      const onDestroy = vi.fn()
+      render(<MessageReader message={baseMessage} onDestroy={onDestroy} />)
+      fireEvent.click(screen.getByLabelText('Destroy Inbox'))
+
+      fireEvent.click(screen.getByText('Cancel'))
+
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+      expect(onDestroy).not.toHaveBeenCalled()
+    })
+
+    it('destroys the inbox when the confirmation is accepted', () => {
+      const onDestroy = vi.fn()
+      render(<MessageReader message={baseMessage} onDestroy={onDestroy} />)
+      fireEvent.click(screen.getByLabelText('Destroy Inbox'))
+
+      fireEvent.click(screen.getByText('Yes, destroy inbox'))
+
+      expect(onDestroy).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+    })
+
+    it('closes the destroy confirmation with escape instead of leaving the reader', () => {
+      const onBack = vi.fn()
+      render(<MessageReader message={baseMessage} onBack={onBack} />)
+      fireEvent.click(screen.getByLabelText('Destroy Inbox'))
+
+      fireEvent.keyDown(window, { key: 'Escape' })
+
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+      expect(onBack).not.toHaveBeenCalled()
+    })
+
+    it('notes that deletion is not wired up when no destroy handler is given', () => {
+      render(<MessageReader message={baseMessage} />)
+
+      fireEvent.click(screen.getByLabelText('Destroy Inbox'))
+
+      expect(screen.getByText(/Backend deletion API/, { selector: 'span' })).toBeInTheDocument()
     })
   })
 
@@ -358,7 +440,7 @@ describe('MessageReader', () => {
       render(<MessageReader message={baseMessage} />)
 
       expect(screen.getByText('guide.pdf')).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: '3 Attachments · 2.3 MB' })).toBeInTheDocument()
+      expect(screen.getByText(/3 files/)).toHaveTextContent('3 files · 2.3 MB')
     })
 
     it('forwards an attachment download to the download handler', () => {

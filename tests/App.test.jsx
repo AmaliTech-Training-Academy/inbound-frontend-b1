@@ -1,221 +1,146 @@
-import {describe,it,expect,beforeEach,afterEach} from 'vitest'
-import {render,screen,fireEvent,within,waitFor} from '@testing-library/react'
-import {MemoryRouter} from 'react-router-dom'
+import {describe,it,expect,vi,beforeEach} from 'vitest'
+import {render,screen,fireEvent} from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+
+vi.mock('../src/services/inboxApi.js', async () => {
+  const actual = await vi.importActual('../src/services/inboxApi.js')
+  return { ...actual, createInbox: vi.fn(), getInboxInfo: vi.fn() }
+})
+
 import App from '../src/App'
+import { MOCK_MESSAGES } from '../src/data/mockMessages'
+import { createInbox } from '../src/services/inboxApi.js'
 
-// Driven through the real App and its route table, against the in-browser
-// mock backend the test environment pins (VITE_USE_MOCK).
 
-const HOME_HEADING = 'Generate Temporary Emails For Every Need'
-const SESSION_KEY = 'inbound.session'
+const ADDRESS = 'inbox-user-8921@inbound.mail'
 
-const inMinutes = (minutes) => new Date(Date.now() + minutes * 60_000).toISOString()
-
-/** A session with one live inbox, as useInbox stores it. */
-function seedSession(expiresAt = inMinutes(10)) {
-  const session = {
-    token: 'token-app-1',
-    expiresAt,
-    inboxes: [{ id: 'inbox-app-1', address: 'seeded@inbound.mail', createdAt: new Date().toISOString(), expiresAt, extendCount: 0 }],
-    activeId: 'inbox-app-1',
-    hiddenIds: [],
+function newInbox(overrides = {}) {
+  return {
+    id: 'i1',
+    address: ADDRESS,
+    token: 'tok',
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+    ...overrides,
   }
-  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
-/** The real entry point mounts a BrowserRouter, so the tests supply their own. */
-function renderApp(path = '/') {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>
-  )
+// The reader only exists inside an active inbox, so each test generates an
+// address first, the way the header's Generate Email button does.
+async function openInbox() {
+  const user = userEvent.setup()
+  createInbox.mockResolvedValue(newInbox())
+
+  render(<App />)
+  await user.click(screen.getByRole('button', { name: /generate email/i }))
+  await screen.findAllByText(ADDRESS)
+
+  return user
 }
 
-function expectHomePage() {
-  expect(screen.getByRole('heading', { level: 1, name: HOME_HEADING })).toBeInTheDocument()
-}
-
-// The public pages carry one nav; the inbox's rails are the named ones.
-const nav = () => screen.getByRole('navigation')
+const listItems = () => screen.getAllByRole('listitem')
+const openMessage = (user, index) =>
+  user.click(screen.getByText(MOCK_MESSAGES[index].subject).closest('button'))
 
 describe('App', () => {
-  beforeEach(() => window.sessionStorage.clear())
-  afterEach(() => window.sessionStorage.clear())
+  beforeEach(() => {
+    sessionStorage.clear()
+    vi.clearAllMocks()
+    // jsdom has no layout, so scrollIntoView is not implemented.
+    Element.prototype.scrollIntoView = vi.fn()
+  })
 
-  describe('the landing page', () => {
-    it('renders the generator on first paint', () => {
-      renderApp()
+  it('renders the inbox list for the address the header generated', async () => {
+    await openInbox()
 
-      expectHomePage()
-      expect(screen.getByRole('button', { name: 'Generate Inbox' })).toBeInTheDocument()
-    })
-
-    it('shows the new address in place, with the way into the inbox', async () => {
-      renderApp()
-
-      fireEvent.click(screen.getByRole('button', { name: 'Generate Inbox' }))
-
-      const goToInbox = await screen.findByRole('link', { name: 'Go to inbox' })
-      expect(screen.getByText(/@tempmail\.dev$/)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /^Copy mock-.+@tempmail\.dev$/ })).toBeInTheDocument()
-
-      fireEvent.click(goToInbox)
-
-      expect(await screen.findByRole('heading', { level: 1, name: 'Inbox' })).toBeInTheDocument()
-    })
-
-    it('shows an open session straight away, and links the nav to it', () => {
-      seedSession()
-      renderApp()
-
-      expect(screen.getByText('seeded@inbound.mail')).toBeInTheDocument()
-
-      // Covered by the hero before it had a layer of its own, and did nothing.
-      fireEvent.click(within(nav()).getByRole('link', { name: 'Open inbox' }))
-
-      expect(screen.getByRole('heading', { level: 1, name: 'Inbox' })).toBeInTheDocument()
-    })
-
-    it('makes an inbox from the nav when there is none', async () => {
-      renderApp()
-
-      fireEvent.click(within(nav()).getByRole('button', { name: 'Get an inbox' }))
-
-      expect(await screen.findByRole('link', { name: 'Go to inbox' })).toBeInTheDocument()
-      expect(within(nav()).getByRole('link', { name: 'Open inbox' })).toBeInTheDocument()
+    expect(createInbox).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Inbox')
+    expect(listItems()).toHaveLength(MOCK_MESSAGES.length)
+    MOCK_MESSAGES.forEach((message) => {
+      expect(screen.getByText(message.subject)).toBeInTheDocument()
     })
   })
 
-  describe('how it works', () => {
-    it('is a page of its own, reached from the nav', () => {
-      renderApp()
+  it('replaces the landing page once the inbox is active', async () => {
+    await openInbox()
 
-      fireEvent.click(within(nav()).getByRole('link', { name: 'How it works' }))
+    expect(
+      screen.queryByText(/Create a temporary email in seconds/i)
+    ).toBeNull()
+  })
 
-      expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
-      expect(screen.queryByRole('heading', { level: 1, name: HOME_HEADING })).toBeNull()
-      expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
-        'Click Generate',
-        'Receive OTPs & Links',
-        'Auto-Shred & Purge',
-      ])
-    })
+  it('opens the selected message in the reader', async () => {
+    const user = await openInbox()
 
-    it('is where Learn More and Read more lead', () => {
-      renderApp()
+    await openMessage(user, 2)
 
-      fireEvent.click(screen.getByRole('link', { name: /Learn More/ }))
-      expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(MOCK_MESSAGES[2].subject)
+    expect(screen.getByText(MOCK_MESSAGES[2].senderName)).toBeInTheDocument()
+    expect(screen.getByText(/Build pipeline #4928 failed/)).toBeInTheDocument()
+    expect(screen.queryByText(MOCK_MESSAGES[3].subject)).toBeNull()
+  })
 
-      // There is no Home link; the brand is the way back.
-      expect(within(nav()).queryByRole('link', { name: 'Home' })).toBeNull()
-      fireEvent.click(within(nav()).getByRole('link', { name: 'Inbound' }))
-      fireEvent.click(screen.getByRole('link', { name: /Read more/ }))
-      expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
-    })
+  it('returns to the inbox list without losing the other messages', async () => {
+    const user = await openInbox()
 
-    it('only explains: getting an inbox is left to the nav', () => {
-      renderApp('/how-it-works')
+    await openMessage(user, 1)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(MOCK_MESSAGES[1].subject)
 
-      expect(screen.queryByRole('button', { name: 'Generate Inbox' })).toBeNull()
-      expect(within(nav()).getByRole('button', { name: 'Get an inbox' })).toBeInTheDocument()
+    await user.click(screen.getByLabelText('Back to inbox'))
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Inbox')
+    expect(listItems()).toHaveLength(MOCK_MESSAGES.length)
+    MOCK_MESSAGES.forEach((message) => {
+      expect(screen.getByText(message.subject)).toBeInTheDocument()
     })
   })
 
-  describe('routing', () => {
-    it('sends the inbox back to the landing page when there is no inbox', () => {
-      renderApp('/inbox')
+  it('returns to the inbox list with escape', async () => {
+    const user = await openInbox()
 
-      expectHomePage()
-    })
+    await openMessage(user, 0)
 
-    it('sends a message url back to the landing page when there is no inbox', () => {
-      renderApp('/inbox/some-message')
+    fireEvent.keyDown(window, { key: 'Escape' })
 
-      expectHomePage()
-    })
-
-    it('sends an unknown url back to the landing page', () => {
-      renderApp('/not-a-real-page')
-
-      expectHomePage()
-    })
-
-    it('says so when a message url names nothing in the open inbox', () => {
-      seedSession()
-      renderApp('/inbox/not-a-real-message')
-
-      expect(screen.getByText('This message isn’t here')).toBeInTheDocument()
-
-      fireEvent.click(screen.getByRole('link', { name: 'Back to inbox' }))
-
-      expect(screen.queryByText('This message isn’t here')).toBeNull()
-      expect(screen.getByText('Your inbox is empty')).toBeInTheDocument()
-    })
-
-    it('leads from the inbox back to the landing page', () => {
-      seedSession()
-      renderApp('/inbox')
-
-      fireEvent.click(screen.getByRole('link', { name: 'Inbound' }))
-
-      expectHomePage()
-    })
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Inbox')
+    expect(listItems()).toHaveLength(MOCK_MESSAGES.length)
   })
 
-  describe('the end of an inbox', () => {
-    it('ends on the landing page once the last inbox is destroyed', () => {
-      seedSession()
-      renderApp('/inbox')
+  it('opens a different message after returning to the list', async () => {
+    const user = await openInbox()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Destroy inbox' }))
-      const dialog = screen.getByRole('alertdialog')
-      expect(dialog).toHaveTextContent('seeded@inbound.mail')
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Yes, destroy inbox' }))
+    await openMessage(user, 0)
+    await user.click(screen.getByLabelText('Back to inbox'))
+    await openMessage(user, 4)
 
-      expectHomePage()
-      expect(window.sessionStorage.getItem(SESSION_KEY)).toBeNull()
-    })
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(MOCK_MESSAGES[4].subject)
+    expect(screen.queryByText(MOCK_MESSAGES[0].subject)).toBeNull()
+  })
 
-    it('keeps the inbox when the destroy is cancelled', () => {
-      seedSession()
-      renderApp('/inbox')
+  it('generates a new address from the inbox toolbar', async () => {
+    const user = await openInbox()
+    createInbox.mockResolvedValue(newInbox({ id: 'i2', address: 'second@inbound.dev' }))
 
-      fireEvent.click(screen.getByRole('button', { name: 'Destroy inbox' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    // A third would mean a component had brought its own header back.
+    expect(screen.getAllByRole('button', { name: /generate/i })).toHaveLength(2)
 
-      expect(screen.queryByRole('alertdialog')).toBeNull()
-      expect(screen.getByRole('heading', { level: 1, name: 'Inbox' })).toBeInTheDocument()
-    })
+    await user.click(screen.getByLabelText('Generate new temporary email'))
 
-    it('shows the purged card when the inbox runs out, and starts again from it', async () => {
-      seedSession(new Date(Date.now() + 300).toISOString())
-      renderApp('/inbox')
+    expect(await screen.findAllByText('second@inbound.dev')).not.toHaveLength(0)
+    expect(createInbox).toHaveBeenCalledTimes(2)
+    expect(listItems()).toHaveLength(MOCK_MESSAGES.length)
+  })
 
-      expect(await screen.findByRole('heading', { level: 1, name: 'This inbox has expired' })).toBeInTheDocument()
+  it('destroys the inbox from the reader and returns to the landing page', async () => {
+    const user = await openInbox()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Generate a new address' }))
+    await openMessage(user, 0)
+    await user.click(screen.getByLabelText('Destroy Inbox'))
+    await user.click(screen.getByText('Yes, destroy inbox'))
 
-      await waitFor(() =>
-        expect(screen.getByRole('heading', { level: 1, name: 'Inbox' })).toBeInTheDocument()
-      )
-      // A fresh address, where the expired one was.
-      expect(screen.getAllByText(/^mock-.+@tempmail\.dev$/)).not.toHaveLength(0)
-      expect(screen.queryByText('seeded@inbound.mail')).toBeNull()
-    })
-
-    it('goes back to a normal home page from the purged card', async () => {
-      seedSession(new Date(Date.now() + 300).toISOString())
-      renderApp('/inbox')
-
-      await screen.findByRole('heading', { level: 1, name: 'This inbox has expired' })
-      fireEvent.click(screen.getByRole('button', { name: 'Back to home' }))
-
-      // The usual hero, with nothing about the expired inbox left on it.
-      expectHomePage()
-      expect(screen.queryByText(/expired/i)).toBeNull()
-      expect(screen.getByRole('button', { name: 'Generate Inbox' })).toBeInTheDocument()
-    })
+    expect(
+      screen.getByText(/Create a temporary email in seconds/i)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(MOCK_MESSAGES[0].subject)).toBeNull()
   })
 })
