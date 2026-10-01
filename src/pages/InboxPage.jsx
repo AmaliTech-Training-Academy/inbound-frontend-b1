@@ -369,18 +369,23 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
       />
 
       {notice && (
+        // Top right, under the header and clear of the inbox rail, where a
+        // notification is looked for; full width at the top on a phone.
         <p
           role="status"
-          className="fixed bottom-4 left-1/2 z-40 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800 shadow-sm"
+          className="fixed inset-x-4 top-16 z-40 flex animate-fade-up items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-sm sm:inset-x-auto sm:right-4 sm:w-80 lg:right-20"
         >
-          {notice.addresses.map((address, index) => (
-            <span key={address}>
-              {index > 0 && (index === notice.addresses.length - 1 ? ' and ' : ', ')}
-              <span className="font-mono">{address}</span>
-            </span>
-          ))}{' '}
-          expired.
-          {notice.switched && ' Switched to your next inbox.'}
+          <TimerOff size={16} aria-hidden="true" className="mt-px shrink-0 text-amber-600" />
+          <span className="min-w-0 break-words">
+            {notice.addresses.map((address, index) => (
+              <span key={address}>
+                {index > 0 && (index === notice.addresses.length - 1 ? ' and ' : ', ')}
+                <span className="font-mono">{address}</span>
+              </span>
+            ))}{' '}
+            expired.
+            {notice.switched && ' Switched to your next inbox.'}
+          </span>
         </p>
       )}
 
