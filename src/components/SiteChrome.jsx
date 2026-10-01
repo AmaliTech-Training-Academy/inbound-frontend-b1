@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Mail, Sparkles } from 'lucide-react'
+import { Loader2, Mail } from 'lucide-react'
 import CopyButton from './CopyButton.jsx'
 import SiteNav from './SiteNav.jsx'
 import { INBOX_PATH } from '../router'
@@ -23,6 +23,8 @@ export function SiteHero({ session, unread = 0, className = '', children }) {
   )
 }
 
+// Text only: the sparkle that used to sit beside the label read as an AI
+// product. A spinner takes its place only while the inbox is being made.
 export function GenerateButton({ onClick, creating, label = null }) {
   return (
     <button
@@ -30,23 +32,10 @@ export function GenerateButton({ onClick, creating, label = null }) {
       onClick={onClick}
       disabled={creating}
       aria-busy={creating || undefined}
-      className="group flex items-center gap-3 rounded-full bg-brand py-2 pl-8 pr-2 text-base font-medium text-white transition-colors hover:bg-brand/90 disabled:hover:bg-brand"
+      className="flex min-h-13.5 items-center gap-2.5 rounded-full bg-brand px-8 text-base font-medium text-white transition-colors hover:bg-brand/90 disabled:hover:bg-brand"
     >
-      <span>
-        {creating ? 'Generating' : label || 'Generate Inbox'}
-      </span>
-      <span className="flex items-center justify-center rounded-full bg-white/20 p-3">
-        {creating ? (
-          <Loader2 size={20} strokeWidth={2.25} className="animate-spin" aria-hidden="true" />
-        ) : (
-          <Sparkles
-            size={20}
-            strokeWidth={2.25}
-            aria-hidden="true"
-            className="transition-transform duration-300 ease-out group-hover:rotate-12"
-          />
-        )}
-      </span>
+      {creating && <Loader2 size={18} strokeWidth={2.25} className="animate-spin" aria-hidden="true" />}
+      <span>{creating ? 'Generating' : label || 'Generate Inbox'}</span>
     </button>
   )
 }

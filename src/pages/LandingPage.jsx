@@ -48,7 +48,15 @@ export default function LandingPage() {
 
           <div className="relative mx-auto mt-8 w-full max-w-212.5">
             <h1 className="text-center text-4xl font-bold md:text-7xl">
-              Generate Temporary Emails For Every{' '}
+              Generate{' '}
+              {/* The stamp hangs off the end of this word rather than the
+                  container's corner, so it clears the "y" however the
+                  headline wraps. */}
+              <span className="relative inline-block">
+                Temporary
+                <ExpiryStamp />
+              </span>{' '}
+              Emails For Every{' '}
               {/* The design sets the last word in the brand colour, over a
                   hand-drawn stroke. */}
               <span className="relative inline-block text-brand">
@@ -68,8 +76,6 @@ export default function LandingPage() {
                 </svg>
               </span>
             </h1>
-
-            <ExpiryStamp />
           </div>
 
           <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-slate-600 max-md:px-2 md:text-base">
@@ -125,13 +131,14 @@ export default function LandingPage() {
 
 // The tilted stamp the design sets at the right of the headline's first line:
 // a dashed circle around the expiry clock. Drawn as SVG rather than shipped as
-// an image so it takes its colour from the brand token, and hidden where the
-// headline has no room beside it.
+// an image so it takes its colour from the brand token. It sits just past the
+// end of "Temporary" and above its cap height, and only from laptop width up:
+// narrower, there is no room beside the headline and it would cover letters.
 function ExpiryStamp() {
   return (
-    <div
+    <span
       aria-hidden="true"
-      className="pointer-events-none absolute right-0 top-0 hidden size-24 -rotate-8 text-brand md:block"
+      className="pointer-events-none absolute -top-10 left-full ml-1 hidden size-20 -rotate-8 text-brand lg:block"
     >
       <svg viewBox="0 0 100 100" className="size-full">
         <circle
@@ -166,6 +173,6 @@ function ExpiryStamp() {
           EXPIRES
         </text>
       </svg>
-    </div>
+    </span>
   )
 }
