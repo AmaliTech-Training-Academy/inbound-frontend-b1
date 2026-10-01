@@ -45,18 +45,16 @@ describe("inboxApi (inbox-token contract)", () => {
     });
 
     describe("createInbox", () => {
-        it("keeps the inbox token, not the session token beside it", async () => {
-            // Creation issues two credentials and they are not interchangeable:
-            // the per-inbox token scopes the inbox and message routes, the
-            // session token scopes the session routes, which this client never
-            // calls. The app authenticates everything with the inbox token.
+        it("takes the session token, the only one the deployed server issues", async () => {
+            // The docs describe a per-inbox token beside the session one; the
+            // deployed server sends only the session token and authenticates
+            // every call with it (checked 2026-09-30).
             fetchMock.mockReturnValue(
                 reply(
                     {
                         session: { token: "sess_1", expiresAt: "2026-09-29T10:00:00Z" },
                         id: "inbox-1",
                         address: "a@inbound.test",
-                        token: "inbox_tok_1",
                         expiresAt: "2026-09-29T10:00:00Z",
                     },
                     201,
@@ -68,17 +66,16 @@ describe("inboxApi (inbox-token contract)", () => {
             expect(inbox).toMatchObject({
                 id: "inbox-1",
                 address: "a@inbound.test",
-                token: "inbox_tok_1",
+                token: "sess_1",
                 expiresAt: "2026-09-29T10:00:00Z",
             });
             expect(inbox).not.toHaveProperty("session");
         });
 
-        it("rejects a response whose only token is the session's", async () => {
+        it("rejects a response carrying no token at all", async () => {
             fetchMock.mockReturnValue(
                 reply(
                     {
-                        session: { token: "sess_1", expiresAt: "2026-09-29T10:00:00Z" },
                         id: "inbox-1",
                         address: "a@inbound.test",
                         expiresAt: "2026-09-29T10:00:00Z",
@@ -184,5 +181,46 @@ describe("inboxApi (inbox-token contract)", () => {
         await expect(fetchUnreadMessages("inbox_tok_1")).rejects.toThrow(
             /not a list/,
         );
+    });
+
+    describe("addressing one inbox of a session", () => {
+        it("reads inbox info by id", async () => {
+            fetchMock.mockReturnValue(reply({ expiresAt: "2026-09-29T10:00:00Z" }));
+
+            await getInboxInfo("sess_1", { inboxId: "inbox-1" });
+
+            expect(fetchMock.mock.calls[0][0]).toBe(`${API}/inbox/inbox-1`);
+        });
+
+        it("extends an inbox by id", async () => {
+            fetchMock.mockReturnValue(reply({ expiresAt: "2026-09-29T10:05:00Z" }));
+
+            await extendInbox("sess_1", { inboxId: "inbox-1" });
+
+            expect(fetchMock.mock.calls[0][0]).toBe(`${API}/inbox/extend/inbox-1`);
+        });
+
+        it("scopes the message list to the inbox", async () => {
+            fetchMock.mockReturnValue(reply({ messages: [] }));
+
+            await fetchInboxMessages("sess_1", { inboxId: "inbox-1" });
+
+            expect(fetchMock.mock.calls[0][0]).toBe(`${API}/inbox/messages?inboxId=inbox-1`);
+        });
+
+        it("falls back to the unread list while the full list route answers 404", async () => {
+            // The deployed server's /inbox/:id route catches /inbox/messages.
+            const rows = [{ id: "m1", subject: "Code" }];
+            fetchMock
+                .mockReturnValueOnce(reply(null, 404))
+                .mockReturnValueOnce(reply({ messages: rows }));
+
+            const messages = await fetchInboxMessages("sess_1", { inboxId: "inbox-1" });
+
+            expect(fetchMock.mock.calls[1][0]).toBe(
+                `${API}/inbox/messages/unread/all?inboxId=inbox-1`,
+            );
+            expect(messages).toEqual(rows);
+        });
     });
 });

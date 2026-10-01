@@ -212,6 +212,7 @@ export function useMessages(inbox) {
 
         try {
             const all = await fetchInboxMessages(token, {
+                inboxId: inboxRef.current?.id,
                 signal: controller.signal,
             });
 

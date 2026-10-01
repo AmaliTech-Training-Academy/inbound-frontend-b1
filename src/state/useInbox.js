@@ -94,9 +94,13 @@ export function useInbox() {
     // Re-confirms the restored inbox on mount, so a refresh picks up an expiry
     // changed elsewhere. Only runs on mount for the restored inbox.
     const initialToken = useRef(inbox?.token ?? null);
+    // The id is captured alongside it: a session token can own several inboxes,
+    // so the routes that take an id need one to say which is meant.
+    const initialId = useRef(inbox?.id ?? null);
 
     useEffect(() => {
         const tokenToConfirm = initialToken.current;
+        const inboxIdToConfirm = initialId.current;
         if (!tokenToConfirm) return;
 
         const controller = new AbortController();
@@ -105,6 +109,7 @@ export function useInbox() {
         (async () => {
             try {
                 const fresh = await getInboxInfo(tokenToConfirm, {
+                    inboxId: inboxIdToConfirm,
                     signal: controller.signal,
                 });
                 // The request may have settled just before a local action
@@ -314,7 +319,7 @@ export function useInbox() {
         setError(null);
         const target = inbox;
         try {
-            const res = await extendInbox(target.token);
+            const res = await extendInbox(target.token, { inboxId: target.id });
             if (!res?.expiresAt) {
                 throw new ApiError(500, "Extend response missing expiresAt");
             }
@@ -350,7 +355,7 @@ export function useInbox() {
         setError(null);
         const target = inbox;
         try {
-            const fresh = await getInboxInfo(target.token);
+            const fresh = await getInboxInfo(target.token, { inboxId: target.id });
             if (
                 isPlausibleExpiry(fresh?.expiresAt) &&
                 fresh.expiresAt !== target.expiresAt
