@@ -1,6 +1,6 @@
 // The extraction rule is really a rule about what not to extract, so most of
-// these are false-positive cases. The sample messages in data/mockMessages.js
-// are the project's own corpus of both kinds, and are used as such at the end.
+// these are false-positive cases. data/mockMessages.js is the project's own
+// corpus of both kinds, and is used as such at the end.
 
 import { describe, it, expect } from "vitest";
 import { extractVerificationCode } from "./verificationCode.js";
@@ -43,6 +43,45 @@ describe("extractVerificationCode", () => {
         ).toBe("559124");
     });
 
+    it("reads an alphanumeric code", () => {
+        expect(
+            extractVerificationCode({
+                body: "Your verification code is A7K92P. It expires in 10 minutes.",
+            }),
+        ).toBe("A7K92P");
+
+        expect(extractVerificationCode({ body: "OTP: AB12CD" })).toBe("AB12CD");
+    });
+
+    it("reads an alphanumeric code whose letters and digits alternate", () => {
+        expect(
+            extractVerificationCode({ body: "Your login code is 7H4K9M" }),
+        ).toBe("7H4K9M");
+        expect(
+            extractVerificationCode({ body: "Your security code is XJ82Q1" }),
+        ).toBe("XJ82Q1");
+        expect(
+            extractVerificationCode({
+                body: "Your one-time code is 4B7X2Z9",
+            }),
+        ).toBe("4B7X2Z9");
+    });
+
+    it("reads a numeric code the sender hyphenated", () => {
+        expect(
+            extractVerificationCode({ body: "Your verification code is 849-201." }),
+        ).toBe("849 201");
+    });
+
+    it("reads an alphanumeric code the sender grouped, without the grouping", () => {
+        expect(
+            extractVerificationCode({ body: "Your verification code is AB12-CD" }),
+        ).toBe("AB12CD");
+        expect(
+            extractVerificationCode({ body: "OTP: A7K9-2P" }),
+        ).toBe("A7K92P");
+    });
+
     it("reads a code out of HTML without dragging markup along", () => {
         const body = `<div><p>Your verification code is <strong>849 201</strong>.</p></div>`;
 
@@ -60,6 +99,25 @@ describe("extractVerificationCode", () => {
             <a href="https://notion.so/login?code=849201">Sign in</a>`;
 
         // The href's `code=849201` is not message text, so it is not the code.
+        expect(extractVerificationCode({ body })).toBeNull();
+    });
+
+    it("reads an alphanumeric code out of HTML", () => {
+        expect(
+            extractVerificationCode({
+                body: `<p>Your verification code is <strong>A7K92P</strong>.</p>`,
+            }),
+        ).toBe("A7K92P");
+        expect(
+            extractVerificationCode({
+                body: `<p>Your login code: <span style="font-weight: 600;">849-201</span></p>`,
+            }),
+        ).toBe("849 201");
+    });
+
+    it("does not read a code out of an attribute that looks like one", () => {
+        const body = `<div data-code="A7K92P" data-token="849-201">Your verification code is in the email.</div>`;
+
         expect(extractVerificationCode({ body })).toBeNull();
     });
 
@@ -112,6 +170,107 @@ Call +1 (555) 123-4567`,
         ).toBeNull();
     });
 
+    // The trigger phrase is what makes a nearby token a candidate, so each of
+    // these puts a non-code right after one.
+    it("does not mistake an id, a date or a phone number for a code", () => {
+        expect(
+            extractVerificationCode({ body: "Your verification code is #4928" }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({ body: "Your verification code is 2026-09" }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({
+                body: "Your verification code is 555-123-4567",
+            }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({ body: "Your confirmation code is 1234 5678" }),
+        ).toBeNull();
+    });
+
+    it("does not read a code out of a url it points at", () => {
+        expect(
+            extractVerificationCode({
+                body: "Your verification code is at https://notion.so/login?code=849201",
+            }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({
+                body: "Your login code: open https://notion.so/login?token=A7K92P",
+            }),
+        ).toBeNull();
+    });
+
+    it("does not read a code out of the middle of a longer token", () => {
+        expect(
+            extractVerificationCode({
+                body: "Your verification code is userA7K92P123",
+            }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({
+                body: "Your verification code is invoice-AB12CD-2026",
+            }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({ body: "Your verification code is spec.js:42" }),
+        ).toBeNull();
+    });
+
+    it("does not read a word beside a number as a code", () => {
+        // A grouped candidate has to mix its letters and digits itself, so an
+        // invoice reference and a currency amount are not read as ones.
+        expect(
+            extractVerificationCode({ body: "Your confirmation code is INV-2026-09" }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({ body: "Your verification code is 24 USD short" }),
+        ).toBeNull();
+    });
+
+    it("does not hand back a lower case token", () => {
+        // Lower case is what words, hashes, ids and file names are made of, so
+        // it is left alone rather than guessed at.
+        expect(
+            extractVerificationCode({ body: "Your verification code is e742b6" }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({ body: "Your login code is ab12cd" }),
+        ).toBeNull();
+    });
+
+    it("does not read a file name, a url or a stylesheet as a code", () => {
+        expect(
+            extractVerificationCode({
+                body: "Your verification code is in report_2026_FINAL_v2.pdf",
+            }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({
+                body: "Your login code is styled by .btn-primary in app.css",
+            }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({
+                body: "Your verification code: background #FFF000 on the button",
+            }),
+        ).toBeNull();
+    });
+
+    it("does not read a uuid or a base64 blob as a code", () => {
+        expect(
+            extractVerificationCode({
+                body: "Your security code is 3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+            }),
+        ).toBeNull();
+        expect(
+            extractVerificationCode({
+                body: "Your security code is YWJjZGVmZ2hpamtsbW5vcA==",
+            }),
+        ).toBeNull();
+    });
+
     it("returns null when there is nothing to find", () => {
         expect(extractVerificationCode()).toBeNull();
         expect(extractVerificationCode({})).toBeNull();
@@ -119,6 +278,25 @@ Call +1 (555) 123-4567`,
         expect(
             extractVerificationCode({ subject: "Hello", body: "Line one." }),
         ).toBeNull();
+    });
+
+    it("returns null when the wording is there but no code is", () => {
+        expect(
+            extractVerificationCode({ body: "Your verification code is on its way." }),
+        ).toBeNull();
+        expect(extractVerificationCode({ body: "OTP sent." })).toBeNull();
+    });
+
+    it("reads the numeric shapes the wording is written around", () => {
+        expect(
+            extractVerificationCode({ body: "Your verification code is 4821" }),
+        ).toBe("4821");
+        expect(
+            extractVerificationCode({ body: "Your verification code is 91370426" }),
+        ).toBe("91370426");
+        expect(
+            extractVerificationCode({ body: "Your verification code is 559124" }),
+        ).toBe("559124");
     });
 });
 
