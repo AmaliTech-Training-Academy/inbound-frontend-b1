@@ -161,7 +161,7 @@ function MessageReader({
         <SafeHtmlEmail htmlContent={message.htmlBody} />
       ) : (
         <div className="space-y-4">
-          <div className="whitespace-pre-wrap break-words leading-relaxed text-slate-600 select-text">
+          <div className="whitespace-pre-wrap wrap-break-word leading-relaxed text-slate-600 select-text">
             {message?.textBody || message?.body || '(Empty message body)'}
           </div>
           {message?.actionText && message?.contextUrl && (
@@ -231,7 +231,7 @@ function MessageReader({
           </div>
         </div>
 
-        <h2 className="mt-6 break-words text-lg font-semibold text-slate-900 sm:text-xl">
+        <h2 className="mt-6 wrap-break-word text-lg font-semibold text-slate-900 sm:text-xl">
           {message?.subject || '(No Subject)'}
         </h2>
 
@@ -271,7 +271,7 @@ function MessageReader({
               </div>
             </header>
 
-            <h2 className="mt-6 break-words text-xl font-semibold text-slate-900 sm:text-2xl">
+            <h2 className="mt-6 wrap-break-word text-xl font-semibold text-slate-900 sm:text-2xl">
               {message?.subject || '(No Subject)'}
             </h2>
 
