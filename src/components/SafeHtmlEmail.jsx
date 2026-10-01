@@ -1,82 +1,74 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { prepareEmail } from '../utils/emailHtml.js'
+
+// An HTML email, shown as its sender laid it out, inside a sandbox it cannot
+// reach out of.
+//
+// What it may do: show its images (remote, or inlined as data: urls) and its
+// own styles, and open web and mail links in a new tab. What it may not: run a
+// script, submit a form, embed a frame, navigate the reader, or fetch anything
+// that is not an image.
+//
+// Two layers do that. The email is cleaned before it is shown (prepareEmail),
+// so nothing depends on winning a race with the page loading; and the frame it
+// lands in is sandboxed without allow-scripts and under a strict CSP, so
+// anything the cleaning missed still cannot run.
+//
+// Images are on by default, as in the backend's own preview and in Gmail. A
+// remote image can be a tracking pixel, but on a throwaway address all it can
+// tell the sender is that the mail was opened.
+const CSP = [
+  "default-src 'none'",
+  'img-src https: http: data:',
+  "style-src 'unsafe-inline'",
+  "script-src 'none'",
+  "frame-src 'none'",
+  "connect-src 'none'",
+  "media-src 'none'",
+  "object-src 'none'",
+  "font-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ')
 
 function SafeHtmlEmail({ htmlContent }) {
   const [iframeHeight, setIframeHeight] = useState('220px')
+  const content = useMemo(() => prepareEmail(htmlContent), [htmlContent])
 
+  // The reader's own base styles come after the sender's, so the frame's
+  // background stays the reader's: an email's `body { background }` paints its
+  // own canvas, not ours. Everything else is the sender's to style; rules here
+  // for tables, cells or headings would fight their layout.
   const secureSrcDoc = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'none'; script-src 'none'; frame-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; style-src 'unsafe-inline'; font-src 'none'; base-uri 'none'; form-action 'none';">
-  <style>
-    *, *::before, *::after {
-      box-sizing: border-box;
-    }
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      font-size: 14px;
-      line-height: 1.6;
-      color: #111213;
-      background-color: transparent;
-      word-break: break-word;
-      overflow-wrap: break-word;
-    }
-    a {
-      color: #111111;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-    p {
-      margin: 0 0 1em 0;
-    }
-    h1, h2, h3, h4, h5, h6 {
-      color: #111213;
-      margin-top: 1.2em;
-      margin-bottom: 0.5em;
-      line-height: 1.3;
-      font-weight: 600;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0;
-    }
-    th, td {
-      border: 1px solid #e4e5e9;
-      padding: 8px 12px;
-      text-align: left;
-    }
-    th {
-      background-color: #f4f5f7;
-      font-weight: 600;
-    }
-    code, pre {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      background-color: #eef0f2;
-      border-radius: 4px;
-    }
-    code {
-      padding: 2px 4px;
-    }
-    pre {
-      padding: 12px;
-      overflow-x: auto;
-      white-space: pre-wrap;
-    }
-    img {
-      display: none !important; /* Secondary CSS defense in addition to CSP */
-    }
-    iframe {
-      display: none !important;
-    }
-  </style>
+  <meta http-equiv="Content-Security-Policy" content="${CSP};">
 </head>
 <body>
-  ${htmlContent || ''}
+${content}
+<style>
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #111213;
+    overflow-wrap: break-word;
+  }
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  pre {
+    white-space: pre-wrap;
+  }
+</style>
 </body>
 </html>`
 
@@ -85,6 +77,7 @@ function SafeHtmlEmail({ htmlContent }) {
       const iframe = e.target
       const doc = iframe.contentDocument || iframe.contentWindow?.document
       if (doc) {
+        // Measured on load, which waits for the images, so their height counts.
         const measuredHeight = Math.max(
           doc.documentElement.scrollHeight || 0,
           doc.body?.scrollHeight || 0,
@@ -102,7 +95,10 @@ function SafeHtmlEmail({ htmlContent }) {
     <iframe
       title="Sandboxed Email Content"
       srcDoc={secureSrcDoc}
-      sandbox="allow-same-origin"
+      // allow-same-origin lets the reader measure the email; without
+      // allow-scripts that grants the email itself nothing. The popup flags
+      // are what let a web link open in a new tab at all.
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       onLoad={handleLoad}
       className="w-full border-0 block"
       style={{ height: iframeHeight, minHeight: '180px' }}

