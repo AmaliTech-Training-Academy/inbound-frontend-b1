@@ -20,6 +20,14 @@ function previewText(message) {
         .replace(/<style[\s\S]*?<\/style>/gi, " ")
         .replace(/<[^>]+>/g, " ")
         .replace(/&nbsp;/g, " ")
+        // The common entities, so text that talks about markup reads "<html>"
+        // rather than "&lt;html&gt;". &amp; goes last, or "&amp;lt;" would
+        // decode twice.
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#0?39;/g, "'")
+        .replace(/&amp;/g, "&")
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 120);

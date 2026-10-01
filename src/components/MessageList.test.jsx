@@ -284,4 +284,21 @@ describe("MessageList", () => {
         );
         expect(screen.getByText("Two steps left")).toBeInTheDocument();
     });
+
+    it("decodes escaped markup in the preview instead of showing entities", () => {
+        render(
+            <MessageList
+                messages={[
+                    {
+                        id: "a",
+                        subject: "Pasted code",
+                        body: "<div>&lt;!DOCTYPE html&gt; &lt;p&gt;Tom &amp;amp; Jerry&lt;/p&gt;</div>",
+                        fromAddress: "a@x.dev",
+                        receivedAt: now(),
+                    },
+                ]}
+            />,
+        );
+        expect(screen.getByText("<!DOCTYPE html> <p>Tom &amp; Jerry</p>")).toBeInTheDocument();
+    });
 });
