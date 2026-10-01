@@ -29,7 +29,12 @@ const LOOKAHEAD_CHARS = 140;
 // How far before the trigger a code may sit, for "482913 is your Instagram
 // code". Only taken when the words between join them (see JOINS_CODE_TO_WORDS).
 const LOOKBEHIND_CHARS = 60;
-const JOINS_CODE_TO_WORDS = /^\s*(?:is\b|to\b|as\b|[-—:])/i;
+// The words between must read as one short clause that names the code: "is
+// your Instagram", "to", "- your". A dash alone is not enough ("year 2026 -
+// none of these numbers is a code" must not hand back 2026), and neither is a
+// sentence break.
+const JOINS_CODE_TO_WORDS =
+    /^\s*(?:(?:is|to|as)\b|[-—:]\s*(?:your|the|use|enter)\b)[^.!?]{0,32}$/i;
 
 // Not anchored with \b, because \b treats "-" and "." as boundaries and
 // "555-1234" and "$19.00" must not match.

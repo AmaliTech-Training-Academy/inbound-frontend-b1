@@ -391,3 +391,17 @@ describe("extractVerificationCode against real-world wording", () => {
         ).toBeNull();
     });
 });
+
+describe("extractVerificationCode does not join a stray number to the wording", () => {
+    it("ignores a year a dash away from a mention of codes", () => {
+        expect(
+            extractVerificationCode({
+                body: "Meeting room 5521, floor 10, year 2026 — none of these numbers is a code, so no OTP should be shown.",
+            }),
+        ).toBeNull();
+    });
+
+    it("still joins a dash that names the code", () => {
+        expect(extractVerificationCode({ body: "839201 - your Acme sign-in code" })).toBe("839201");
+    });
+});
