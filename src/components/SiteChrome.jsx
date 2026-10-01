@@ -30,12 +30,12 @@ export function GenerateButton({ onClick, creating, label = null }) {
       onClick={onClick}
       disabled={creating}
       aria-busy={creating || undefined}
-      className="group flex items-center gap-3 rounded-full bg-slate-800 py-2 pl-8 pr-2 text-base font-medium text-white transition-colors hover:bg-black disabled:hover:bg-slate-800"
+      className="group flex items-center gap-3 rounded-full bg-brand py-2 pl-8 pr-2 text-base font-medium text-white transition-colors hover:bg-brand/90 disabled:hover:bg-brand"
     >
       <span>
         {creating ? 'Generating' : label || 'Generate Inbox'}
       </span>
-      <span className="flex items-center justify-center rounded-full bg-white/15 p-3">
+      <span className="flex items-center justify-center rounded-full bg-white/20 p-3">
         {creating ? (
           <Loader2 size={20} strokeWidth={2.25} className="animate-spin" aria-hidden="true" />
         ) : (
@@ -56,14 +56,14 @@ export function ActiveAddress({ inbox, others = 0 }) {
 
   return (
     <div key="result" className="animate-fade-up">
-      <div className="flex items-center gap-1 rounded-full border border-slate-300 bg-white/90 p-2 pl-6 sm:pl-8">
-        <span ref={addressRef} className="min-w-0 flex-1 truncate text-base text-slate-800">
+      <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 p-2 pl-6 sm:pl-8">
+        <span ref={addressRef} className="min-w-0 flex-1 truncate text-base text-ink">
           {inbox.address}
         </span>
         <CopyButton text={inbox.address} fallbackRef={addressRef} size={16} className="p-2" />
         <Link
           to={INBOX_PATH}
-          className="group flex shrink-0 items-center gap-2 rounded-full bg-slate-800 py-3 pl-5 pr-3 text-sm font-medium text-white transition-colors hover:bg-black"
+          className="group flex shrink-0 items-center gap-2 rounded-full bg-brand py-3 pl-5 pr-3 text-sm font-medium text-white transition-colors hover:bg-brand/90"
         >
           <span>Go to inbox</span>
           <Mail
@@ -88,7 +88,7 @@ export function ArrowIcon() {
     <svg width="19" height="19" viewBox="0 0 19 19" fill="none" aria-hidden="true">
       <path
         d="M3.959 9.5h11.083m0 0L9.501 3.958M15.042 9.5l-5.541 5.54"
-        stroke="#050040"
+        stroke="#ff5722"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -99,8 +99,8 @@ export function ArrowIcon() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-slate-200 px-6 py-6 text-center text-xs text-slate-500">
-      <span className="font-semibold text-slate-900">Inbound</span>
+    <footer className="px-6 py-6 text-center text-xs text-slate-500">
+      <span className="font-semibold text-ink">Inbound</span>
       <span aria-hidden="true" className="mx-2 text-slate-300">
         •
       </span>

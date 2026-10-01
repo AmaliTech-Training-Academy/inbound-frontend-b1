@@ -39,7 +39,8 @@
 }
 
 @theme {
-    /* The inbox reads in Haffer, the landing page in Poppins, as designed. */
+    /* Everything reads in Haffer: the redesign sets headings and body in one
+       grotesque, so the landing page no longer switches to Poppins. */
     --font-sans:
         "Haffer", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
         "Helvetica Neue", Arial, sans-serif;
@@ -47,6 +48,15 @@
     --font-mono:
         "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
         Consolas, "Liberation Mono", monospace;
+
+    /* The brand system, in one place. Every primary action and accent in the
+       redesign is the orange; `brand-soft` is that orange at the 25% the design
+       fills its icon wells with; headings and primary text are the ink navy.
+       Named here rather than written as hex at each call site so the palette
+       can change once. */
+    --color-brand: #ff5722;
+    --color-brand-soft: rgba(255, 87, 34, 0.25);
+    --color-ink: #0b1c30;
 
     --animate-fade-up: fade-up 0.35s ease-out both;
 
@@ -65,47 +75,22 @@
 body {
     font-family: var(--font-sans);
     background-color: #ffffff;
-    color: #171717;
+    color: var(--color-ink);
     margin: 0;
     padding: 0;
 }
 
 /*
- * The landing page's backdrop: a soft amber glow over a perspective grid that
- * fades in toward the bottom. The design pulled this in as an image from a
- * third-party CDN; drawing it here keeps that request (and the visitor's IP)
- * off someone else's server.
+ * The public pages' backdrop: a soft brand-orange glow behind the headline,
+ * fading out into white. The design this replaced drew an amber glow over a
+ * perspective grid; the redesign is the glow alone, in the brand colour.
  */
 .landing-backdrop {
     background-color: #ffffff;
-    background-image:
-        radial-gradient(
-            38% 42% at 42% 45%,
-            rgba(247, 190, 94, 0.3) 0%,
-            rgba(240, 186, 92, 0.16) 45%,
-            rgba(240, 186, 92, 0) 100%
-        ),
-        radial-gradient(
-            60% 50% at 50% 70%,
-            rgba(223, 199, 102, 0.12) 0%,
-            rgba(223, 199, 102, 0) 100%
-        );
-}
-
-.landing-backdrop::after {
-    content: "";
-    position: absolute;
-    inset: auto 0 0 0;
-    height: 38%;
-    z-index: -1;
-    pointer-events: none;
-    background-image:
-        linear-gradient(rgba(119, 119, 85, 0.14) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(119, 119, 85, 0.14) 1px, transparent 1px);
-    background-size: 56px 56px;
-    background-position: center top;
-    transform: perspective(520px) rotateX(58deg);
-    transform-origin: center bottom;
-    -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 85%);
-    mask-image: linear-gradient(to top, #000 0%, transparent 85%);
+    background-image: radial-gradient(
+        55% 48% at 50% 42%,
+        rgba(255, 87, 34, 0.1) 0%,
+        rgba(255, 87, 34, 0.045) 48%,
+        rgba(255, 87, 34, 0) 100%
+    );
 }
