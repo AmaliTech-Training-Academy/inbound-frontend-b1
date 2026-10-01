@@ -2,9 +2,9 @@ name: Backend Security
 
 on:
   push:
-    branches: [main, dev,feat/IND-7-live-inbox-reconnect] #remove the temp feat/github-actions branch after the PR is merged
+    branches: [main, dev,feat/frontend-devops] #remove the temp feat/github-actions branch after the PR is merged
   pull_request:
-    branches: [main, dev,feat/IND-7-live-inbox-reconnect]
+    branches: [main, dev,feat/frontend-devops]
      
 permissions:
   contents: read
