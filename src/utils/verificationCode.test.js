@@ -336,3 +336,58 @@ describe("extractVerificationCode against the sample messages", () => {
         }
     });
 });
+
+// How real senders write it. Each of these was missed before the extractor
+// learned a bare "code", "PIN", codes written before their wording, codes a
+// sentence away, and codes set one digit per box.
+describe("extractVerificationCode against real-world wording", () => {
+    it.each([
+        ["123456", "Your code is 123456"],
+        ["482913", "123456 is not it. 482913 is your Instagram code. Don't share it."],
+        ["482913", "482913 is your Facebook confirmation code"],
+        ["739204", "G-739204 is your Google verification code."],
+        ["5521", "Your Uber code: 5521. Never share this code."],
+        ["839201", "Enter this code to continue: 839201"],
+        ["839201", "Use 839201 to verify your account"],
+        ["839201", "Your PIN is 839201"],
+        ["839201", "Your one-time PIN is 839201"],
+        ["839201", "Your access code is 839201"],
+        ["839201", "Your activation code: 839201"],
+        ["839201", "Password reset code: 839201"],
+        ["839201", "Here is your code: 839201"],
+        ["839201", "Code: 839201"],
+        ["839201", "Your temporary code is 839201"],
+        [
+            "839201",
+            "Your verification code is below. Enter it in the browser window where you started signing in to your account, it expires soon. 839201",
+        ],
+        [
+            "839201",
+            "<p>Your verification code:</p><table><tr><td>8</td><td>3</td><td>9</td><td>2</td><td>0</td><td>1</td></tr></table>",
+        ],
+        ["ABCD1234", "Your confirmation code is ABCD-1234"],
+        ["839201", "Bitte verwenden Sie den Code 839201"],
+        ["839201", "Votre code de vérification est 839201"],
+    ])("reads %s out of %j", (expected, body) => {
+        expect(extractVerificationCode({ body })).toBe(expected);
+    });
+
+    it("reads a code that only the subject carries", () => {
+        expect(extractVerificationCode({ subject: "Your code is 839201", body: "" })).toBe("839201");
+    });
+
+    it("still leaves other kinds of code alone", () => {
+        expect(extractVerificationCode({ body: "Use code SAVE20 at checkout for 20% off" })).toBeNull();
+        expect(extractVerificationCode({ body: "Use promo code SAVE20" })).toBeNull();
+        expect(extractVerificationCode({ body: "Ship to postal code 90210." })).toBeNull();
+        expect(extractVerificationCode({ body: "Your tracking code: 48291044" })).toBeNull();
+    });
+
+    it("does not read a number before the wording unless the words join them", () => {
+        // "55012. Your login code" - the full stop says the number belongs to
+        // the sentence before.
+        expect(
+            extractVerificationCode({ body: "Account number 55012. Your login code is in the app." }),
+        ).toBeNull();
+    });
+});
