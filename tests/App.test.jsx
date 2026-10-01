@@ -193,7 +193,7 @@ describe('App', () => {
       seedSession(new Date(Date.now() + 300).toISOString())
       renderApp('/inbox')
 
-      expect(await screen.findByText('INBOX PURGED')).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { level: 1, name: 'This inbox has expired' })).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button', { name: 'Generate a new address' }))
 
@@ -203,6 +203,19 @@ describe('App', () => {
       // A fresh address, where the expired one was.
       expect(screen.getAllByText(/^mock-.+@tempmail\.dev$/)).not.toHaveLength(0)
       expect(screen.queryByText('seeded@inbound.mail')).toBeNull()
+    })
+
+    it('goes back to a normal home page from the purged card', async () => {
+      seedSession(new Date(Date.now() + 300).toISOString())
+      renderApp('/inbox')
+
+      await screen.findByRole('heading', { level: 1, name: 'This inbox has expired' })
+      fireEvent.click(screen.getByRole('button', { name: 'Back to home' }))
+
+      // The usual hero, with nothing about the expired inbox left on it.
+      expectHomePage()
+      expect(screen.queryByText(/expired/i)).toBeNull()
+      expect(screen.getByRole('button', { name: 'Generate Inbox' })).toBeInTheDocument()
     })
   })
 })

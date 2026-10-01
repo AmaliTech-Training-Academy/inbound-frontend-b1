@@ -9,12 +9,12 @@ import { INBOX_PATH, ROUTES } from '../router'
 // session already open shows its address straight away.
 export default function LandingPage() {
   const { session, unreadCounts } = useOutletContext()
-  const { status, inbox, inboxes, error, generate, regenerate, regenerating } = session
+  const { status, inbox, inboxes, error, generate } = session
 
   const creating = status === 'creating'
   const active = status === 'active' && inbox
-  // The purged note stays up while its replacement is on the way.
-  const purged = status === 'expired' || regenerating
+  // An expired inbox is the inbox page's to report. Home always offers a
+  // fresh start, so coming back here never repeats that the inbox is gone.
   const unread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0)
 
   return (
@@ -86,15 +86,6 @@ export default function LandingPage() {
           <div className="mx-auto mt-8 w-full max-w-xl">
             {active ? (
               <ActiveAddress inbox={inbox} others={inboxes.length - 1} />
-            ) : purged ? (
-              <div key="purged" className="flex animate-fade-up flex-col items-center gap-4 text-center">
-                <p className="font-mono text-xs tracking-wide text-rose-600">INBOX PURGED</p>
-                <p className="max-w-md text-sm text-slate-600">
-                  Your last inbox expired. Its messages and attachments are
-                  unrecoverable.
-                </p>
-                <GenerateButton onClick={regenerate} creating={creating} label="Generate a new address" />
-              </div>
             ) : (
               <div key="actions" className="flex animate-fade-up flex-wrap items-center justify-center gap-4">
                 <GenerateButton

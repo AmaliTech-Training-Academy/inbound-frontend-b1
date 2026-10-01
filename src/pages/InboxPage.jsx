@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { MailOpen, Plus, RefreshCw, Search, Timer, Trash2 } from 'lucide-react'
+import { Loader2, MailOpen, Plus, RefreshCw, Search, Timer, TimerOff, Trash2 } from 'lucide-react'
 import Avatar from '../components/Avatar.jsx'
 import CopyButton from '../components/CopyButton.jsx'
 import MessageList from '../components/MessageList.jsx'
@@ -8,6 +8,7 @@ import MessageReader from '../components/MessageReader.jsx'
 import InboxRail from '../components/InboxRail.jsx'
 import NewInboxDialog from '../components/NewInboxDialog.jsx'
 import ConfirmDestroyDialog from '../components/ConfirmDestroyDialog.jsx'
+import { SiteFooter, SiteHero } from '../components/SiteChrome.jsx'
 import { SOCKET_STATUS } from '../services/inboxSocket.js'
 import { useNow } from '../state/useNow.js'
 import { formatTimeLeft, isRunningOut } from '../utils/inboxProgress.js'
@@ -24,15 +25,22 @@ const DEFAULT_SIDEBAR_WIDTH = 300
 export default function InboxPage() {
   const context = useOutletContext()
   const navigate = useNavigate()
-  const { status, inbox, regenerating, regenerate } = context.session
+  const { status, inbox, regenerating, regenerate, reset } = context.session
 
   if (status === 'expired' || regenerating) {
     return (
       <Purged
+        session={context.session}
         creating={status === 'creating'}
         onGenerate={async () => {
           await regenerate()
           navigate(INBOX_PATH, { replace: true })
+        }}
+        // Leaving clears the expired session, so home shows its usual hero
+        // rather than repeating that the inbox is gone.
+        onLeave={() => {
+          reset()
+          navigate(ROUTES.home)
         }}
       />
     )
@@ -484,26 +492,53 @@ function MissingMessage() {
   )
 }
 
-function Purged({ onGenerate, creating }) {
+// Where an inbox ends up once its time runs out: the site's own header and
+// glow, and one card that says what happened and offers the two ways on.
+function Purged({ session, onGenerate, onLeave, creating }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white px-4 font-sans">
-      <div className="flex max-w-md flex-col items-center gap-4 rounded-3xl border border-slate-200 p-8 text-center shadow-sm">
-        <p className="font-mono text-xs tracking-wide text-rose-600">INBOX PURGED</p>
-        <p className="text-sm text-slate-500">
-          This inbox expired. Its messages and attachments are unrecoverable.
-        </p>
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={creating}
-          className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white enabled:hover:bg-slate-800 disabled:opacity-70"
-        >
-          {creating ? 'Generating…' : 'Generate a new address'}
-        </button>
-        <Link to={ROUTES.home} className="text-xs text-slate-400 hover:text-slate-700">
-          Back to home
-        </Link>
-      </div>
+    <div className="text-ink">
+      <SiteHero session={session} className="min-h-screen">
+        <div className="flex flex-1 items-center justify-center px-4 pb-24">
+          <div
+            role="status"
+            className="flex w-full max-w-md animate-fade-up flex-col items-center rounded-3xl border border-slate-200 bg-white/90 px-8 py-10 text-center"
+          >
+            <span className="flex size-14 items-center justify-center rounded-full bg-brand-soft text-brand">
+              <TimerOff size={26} strokeWidth={2} aria-hidden="true" />
+            </span>
+            <h1 className="mt-6 text-2xl font-bold">This inbox has expired</h1>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600">
+              Its address no longer receives mail, and its messages and
+              attachments have been permanently deleted.
+            </p>
+
+            <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={onGenerate}
+                disabled={creating}
+                aria-busy={creating || undefined}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand px-6 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:hover:bg-brand"
+              >
+                {creating && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
+                {creating ? 'Generating' : 'Generate a new address'}
+              </button>
+              <button
+                type="button"
+                onClick={onLeave}
+                className="flex min-h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-6 text-sm font-medium transition-colors hover:border-slate-300"
+              >
+                Back to home
+              </button>
+            </div>
+
+            <p className="mt-8 text-xs text-slate-400">
+              Need more time next time? Use +{EXTEND_MINUTES}m in the inbox before it runs out.
+            </p>
+          </div>
+        </div>
+      </SiteHero>
+      <SiteFooter />
     </div>
   )
 }
