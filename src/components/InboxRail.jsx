@@ -28,6 +28,9 @@ export default function InboxRail({
     // re-rendering around it.
     const now = useNow(1000);
     const vertical = orientation === "vertical";
+    // A little larger down the wide-screen rail, where there is room and the
+    // blobs' motion should read; the strip keeps to its narrow row.
+    const avatarSize = vertical ? 40 : 32;
     const full = limit !== null && inboxes.length >= limit;
     const addLabel = adding
         ? "Adding an inbox"
@@ -49,7 +52,7 @@ export default function InboxRail({
                 disabled={!canAdd}
                 aria-label={addLabel}
                 title={addLabel}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-400 transition-colors enabled:hover:border-slate-400 enabled:hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50">
+                className={`flex ${vertical ? "size-10" : "size-8"} shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-400 transition-colors enabled:hover:border-slate-400 enabled:hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50`}>
                 <Plus size={15} aria-hidden="true" className={adding ? "animate-pulse" : ""} />
             </button>
 
@@ -74,7 +77,7 @@ export default function InboxRail({
                                 ? `ring-2 ring-offset-2 ${ending ? "ring-rose-500" : "ring-slate-900"}`
                                 : "hover:ring-2 hover:ring-slate-200 hover:ring-offset-2"
                         }`}>
-                        <Avatar seed={inbox.address} size={32} animate="hover" />
+                        <Avatar seed={inbox.address} size={avatarSize} animate="always" />
                         {unread > 0 && (
                             <span
                                 aria-hidden="true"

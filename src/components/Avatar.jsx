@@ -8,8 +8,9 @@ import { Blobatar } from "@blobatar/react";
 // Static unless asked. An animated blobatar is inline SVG running about eight
 // endless CSS animations - even in "hover" mode, where they idle rather than
 // stop - so a list of them kept the page busy every frame. A static one is a
-// single <img>, and looks the same. The few that stand alone animate: the
-// rail's handful (at most five) and the one in the empty reading pane.
+// single <img>, and looks the same. The few that stand alone animate, all the
+// time: the rail's handful (at most five) and the one in the empty reading
+// pane.
 export default function Avatar({ seed, size = 42, animate, className = "" }) {
     return (
         <Blobatar
