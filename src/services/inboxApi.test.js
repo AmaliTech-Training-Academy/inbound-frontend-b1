@@ -4,12 +4,12 @@ import {
     getInboxInfo,
     extendInbox,
     fetchMessage,
+    fetchUnreadMessages,
     ApiError,
 } from "./inboxApi.js";
 import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
 
-// No VITE_API_BASE in the test env, so config.js resolves USE_MOCK to true and
-// every call below exercises the in-browser mock rather than the network.
+// The test env pins VITE_USE_MOCK=true (vite.config.js), so every call below exercises the in-browser mock rather than the network.
 describe("inboxApi", () => {
     beforeAll(() => {
         vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -69,7 +69,7 @@ describe("inboxApi", () => {
             // The bearer token identifies the inbox, so the response carries
             // neither - the caller already holds both from creation.
             const inbox = await createInbox();
-            const info = await getInboxInfo(inbox.token);
+            const info = await getInboxInfo(inbox.id, inbox.token);
 
             expect(info).toMatchObject({
                 address: expect.any(String),
@@ -81,8 +81,8 @@ describe("inboxApi", () => {
 
         it("reflects an extend performed beforehand", async () => {
             const inbox = await createInbox();
-            const extended = await extendInbox(inbox.token);
-            const info = await getInboxInfo(inbox.token);
+            const extended = await extendInbox(inbox.id, inbox.token);
+            const info = await getInboxInfo(inbox.id, inbox.token);
 
             expect(info.expiresAt).toBe(extended.expiresAt);
             expect(info.extendCount).toBe(1);
@@ -92,7 +92,7 @@ describe("inboxApi", () => {
     describe("extendInbox (mock mode)", () => {
         it("returns the documented shape", async () => {
             const inbox = await createInbox();
-            const res = await extendInbox(inbox.token);
+            const res = await extendInbox(inbox.id, inbox.token);
 
             expect(res).toMatchObject({
                 expiresAt: expect.any(String),
@@ -103,7 +103,7 @@ describe("inboxApi", () => {
 
         it("pushes expiry out by the configured amount", async () => {
             const inbox = await createInbox();
-            const res = await extendInbox(inbox.token);
+            const res = await extendInbox(inbox.id, inbox.token);
             expect(minutesBetween(res.expiresAt, inbox.expiresAt)).toBeCloseTo(
                 EXTEND_MINUTES,
                 1,
@@ -116,7 +116,7 @@ describe("inboxApi", () => {
             const inbox = await createInbox();
             let last;
             for (let i = 1; i <= 5; i++) {
-                last = await extendInbox(inbox.token);
+                last = await extendInbox(inbox.id, inbox.token);
                 expect(last.extendCount).toBe(i);
             }
             expect(minutesBetween(last.expiresAt, inbox.expiresAt)).toBeCloseTo(
@@ -138,6 +138,16 @@ describe("inboxApi", () => {
                 body: expect.any(String),
                 attachments: expect.any(Array),
             });
+        });
+    });
+
+    describe("fetchUnreadMessages (mock mode)", () => {
+        it("returns an empty recovery list, because the mock stores no mail", async () => {
+            // Nothing to recover here: the mock has no message store, so a
+            // re-join sweeps and finds nothing rather than failing.
+            const inbox = await createInbox();
+
+            await expect(fetchUnreadMessages(inbox.token)).resolves.toEqual([]);
         });
     });
 
