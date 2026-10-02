@@ -471,7 +471,7 @@ function EmptyInbox({ address }) {
 function NothingOpen({ address, count }) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-      <Avatar seed={address} size={72} />
+      <Avatar seed={address} size={72} animate="always" />
       <p className="mt-4 text-sm font-medium text-slate-900">
         {count > 0 ? 'Select a message to read it' : 'Nothing here yet'}
       </p>
