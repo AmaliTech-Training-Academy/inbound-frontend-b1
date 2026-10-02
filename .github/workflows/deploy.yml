@@ -52,10 +52,11 @@ jobs:
             docker rm inbound-frontend || true
 
             docker run -d \
-              --name inbound-frontend \
-              --restart unless-stopped \
-              -p 8080:80 \
-              inbound-frontend:latest
+                --name inbound-frontend \
+                --restart unless-stopped \
+                --network inbound-network \
+                -p 8080:80 \
+                inbound-frontend:latest
 
             sleep 10
 
