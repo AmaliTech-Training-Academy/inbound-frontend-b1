@@ -20,6 +20,7 @@ import {
     extendInbox,
     rateLimitedFor,
     ApiError,
+    NotConfiguredError,
 } from "../services/inboxApi.js";
 import { MAX_EXTENDS, MAX_INBOXES } from "../config.js";
 import {
@@ -403,7 +404,9 @@ export function useInbox() {
             );
             // Each message is a whole sentence, shown as it is: the page adds
             // nothing, so "check your connection" is never said twice.
-            const shown = isTimeout
+            const shown = err instanceof NotConfiguredError
+                ? new Error("This site isn't connected to its server: it was built without VITE_API_BASE.")
+                : isTimeout
                 ? new Error("That took too long. Check your connection and try again.")
                 : err instanceof ApiError && err.status === 0
                   ? new Error("Could not reach the server. Check your connection and try again.")
