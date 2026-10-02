@@ -6,15 +6,15 @@ const env =
         : {};
 
 /**
- * REST base, including the version prefix.
+ * REST base, including the version prefix. REST and Socket.IO share one origin
+ * and one process; only REST is under /api/v1.
  *
- * Default matches the server block of the published OpenAPI spec
- * (http://localhost:9001). REST and Socket.IO share one origin and one
- * process; only REST is under /api/v1.
+ * No default. A guessed address (the spec's localhost:9001) or a silent switch
+ * to the mock both hide a build that was never told where the backend is: the
+ * app looks fine and no real mail ever arrives. Unset, it stays empty, and
+ * backendConfigError says so.
  */
-export const API_BASE = (
-    env.VITE_API_BASE || "http://localhost:9001/api/v1"
-).replace(/\/+$/, ""); // a trailing slash would build ".../api/v1//inbox"
+export const API_BASE = (env.VITE_API_BASE || "").replace(/\/+$/, ""); // a trailing slash would build ".../api/v1//inbox"
 
 /**
  * Socket.IO origin and path, split from the API base.
@@ -49,10 +49,28 @@ export const SOCKET_PATH = env.VITE_SOCKET_PATH || socketTarget.path;
  * no socket. Required by the tracker so UI work isn't blocked on backend
  * availability.
  *
- * Note this is NOT gated on DEV: a production preview build with no API base
- * still has to work, because the mock is currently the only working path.
+ * Only ever on when asked for. It used to switch on by itself whenever
+ * VITE_API_BASE was missing, which is how a deploy built without the variable
+ * went out showing fake addresses instead of failing.
  */
-export const USE_MOCK = env.VITE_USE_MOCK === "true" || !env.VITE_API_BASE;
+export const USE_MOCK = env.VITE_USE_MOCK === "true";
+
+/**
+ * Why these settings cannot run the app, or null when they can: either a
+ * backend address or the mock, explicitly. vite.config.js fails the build on
+ * it, so a misconfigured build never ships; the client logs it at start-up.
+ */
+export function backendConfigError(settings) {
+    if (settings?.VITE_USE_MOCK === "true" || settings?.VITE_API_BASE) return null;
+    return (
+        "VITE_API_BASE is not set, so the app has no backend to talk to. Set it to " +
+        "the backend's REST base, e.g. VITE_API_BASE=https://host/server/api/v1 " +
+        "(Vite reads it at build time, so a Docker build needs it as a build arg), " +
+        "or set VITE_USE_MOCK=true to run against the in-browser mock."
+    );
+}
+
+export const CONFIG_ERROR = backendConfigError(env);
 
 
 /**

@@ -9,8 +9,7 @@ import {
 } from "./inboxApi.js";
 import { INBOX_TTL_MINUTES, EXTEND_MINUTES } from "../config.js";
 
-// No VITE_API_BASE in the test env, so config.js resolves USE_MOCK to true and
-// every call below exercises the in-browser mock rather than the network.
+// The test env pins VITE_USE_MOCK=true (vite.config.js), so every call below exercises the in-browser mock rather than the network.
 describe("inboxApi", () => {
     beforeAll(() => {
         vi.spyOn(console, "warn").mockImplementation(() => {});

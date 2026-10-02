@@ -19,6 +19,7 @@
 import {
     API_BASE,
     USE_MOCK,
+    CONFIG_ERROR,
     INBOX_TTL_MINUTES,
     EXTEND_MINUTES,
 } from "../config.js";
@@ -26,8 +27,12 @@ import { MOCK_MESSAGES } from "../data/mockMessages.js";
 import { recallMockMessage } from "./mockMail.js";
 
 function assertConfigured() {
-    if (!API_BASE) throw new Error("VITE_API_BASE is not set.");
+    if (!API_BASE) throw new Error(CONFIG_ERROR || "VITE_API_BASE is not set.");
 }
+
+// Loud at start-up rather than at the first click. The build already refuses
+// these settings; this covers the dev server.
+if (CONFIG_ERROR) console.error(`[inboxApi] ${CONFIG_ERROR}`);
 
 export class ApiError extends Error {
     constructor(status, message) {
@@ -108,9 +113,8 @@ function noteRateLimited(res) {
 }
 
 // --- Mock mode -------------------------------------------------------
-// Selected explicitly in config.js (VITE_USE_MOCK, or an unset VITE_API_BASE)
-// and deliberately not gated on DEV, so a preview build with no API base
-// still works. The mock returns exactly the shapes the real client returns
+// Selected explicitly in config.js (VITE_USE_MOCK=true only), and not gated
+// on DEV, so a build made with the mock on still works. The mock returns exactly the shapes the real client returns
 // after unwrapping, so swapping between them changes nothing upstream.
 const MOCK = USE_MOCK;
 const mockState = new Map();
@@ -121,8 +125,8 @@ const mockSessions = new Map();
 
 if (MOCK) {
     console.warn(
-        "[inboxApi] Running against the in-browser mock inbox (VITE_USE_MOCK, " +
-            "or VITE_API_BASE is unset). Set VITE_API_BASE to talk to the real API.",
+        "[inboxApi] Running against the in-browser mock inbox (VITE_USE_MOCK=true). " +
+            "Unset it and set VITE_API_BASE to talk to the real API.",
     );
 }
 

@@ -74,7 +74,7 @@ export default function InboxRail({
                                 ? `ring-2 ring-offset-2 ${ending ? "ring-rose-500" : "ring-slate-900"}`
                                 : "hover:ring-2 hover:ring-slate-200 hover:ring-offset-2"
                         }`}>
-                        <Avatar seed={inbox.address} size={32} />
+                        <Avatar seed={inbox.address} size={32} animate="hover" />
                         {unread > 0 && (
                             <span
                                 aria-hidden="true"
