@@ -404,8 +404,11 @@ export function useInbox() {
             );
             // Each message is a whole sentence, shown as it is: the page adds
             // nothing, so "check your connection" is never said twice.
+            // A build without a backend address is the operator's to fix; the
+            // visitor only needs to know it is not them. The technical reason
+            // is in the console line above.
             const shown = err instanceof NotConfiguredError
-                ? new Error("This site isn't connected to its server: it was built without VITE_API_BASE.")
+                ? new Error("Inbound can't create inboxes right now. Please try again later.")
                 : isTimeout
                 ? new Error("That took too long. Check your connection and try again.")
                 : err instanceof ApiError && err.status === 0
