@@ -1,9 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { splitSocketTarget, MAX_INBOXES } from "./config.js";
+import { backendConfigError, splitSocketTarget, MAX_INBOXES } from "./config.js";
 
 describe("config", () => {
     it("caps a session at five inboxes unless VITE_MAX_INBOXES says otherwise", () => {
         expect(MAX_INBOXES).toBe(5);
+    });
+
+    describe("backendConfigError", () => {
+        it("refuses settings with neither a backend nor the mock", () => {
+            expect(backendConfigError({})).toMatch(/VITE_API_BASE is not set/);
+            expect(backendConfigError({ VITE_API_BASE: "", VITE_USE_MOCK: "false" })).toMatch(
+                /VITE_USE_MOCK=true/,
+            );
+        });
+
+        it("accepts a backend address", () => {
+            expect(
+                backendConfigError({ VITE_API_BASE: "https://host.test/server/api/v1" }),
+            ).toBeNull();
+        });
+
+        it("accepts the mock, but only when asked for by name", () => {
+            expect(backendConfigError({ VITE_USE_MOCK: "true" })).toBeNull();
+        });
     });
 
     describe("splitSocketTarget", () => {
