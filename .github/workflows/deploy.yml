@@ -46,7 +46,7 @@ jobs:
 
             git pull origin feat/frontend-devops
 
-            docker build -t inbound-frontend:latest .
+            docker build --build-arg VITE_API_BASE=https://54.73.161.140.nip.io/server/api/v1 -t inbound-frontend:latest .
 
             docker stop inbound-frontend || true
             docker rm inbound-frontend || true
