@@ -52,18 +52,13 @@ export default function LandingPage() {
           <div className="relative mx-auto mt-8 w-full max-w-212.5">
             <h1 className="text-center text-4xl font-bold md:text-7xl">
               Generate{' '}
-              {/* The stamp hangs off the end of this word rather than the
-                  container's corner, so it clears the "y" however the
-                  headline wraps. */}
-              <span className="relative inline-block">
-                Temporary
-                <ExpiryStamp />
-              </span>{' '}
+              <span className="inline-block">Temporary</span>{' '}
               Emails For Every{' '}
               {/* The design sets the last word in the brand colour, over two
-                  hand-drawn strokes. */}
+                  hand-drawn strokes, with the stamp beside it at cap height. */}
               <span className="relative inline-block text-brand">
                 Need
+                <ExpiryStamp />
                 <svg
                   aria-hidden="true"
                   viewBox="0 0 120 22"
@@ -128,22 +123,37 @@ export default function LandingPage() {
   )
 }
 
-// The tilted stamp the design sets at the right of the headline's first line:
-// a dashed circle around the expiry clock. Drawn as SVG rather than shipped as
-// an image so it takes its colour from the brand token. It sits just past the
-// end of "Temporary" and above its cap height, and only from laptop width up:
-// narrower, there is no room beside the headline and it would cover letters.
+// The tilted stamp the design sets beside the headline's last word: the
+// design's dashed circle around the expiry clock, inside a solid one. The
+// dashed ring alone read as a halo of faint dots rather than as a ring, so a
+// continuous circle sits just outside it and the pair reads as a postmark. The
+// dashed ring is pulled in from 46 to 40 to leave the solid one room inside the
+// 100-unit box, and the two texts still clear it. Drawn as SVG rather than
+// shipped as an image so it takes its colour from the brand token.
+//
+// It hangs off the end of "Need" and straddles that word's cap height, so it
+// reads as stamped beside the headline rather than floating above it; only from
+// laptop width up, where there is room beside the word.
 function ExpiryStamp() {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -top-10 left-full ml-1 hidden size-20 -rotate-8 text-brand lg:block"
+      className="pointer-events-none absolute -top-4 left-full -ml-1 hidden size-20 -rotate-8 text-brand lg:block"
     >
       <svg viewBox="0 0 100 100" className="size-full">
+        {/* Full opacity, so it holds its shape at 80px. */}
         <circle
           cx="50"
           cy="50"
-          r="46"
+          r="47"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        />
+        <circle
+          cx="50"
+          cy="50"
+          r="40"
           fill="none"
           stroke="currentColor"
           strokeOpacity="0.5"
