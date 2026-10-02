@@ -15,6 +15,10 @@ export default defineConfig({
         // of the mock, passing or failing on whatever is running locally.
         env: { VITE_API_BASE: "", VITE_WS_BASE: "", VITE_USE_MOCK: "true" },
         environment: "jsdom",
+        // The app-level specs drive a whole session (create, live mail,
+        // switching) and take a second or two on a laptop; on a busy CI
+        // runner the default 5s per test was not always enough.
+        testTimeout: 15000,
         globals: true,
         // Both layouts are in use: the co-located src/** suites and the
         // reader's own tests/ directory. Dropping either include silently

@@ -1,5 +1,5 @@
 import { describe,it, expect } from 'vitest'
-import { formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../src/utils/helpers'
+import { formatFileSize,formatReceivedAt,formatRelativeTime,formatTotalAttachmentSize } from '../src/utils/helpers'
 
 describe('helpers', () => {
   it ('returns unknown for falsy values', () => {
@@ -151,5 +151,40 @@ describe('helpers', () => {
     const attachments = [{name: 'photo.png',size:'512KB'}, { name: 'document.pdf', size: 'three MB' }]
     const check = formatTotalAttachmentSize(attachments)
     expect(check).toBe('512 KB')
+  })
+  describe('formatFileSize', () => {
+    it('returns an empty string when the size is missing', () => {
+      expect(formatFileSize(undefined)).toBe('')
+      expect(formatFileSize(null)).toBe('')
+      expect(formatFileSize('')).toBe('')
+    })
+
+    it('returns an empty string for a size it cannot read', () => {
+      expect(formatFileSize('five KB')).toBe('')
+    })
+
+    it('returns an empty string for a zero size', () => {
+      expect(formatFileSize(0)).toBe('')
+      expect(formatFileSize('0 KB')).toBe('')
+    })
+
+    it('formats the bare byte count the API sends', () => {
+      expect(formatFileSize(113)).toBe('113 B')
+      expect(formatFileSize(2048)).toBe('2 KB')
+      expect(formatFileSize(2097152)).toBe('2.0 MB')
+      expect(formatFileSize(2147483648)).toBe('2.0 GB')
+    })
+
+    it('reads a display string with a unit, in either case and with or without a space', () => {
+      expect(formatFileSize('1.8 MB')).toBe('1.8 MB')
+      expect(formatFileSize('512kb')).toBe('512 KB')
+      expect(formatFileSize('3GB')).toBe('3.0 GB')
+    })
+
+    it('moves up a unit once the size reaches it', () => {
+      expect(formatFileSize(1023)).toBe('1023 B')
+      expect(formatFileSize(1024)).toBe('1 KB')
+      expect(formatFileSize('1024 KB')).toBe('1.0 MB')
+    })
   })
 })
