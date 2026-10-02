@@ -26,12 +26,21 @@ import {
 import { MOCK_MESSAGES } from "../data/mockMessages.js";
 import { recallMockMessage } from "./mockMail.js";
 
-function assertConfigured() {
-    if (!API_BASE) throw new Error(CONFIG_ERROR || "VITE_API_BASE is not set.");
+// Thrown before any request when the app was built without a backend
+// address, so nothing goes out to a guessed one and the page can say plainly
+// what is wrong instead of showing fake mail.
+export class NotConfiguredError extends Error {
+    constructor() {
+        super(CONFIG_ERROR || "VITE_API_BASE is not set.");
+        this.name = "NotConfiguredError";
+    }
 }
 
-// Loud at start-up rather than at the first click. The build already refuses
-// these settings; this covers the dev server.
+function assertConfigured() {
+    if (!API_BASE) throw new NotConfiguredError();
+}
+
+// Loud at start-up rather than at the first click.
 if (CONFIG_ERROR) console.error(`[inboxApi] ${CONFIG_ERROR}`);
 
 export class ApiError extends Error {

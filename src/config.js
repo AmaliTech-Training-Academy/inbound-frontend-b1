@@ -57,8 +57,9 @@ export const USE_MOCK = env.VITE_USE_MOCK === "true";
 
 /**
  * Why these settings cannot run the app, or null when they can: either a
- * backend address or the mock, explicitly. vite.config.js fails the build on
- * it, so a misconfigured build never ships; the client logs it at start-up.
+ * backend address or the mock, explicitly. Checked when the app runs, not when
+ * it builds: the API client refuses every request with it and the page says
+ * so. A build only compiles, so CI checks need no deployment settings.
  */
 export function backendConfigError(settings) {
     if (settings?.VITE_USE_MOCK === "true" || settings?.VITE_API_BASE) return null;
