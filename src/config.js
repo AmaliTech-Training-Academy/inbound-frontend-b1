@@ -32,8 +32,11 @@ export function splitSocketTarget(apiBase) {
         const url = new URL(apiBase.replace(/\/api\/v1\/?$/, ""));
         const prefix = url.pathname.replace(/\/+$/, "");
         return { origin: url.origin, path: `${prefix}/socket.io` };
-    } catch {
-        // Relative or unparseable: fall back to same-origin defaults.
+    } catch (err) {
+        // Relative or unparseable: fall back to same-origin defaults. Said out
+        // loud because the socket then quietly points somewhere else, which is
+        // otherwise only visible as mail never arriving.
+        console.error(`[config] could not read a socket target from ${apiBase}`, err);
         return { origin: undefined, path: "/socket.io" };
     }
 }
