@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 vi.mock("../services/inboxApi.js", async () => {
@@ -7,33 +7,59 @@ vi.mock("../services/inboxApi.js", async () => {
         ...actual,
         createInbox: vi.fn(),
         getInboxInfo: vi.fn(),
+        getSessionInboxes: vi.fn(),
         extendInbox: vi.fn(),
+        rateLimitedFor: vi.fn(() => 0),
     };
 });
 
 import { useInbox } from "./useInbox.js";
-import { createInbox, getInboxInfo, ApiError } from "../services/inboxApi.js";
+import { createInbox, getSessionInboxes, rateLimitedFor, ApiError } from "../services/inboxApi.js";
+import { MAX_INBOXES } from "../config.js";
 
-const KEY = "inbound.inbox";
+const LEGACY_KEY = "inbound.inbox";
+const SESSION_KEY = "inbound.session";
 
-const storedInbox = {
-    id: "i1",
-    address: "restored@inbound.dev",
-    token: "tok_restored",
-    createdAt: new Date(Date.now() - 60_000).toISOString(),
-    expiresAt: new Date(Date.now() + 9 * 60_000).toISOString(),
+const inMinutes = (m) => new Date(Date.now() + m * 60_000).toISOString();
+
+const inboxA = {
+    id: "a",
+    address: "alpha@inbound.dev",
+    createdAt: inMinutes(-1),
+    expiresAt: inMinutes(9),
+    extendCount: 0,
 };
+const inboxB = { ...inboxA, id: "b", address: "bravo@inbound.dev" };
 
-beforeEach(() => {
-    sessionStorage.clear();
-    vi.clearAllMocks();
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    // Leave the confirmation hanging by default so the first render is what
-    // gets asserted, not the post-confirmation state.
-    getInboxInfo.mockReturnValue(new Promise(() => {}));
-});
+function storeSession(overrides = {}) {
+    sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+            token: "tok",
+            expiresAt: inMinutes(9),
+            inboxes: [inboxA, inboxB],
+            activeId: "a",
+            hiddenIds: [],
+            ...overrides,
+        }),
+    );
+}
 
-// A confirmation the test settles by hand, after the user has acted.
+const stored = () => JSON.parse(sessionStorage.getItem(SESSION_KEY));
+
+// What createInbox resolves to: the inbox, carrying the session's token.
+function created(id, token = "tok") {
+    return {
+        id,
+        address: `${id}@inbound.dev`,
+        token,
+        createdAt: new Date().toISOString(),
+        expiresAt: inMinutes(10),
+        sessionExpiresAt: inMinutes(10),
+    };
+}
+
+// A server answer the test settles by hand, after the user has acted.
 function deferred() {
     let resolve, reject;
     const promise = new Promise((res, rej) => {
@@ -43,30 +69,40 @@ function deferred() {
     return { promise, resolve, reject };
 }
 
+beforeEach(() => {
+    sessionStorage.clear();
+    vi.clearAllMocks();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // Leave the sync hanging by default, so the restored state is what gets
+    // asserted rather than the post-sync one.
+    getSessionInboxes.mockReturnValue(new Promise(() => {}));
+});
+
 describe("useInbox", () => {
     describe("restoring on mount", () => {
-        it("shows the stored inbox on the very first render", () => {
+        it("shows the stored session's active inbox on the very first render", () => {
             // A refresh must redraw the same screen, not blank it while the
             // server confirms. Anything less flashes an empty page.
-            sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
-
+            storeSession();
             const { result } = renderHook(() => useInbox());
 
             expect(result.current.status).toBe("active");
-            expect(result.current.inbox.address).toBe(storedInbox.address);
+            expect(result.current.inbox.address).toBe(inboxA.address);
+            expect(result.current.inbox.token).toBe("tok");
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["a", "b"]);
         });
 
-        it("never passes through a loading state", () => {
-            sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
-            const seen = [];
+        it("moves a single inbox stored by an earlier version into a session", () => {
+            sessionStorage.setItem(
+                LEGACY_KEY,
+                JSON.stringify({ ...inboxA, token: "tok_legacy" }),
+            );
+            const { result } = renderHook(() => useInbox());
 
-            renderHook(() => {
-                const v = useInbox();
-                seen.push(v.status);
-                return v;
-            });
-
-            expect(seen).not.toContain("loading");
+            expect(result.current.status).toBe("active");
+            expect(result.current.inbox.address).toBe(inboxA.address);
+            expect(sessionStorage.getItem(LEGACY_KEY)).toBeNull();
+            expect(stored().token).toBe("tok_legacy");
         });
 
         it("starts idle when nothing is stored", () => {
@@ -74,103 +110,373 @@ describe("useInbox", () => {
 
             expect(result.current.status).toBe("idle");
             expect(result.current.inbox).toBeNull();
-            expect(getInboxInfo).not.toHaveBeenCalled();
+            expect(result.current.inboxes).toEqual([]);
         });
 
-        it("ignores a stored inbox that has already expired", () => {
-            sessionStorage.setItem(
-                KEY,
-                JSON.stringify({
-                    ...storedInbox,
-                    expiresAt: new Date(Date.now() - 1000).toISOString(),
-                }),
-            );
-
+        it("leaves out stored inboxes that have already expired", () => {
+            storeSession({
+                inboxes: [{ ...inboxA, expiresAt: inMinutes(-1) }, inboxB],
+            });
             const { result } = renderHook(() => useInbox());
 
-            expect(result.current.status).toBe("idle");
-            expect(result.current.inbox).toBeNull();
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["b"]);
+            expect(result.current.inbox.id).toBe("b");
         });
     });
 
-    describe("confirming with the server", () => {
-        it("tears the inbox down when the server says it is gone", async () => {
-            // The optimistic render must still self-correct, or a dead inbox
-            // would sit on screen indefinitely.
-            sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
-            getInboxInfo.mockRejectedValue(new ApiError(401, "Inbox Not Found"));
+    describe("syncing with the server", () => {
+        it("ends the session when the server says it is gone", async () => {
+            storeSession();
+            getSessionInboxes.mockRejectedValue(new ApiError(401, "Session Not Found"));
 
             const { result } = renderHook(() => useInbox());
             expect(result.current.status).toBe("active");
 
             await waitFor(() => expect(result.current.status).toBe("idle"));
-            expect(sessionStorage.getItem(KEY)).toBeNull();
+            expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
         });
 
-        it("keeps the inbox when the confirmation fails on the network", async () => {
-            // A blip must not lose the user's address.
-            sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
-            getInboxInfo.mockRejectedValue(
-                new ApiError(0, "Could not reach the server."),
-            );
+        describe("sparing the request budget", () => {
+            // Shared, per IP: 100 requests per 15 minutes across the whole API.
+            const setVisibility = (state) =>
+                Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+
+            afterEach(() => {
+                setVisibility("visible");
+                rateLimitedFor.mockReturnValue(0);
+            });
+
+            it("leaves the list alone while the tab is hidden, and catches up on return", async () => {
+                setVisibility("hidden");
+                storeSession();
+                getSessionInboxes.mockResolvedValue([]);
+
+                renderHook(() => useInbox());
+                await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+                expect(getSessionInboxes).not.toHaveBeenCalled();
+
+                setVisibility("visible");
+                await act(async () => {
+                    document.dispatchEvent(new Event("visibilitychange"));
+                });
+
+                await waitFor(() => expect(getSessionInboxes).toHaveBeenCalledTimes(1));
+            });
+
+            it("asks nothing while the server has the client backing off", async () => {
+                rateLimitedFor.mockReturnValue(60_000);
+                storeSession();
+
+                const { result } = renderHook(() => useInbox());
+                await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+
+                expect(getSessionInboxes).not.toHaveBeenCalled();
+                // Backing off costs nothing on screen.
+                expect(result.current.inboxes).toHaveLength(2);
+            });
+        });
+
+        it("keeps the inboxes when the sync fails on the network", async () => {
+            // A blip must not lose anyone their addresses.
+            storeSession();
+            getSessionInboxes.mockRejectedValue(new ApiError(0, "Could not reach the server."));
 
             const { result } = renderHook(() => useInbox());
 
-            await waitFor(() => expect(getInboxInfo).toHaveBeenCalled());
+            await waitFor(() => expect(getSessionInboxes).toHaveBeenCalled());
             expect(result.current.status).toBe("active");
-            expect(result.current.inbox.address).toBe(storedInbox.address);
+            expect(result.current.inboxes).toHaveLength(2);
         });
-    });
 
-    describe("a confirmation that lands after a local action", () => {
-        it("does not resurrect an inbox the user has destroyed", async () => {
-            sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
-            const confirm = deferred();
-            getInboxInfo.mockReturnValue(confirm.promise);
+        it("adopts the server's list and filters out its expired inboxes", async () => {
+            storeSession();
+            getSessionInboxes.mockResolvedValue([
+                { ...inboxA, expiresAt: inMinutes(4), messageCount: 2 },
+                { ...inboxB, expiresAt: inMinutes(-1) },
+                { ...inboxA, id: "c", address: "charlie@inbound.dev" },
+            ]);
 
             const { result } = renderHook(() => useInbox());
+
+            await waitFor(() =>
+                expect(result.current.inboxes.map((i) => i.id)).toEqual(["a", "c"]),
+            );
+            expect(result.current.inbox.expiresAt).toBe(
+                result.current.inboxes[0].expiresAt,
+            );
+        });
+
+        it("keeps the rail's order whatever order the server lists in", async () => {
+            // A just-added inbox sat at the bottom, then jumped when the next
+            // sync adopted the server's order.
+            storeSession();
+            getSessionInboxes.mockResolvedValue([
+                { ...inboxA, id: "c", address: "charlie@inbound.dev", createdAt: inMinutes(-0.5) },
+                inboxB,
+                { ...inboxA, id: "d", address: "delta@inbound.dev", createdAt: inMinutes(-0.8) },
+                inboxA,
+            ]);
+
+            const { result } = renderHook(() => useInbox());
+
+            // a and b where they were; the unseen ones after, oldest first.
+            await waitFor(() =>
+                expect(result.current.inboxes.map((i) => i.id)).toEqual(["a", "b", "d", "c"]),
+            );
+        });
+
+        it("does not bring back an inbox destroyed while it was in flight", async () => {
+            storeSession();
+            const answer = deferred();
+            getSessionInboxes.mockReturnValue(answer.promise);
+
+            const { result } = renderHook(() => useInbox());
+            await waitFor(() => expect(getSessionInboxes).toHaveBeenCalled());
             act(() => result.current.destroy());
 
             await act(async () => {
-                confirm.resolve({ expiresAt: storedInbox.expiresAt });
-                await confirm.promise;
+                answer.resolve([inboxA, inboxB]);
+                await answer.promise;
             });
 
-            expect(result.current.status).toBe("idle");
-            expect(result.current.inbox).toBeNull();
-            expect(sessionStorage.getItem(KEY)).toBeNull();
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["b"]);
         });
 
-        it("does not clear a newly generated inbox on a stale 401", async () => {
-            sessionStorage.setItem(KEY, JSON.stringify(storedInbox));
-            const confirm = deferred();
-            getInboxInfo.mockReturnValue(confirm.promise);
-            const replacement = {
-                ...storedInbox,
-                id: "i2",
-                address: "replacement@inbound.dev",
-                token: "tok_replacement",
-            };
-            createInbox.mockResolvedValue(replacement);
+        it("keeps a destroyed inbox hidden after a reload", async () => {
+            // The server lists a destroyed inbox until its TTL, so its id has
+            // to outlive every prune - a reload prunes before the first sync.
+            storeSession();
+            const first = renderHook(() => useInbox());
+            act(() => first.result.current.destroy());
+            first.unmount();
+
+            getSessionInboxes.mockResolvedValue([inboxA, inboxB]);
+            const { result } = renderHook(() => useInbox());
+            await waitFor(() => expect(getSessionInboxes).toHaveBeenCalled());
+            await act(async () => {});
+
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["b"]);
+            expect(result.current.notice).toBeNull();
+        });
+
+        it("keeps a destroyed inbox hidden when a later sync lists it again", async () => {
+            storeSession();
+            getSessionInboxes.mockResolvedValue([inboxA, inboxB]);
 
             const { result } = renderHook(() => useInbox());
-            await act(() => result.current.generate());
+            act(() => result.current.destroy());
+            await act(async () => {
+                await result.current.refresh();
+            });
+
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["b"]);
+        });
+    });
+
+    describe("adding inboxes", () => {
+        it("adds the new inbox to the existing session and switches to it", async () => {
+            storeSession({ inboxes: [inboxA] });
+            createInbox.mockResolvedValue(created("c"));
+
+            const { result } = renderHook(() => useInbox());
+            await act(() => result.current.addInbox());
+
+            expect(createInbox).toHaveBeenCalledWith(
+                expect.objectContaining({ sessionToken: "tok" }),
+            );
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["a", "c"]);
+            expect(result.current.inbox.id).toBe("c");
+            expect(result.current.status).toBe("active");
+        });
+
+        it("stops at the session's inbox cap without asking the server", async () => {
+            const full = Array.from({ length: MAX_INBOXES }, (_, i) => ({
+                ...inboxA,
+                id: `full-${i}`,
+                address: `full-${i}@inbound.dev`,
+            }));
+            storeSession({ inboxes: full, activeId: "full-0" });
+
+            const { result } = renderHook(() => useInbox());
+            expect(result.current.canAddInbox).toBe(false);
+            expect(result.current.atInboxLimit).toBe(true);
+            expect(result.current.maxInboxes).toBe(MAX_INBOXES);
+
+            let added;
+            await act(async () => {
+                added = await result.current.addInbox();
+            });
+
+            expect(added).toBeNull();
+            expect(createInbox).not.toHaveBeenCalled();
+            expect(result.current.inboxes).toHaveLength(MAX_INBOXES);
+            expect(result.current.error?.message).toBe(
+                `This session already holds ${MAX_INBOXES} inboxes, the most it can.`,
+            );
+        });
+
+        it("keeps the session, and says why, when the server refuses an add", async () => {
+            // A refusal is the server saying no to this session. Starting a
+            // fresh session instead would dodge its cap and strand the inboxes.
+            storeSession({ inboxes: [inboxA] });
+            createInbox.mockRejectedValue(new ApiError(403, "Inbox limit reached for this session"));
+
+            const { result } = renderHook(() => useInbox());
+            await act(() => result.current.addInbox());
+
+            expect(createInbox).toHaveBeenCalledTimes(1);
+            expect(stored().token).toBe("tok");
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["a"]);
+            expect(result.current.error?.message).toBe("Inbox limit reached for this session");
+        });
+
+        it("starts a new session when the server no longer knows this one", async () => {
+            storeSession({ inboxes: [inboxA] });
+            createInbox
+                .mockRejectedValueOnce(new ApiError(404, "Session Not Found"))
+                .mockResolvedValueOnce(created("c", "tok_new"));
+
+            const { result } = renderHook(() => useInbox());
+            await act(() => result.current.addInbox());
+
+            expect(createInbox).toHaveBeenLastCalledWith(
+                expect.not.objectContaining({ sessionToken: expect.anything() }),
+            );
+            expect(result.current.inboxes.map((i) => i.id)).toEqual(["c"]);
+            expect(stored().token).toBe("tok_new");
+        });
+
+        it("keeps the open inbox when adding another fails", async () => {
+            storeSession({ inboxes: [inboxA] });
+            createInbox.mockRejectedValue(new ApiError(0, "Could not reach the server."));
+
+            const { result } = renderHook(() => useInbox());
+            await act(() => result.current.addInbox());
+
+            expect(result.current.status).toBe("active");
+            expect(result.current.inbox.id).toBe("a");
+            expect(result.current.error.message).toMatch(/could not add an inbox/i);
+        });
+
+        it("creates the first inbox through the creating state", async () => {
+            const answer = deferred();
+            createInbox.mockReturnValue(answer.promise);
+
+            const { result } = renderHook(() => useInbox());
+            let pending;
+            act(() => {
+                pending = result.current.generate();
+            });
+            expect(result.current.status).toBe("creating");
 
             await act(async () => {
-                confirm.reject(new ApiError(401, "Inbox Not Found"));
-                await confirm.promise.catch(() => {});
+                answer.resolve(created("c"));
+                await pending;
             });
 
             expect(result.current.status).toBe("active");
-            expect(result.current.inbox.address).toBe(replacement.address);
-            expect(JSON.parse(sessionStorage.getItem(KEY)).id).toBe("i2");
+            expect(result.current.inbox.id).toBe("c");
+        });
+    });
+
+    describe("switching and destroying", () => {
+        it("switches the open inbox", () => {
+            storeSession();
+            const { result } = renderHook(() => useInbox());
+
+            act(() => result.current.select("b"));
+
+            expect(result.current.inbox.id).toBe("b");
+            expect(stored().activeId).toBe("b");
+        });
+
+        it("destroys only the open inbox and moves to the next", () => {
+            storeSession();
+            const { result } = renderHook(() => useInbox());
+
+            act(() => result.current.destroy());
+
+            expect(result.current.status).toBe("active");
+            expect(result.current.inbox.id).toBe("b");
+            expect(stored().hiddenIds).toEqual(["a"]);
+        });
+
+        it("ends the session when the last inbox is destroyed", () => {
+            storeSession({ inboxes: [inboxA] });
+            const { result } = renderHook(() => useInbox());
+
+            act(() => result.current.destroy());
+
+            expect(result.current.status).toBe("idle");
+            expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
+        });
+    });
+
+    describe("expiry", () => {
+        it("moves to the next inbox, with a notice, when the open one runs out", async () => {
+            storeSession({
+                inboxes: [
+                    { ...inboxA, expiresAt: new Date(Date.now() + 150).toISOString() },
+                    inboxB,
+                ],
+            });
+            const { result } = renderHook(() => useInbox());
+
+            await waitFor(() => expect(result.current.inbox.id).toBe("b"));
+            expect(result.current.notice).toEqual({
+                addresses: [inboxA.address],
+                switched: true,
+            });
+            expect(result.current.status).toBe("active");
+        });
+
+        it("says so when an inbox that is not open runs out, and stays put", async () => {
+            storeSession({
+                inboxes: [
+                    inboxA,
+                    { ...inboxB, expiresAt: new Date(Date.now() + 150).toISOString() },
+                ],
+            });
+            const { result } = renderHook(() => useInbox());
+
+            await waitFor(() => expect(result.current.inboxes).toHaveLength(1));
+            expect(result.current.inbox.id).toBe("a");
+            expect(result.current.notice).toEqual({
+                addresses: [inboxB.address],
+                switched: false,
+            });
+        });
+
+        it("says so when the server's list drops an expired inbox", async () => {
+            storeSession();
+            getSessionInboxes.mockResolvedValue([
+                inboxA,
+                { ...inboxB, expiresAt: inMinutes(-1) },
+            ]);
+            const { result } = renderHook(() => useInbox());
+
+            await waitFor(() => expect(result.current.inboxes).toHaveLength(1));
+            expect(result.current.notice).toEqual({
+                addresses: [inboxB.address],
+                switched: false,
+            });
+        });
+
+        it("shows the purged state when the last inbox runs out", async () => {
+            storeSession({
+                inboxes: [{ ...inboxA, expiresAt: new Date(Date.now() + 150).toISOString() }],
+            });
+            const { result } = renderHook(() => useInbox());
+
+            await waitFor(() => expect(result.current.status).toBe("expired"));
+            expect(result.current.inbox).toBeNull();
         });
     });
 
     describe("regenerate", () => {
         it("flags the request so the purged card can stay up, then clears it", async () => {
-            const created = deferred();
-            createInbox.mockReturnValue(created.promise);
+            const answer = deferred();
+            createInbox.mockReturnValue(answer.promise);
 
             const { result } = renderHook(() => useInbox());
             let pending;
@@ -182,13 +488,12 @@ describe("useInbox", () => {
             expect(result.current.status).toBe("creating");
 
             await act(async () => {
-                created.resolve({ ...storedInbox, id: "i3" });
+                answer.resolve(created("c"));
                 await pending;
             });
 
             expect(result.current.regenerating).toBe(false);
             expect(result.current.status).toBe("active");
-            expect(result.current.inbox.id).toBe("i3");
         });
     });
 });
