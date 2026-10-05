@@ -15,6 +15,7 @@ import {
     createInbox,
     getInboxInfo,
     extendInbox,
+    downloadAttachment,
     fetchUnreadMessages,
     getSessionInboxes,
     rateLimitedFor,
@@ -232,6 +233,103 @@ describe("inboxApi (session-token contract)", () => {
             await getSessionInboxes("tok");
 
             expect(rateLimitedFor()).toBe(0);
+        });
+    });
+    describe("downloadAttachment", () => {
+        function fileReply(body, { status = 200, disposition, type = "image/png" } = {}) {
+            const headers = { "Content-Type": type };
+            if (disposition) headers["Content-Disposition"] = disposition;
+            return Promise.resolve(new Response(body, { status, headers }));
+        }
+
+        it("asks the attachment endpoint with the session token as a bearer", async () => {
+            fetchMock.mockReturnValue(fileReply("bytes"));
+
+            await downloadAttachment("att-1", "sess_1", { fallbackName: "logo.png" });
+
+            const [url, init] = fetchMock.mock.calls[0];
+            expect(url).toBe(`${API}/inbox/attachments/att-1`);
+            expect(init.headers).toMatchObject({ Authorization: "Bearer sess_1" });
+        });
+
+        it("returns the bytes, not a parsed envelope", async () => {
+            fetchMock.mockReturnValue(fileReply("the-bytes"));
+
+            const { blob } = await downloadAttachment("att-1", "sess_1");
+
+            expect(await blob.text()).toBe("the-bytes");
+        });
+
+        it("prefers the filename the server sends", async () => {
+            fetchMock.mockReturnValue(
+                fileReply("bytes", { disposition: 'attachment; filename="server-name.png"' }),
+            );
+
+            const { filename } = await downloadAttachment("att-1", "sess_1", {
+                fallbackName: "local-name.png",
+            });
+
+            expect(filename).toBe("server-name.png");
+        });
+
+        it("reads the RFC 5987 encoded filename in preference to the plain one", async () => {
+            fetchMock.mockReturnValue(
+                fileReply("bytes", {
+                    disposition: "attachment; filename=\"fallback.png\"; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf",
+                }),
+            );
+
+            const { filename } = await downloadAttachment("att-1", "sess_1");
+
+            expect(filename).toBe("résumé.pdf");
+        });
+
+        // The three forms Express 5's res.attachment() actually produces,
+        // taken from content-disposition's own output rather than guessed:
+        // bare for an ordinary name, quoted once there is a space or a quote
+        // (inner quotes backslash-escaped), and both forms for non-ASCII.
+        it.each([
+            ["attachment; filename=logo_mark.png", "logo_mark.png"],
+            ['attachment; filename="a b c.txt"', "a b c.txt"],
+            ['attachment; filename="weird \\"quoted\\" name.txt"', 'weird "quoted" name.txt'],
+        ])("reads the filename out of %s", async (disposition, expected) => {
+            fetchMock.mockReturnValue(fileReply("bytes", { disposition }));
+
+            const { filename } = await downloadAttachment("att-1", "sess_1");
+
+            expect(filename).toBe(expected);
+        });
+
+        it("falls back to the name from the message when the server sends none", async () => {
+            fetchMock.mockReturnValue(fileReply("bytes"));
+
+            const { filename } = await downloadAttachment("att-1", "sess_1", {
+                fallbackName: "local-name.png",
+            });
+
+            expect(filename).toBe("local-name.png");
+        });
+
+        it("raises the server's own message when the attachment is gone", async () => {
+            fetchMock.mockReturnValue(
+                Promise.resolve(
+                    new Response(JSON.stringify({ success: false, message: "Attachment Not Found" }), {
+                        status: 404,
+                        headers: { "Content-Type": "application/json" },
+                    }),
+                ),
+            );
+
+            await expect(downloadAttachment("att-1", "sess_1")).rejects.toMatchObject({
+                status: 404,
+                message: "Attachment Not Found",
+            });
+        });
+
+        it("still raises when the failure body is not json", async () => {
+            fetchMock.mockReturnValue(fileReply("<html>502</html>", { status: 502, type: "text/html" }));
+
+            await expect(downloadAttachment("att-1", "sess_1")).rejects.toMatchObject({ status: 502 });
         });
     });
 });

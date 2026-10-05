@@ -32,8 +32,9 @@ function fileType(att) {
 }
 
 // A message's attachments as the design's file tiles. The actions are only
-// drawn when there is something behind them: the API has no attachment
-// download yet, and a button that does nothing is worse than none.
+// drawn when there is something behind them: a button that does nothing is
+// worse than none. The API serves one attachment per request and has no zip
+// endpoint, so Download All saves them one after another.
 function Attachments({
   attachments = [],
   totalAttachmentSize = '',
@@ -63,7 +64,7 @@ function Attachments({
             type="button"
             onClick={onDownloadAll}
             className="text-xs font-medium text-sky-600 hover:underline"
-            aria-label="Download all attachments as zip"
+            aria-label="Download all attachments"
           >
             Download All
           </button>

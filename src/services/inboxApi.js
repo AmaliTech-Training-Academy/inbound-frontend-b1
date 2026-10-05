@@ -508,3 +508,83 @@ export async function fetchUnreadMessages(token, { inboxId, signal } = {}) {
 
     return data.messages;
 }
+
+/**
+ * GET /api/v1/inbox/attachments/:attachmentId -> the attachment's bytes
+ *
+ * The only endpoint that does not answer with the {success, message, data}
+ * envelope: a success is the raw file, so readEnvelope cannot be used and the
+ * JSON error body is only parsed on the failure path.
+ *
+ * Authenticated binary, which is why this cannot be an <a download>: the
+ * bearer token has to travel in a header, so the bytes come back here and the
+ * caller turns them into a download.
+ *
+ * `fallbackName` is the filename from the message payload, used when the
+ * server sends no Content-Disposition (or one this cannot read).
+ */
+export async function downloadAttachment(attachmentId, token, { fallbackName, signal } = {}) {
+    if (MOCK) {
+        await delay(200, signal);
+        const name = fallbackName || "attachment.txt";
+        return {
+            blob: new Blob([`Mock contents of ${name}`], { type: "text/plain" }),
+            filename: name,
+        };
+    }
+
+    assertConfigured();
+
+    const res = await guardedFetch(
+        `${API_BASE}/inbox/attachments/${encodeURIComponent(attachmentId)}`,
+        { headers: authHeaders(token), signal },
+        "downloadAttachment",
+    );
+
+    if (!res.ok) {
+        // The failure path does answer with the envelope, so the server's own
+        // message survives. A 404 here is also "stored with no content", not
+        // only "no such attachment".
+        let message;
+        try {
+            message = (await res.json())?.message;
+        } catch {
+            message = undefined;
+        }
+        const err = new ApiError(res.status, message);
+        console.error("[inboxApi] downloadAttachment failed", err);
+        throw err;
+    }
+
+    return {
+        blob: await res.blob(),
+        filename: filenameFromDisposition(res.headers.get("Content-Disposition")) || fallbackName || "attachment",
+    };
+}
+
+// The filename out of a Content-Disposition header, or null. Handles the
+// RFC 5987 `filename*=UTF-8''...` form first, since a server that sends both
+// means that one to win.
+function filenameFromDisposition(header) {
+    if (!header) return null;
+
+    const encoded = header.match(/filename\*=\s*UTF-8''([^;]+)/i);
+    if (encoded) {
+        try {
+            return decodeURIComponent(encoded[1].trim());
+        } catch (err) {
+            console.error("[inboxApi] undecodable filename* in Content-Disposition", err);
+        }
+    }
+
+    // Express sends the plain form unquoted for an ordinary name
+    // (filename=logo.png) and quoted once it contains a space or a quote, with
+    // inner quotes backslash-escaped - so the quoted branch has to allow \" and
+    // unescape it, or a name like 'weird "quoted" name.txt' is cut at the first
+    // escaped quote.
+    const quoted = header.match(/filename\s*=\s*"((?:[^"\\]|\\.)*)"/i);
+    if (quoted) return quoted[1].replace(/\\(.)/g, "$1").trim() || null;
+
+    const bare = header.match(/filename\s*=\s*([^;]+)/i);
+    return bare ? bare[1].trim() || null : null;
+}
