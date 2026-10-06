@@ -10,7 +10,7 @@ import InboxRail from '../components/InboxRail.jsx'
 import NewInboxDialog from '../components/NewInboxDialog.jsx'
 import ConfirmDestroyDialog from '../components/ConfirmDestroyDialog.jsx'
 import { SiteFooter, SiteHero } from '../components/SiteChrome.jsx'
-import { downloadAttachment } from '../services/inboxApi.js'
+import { ApiError, downloadAttachment } from '../services/inboxApi.js'
 import { SOCKET_STATUS } from '../services/inboxSocket.js'
 import { useNow } from '../state/useNow.js'
 import { formatTimeLeft, isRunningOut } from '../utils/inboxProgress.js'
@@ -163,7 +163,15 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
         return true
       } catch (err) {
         console.error('[InboxPage] attachment request failed', err)
-        // 404 is also "stored with no content", not only "no such file".
+
+        // A dead token means every other call is about to fail the same way,
+        // so ask the server: refresh() tears the session down if it agrees.
+        // isSessionDead rather than isDead, because a 404 here is one missing
+        // file, not the end of the session.
+        if (err instanceof ApiError && err.isSessionDead) {
+          refresh()
+        }
+
         setAttachmentError({
           messageId: selectedId,
           text:
@@ -174,7 +182,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
         return false
       }
     },
-    [inbox.token, selectedId, setAttachmentError],
+    [inbox.token, selectedId, setAttachmentError, refresh],
   )
 
   const saveToDisk = (url, filename) => {

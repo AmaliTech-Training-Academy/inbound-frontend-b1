@@ -68,6 +68,20 @@ export class ApiError extends Error {
         return this.isUnauthorized || this.isNotFound || this.isExpired;
     }
 
+    /**
+     * The token itself is no good, so every other call is about to fail too.
+     *
+     * Deliberately narrower than isDead: it leaves 404 out. On the per-inbox
+     * endpoints a 404 does mean that inbox is gone, but on a sub-resource -
+     * /inbox/attachments/:id answers 404 for a file that is missing or was
+     * stored without content - it says nothing about the session, and ending
+     * the session over one unavailable file would throw the user out of a
+     * working inbox.
+     */
+    get isSessionDead() {
+        return this.isUnauthorized || this.isExpired;
+    }
+
     /** 429: the server is asking this client to slow down. */
     get isRateLimited() {
         return this.status === 429;

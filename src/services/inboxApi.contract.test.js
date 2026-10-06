@@ -12,6 +12,7 @@ vi.mock("../config.js", async () => {
 });
 
 import {
+    ApiError,
     createInbox,
     getInboxInfo,
     extendInbox,
@@ -330,6 +331,28 @@ describe("inboxApi (session-token contract)", () => {
             fetchMock.mockReturnValue(fileReply("<html>502</html>", { status: 502, type: "text/html" }));
 
             await expect(downloadAttachment("att-1", "sess_1")).rejects.toMatchObject({ status: 502 });
+        });
+    });
+    // isSessionDead decides whether one failed call ends the whole session.
+    // Getting 404 wrong here throws a user out of a working inbox because one
+    // attachment was missing, so the boundary is pinned rather than implied.
+    describe("ApiError.isSessionDead", () => {
+        it.each([
+            [401, true],
+            [403, true],
+            [410, true],
+            [404, false],
+            [400, false],
+            [429, false],
+            [500, false],
+        ])("status %i -> %s", (status, expected) => {
+            expect(new ApiError(status, "x").isSessionDead).toBe(expected);
+        });
+
+        it("stays narrower than isDead, which counts a 404 as gone", () => {
+            const missing = new ApiError(404, "Attachment not found");
+            expect(missing.isDead).toBe(true);
+            expect(missing.isSessionDead).toBe(false);
         });
     });
 });
