@@ -6,6 +6,11 @@
  */
 @import "tailwindcss";
 
+/* Dark is a class on <html>, not the OS preference, so the toggle is the only
+   thing that decides. :where() holds the wrapper at zero specificity: `dark:`
+   then ties with the utility it overrides and wins on document order. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @font-face {
     font-family: "Haffer";
     src: url("/fonts/HafferXH-Regular.otf") format("opentype");
@@ -58,6 +63,18 @@
     --color-brand-soft: rgba(255, 87, 34, 0.25);
     --color-ink: #0b1c30;
 
+    /* The dark palette, same idea. These only ever appear as the right-hand
+       side of a `dark:` utility, so no light value above changes. The text
+       shades are lifted well clear of the canvas: the light theme's grays
+       read as mud on #0b0f19. */
+    --color-canvas-dark: #0b0f19; /* the page, the hero, the reading pane */
+    --color-surface-dark: #162035; /* cards, dialogs, bars, fields, buttons */
+    --color-line-dark: #24324d; /* their borders and strokes */
+    --color-line-soft-dark: #1b2439; /* dividers drawn on the canvas itself */
+    --color-ink-dark: #ffffff; /* headings and primary text */
+    --color-body-dark: #d3dae6; /* body copy */
+    --color-muted-dark: #a3aec0; /* timestamps, hints, meta */
+
     --animate-fade-up: fade-up 0.35s ease-out both;
 
     @keyframes fade-up {
@@ -72,12 +89,28 @@
     }
 }
 
+/* On <html> as well as <body>: the overscroll area past the end of a short
+   page takes the root's colour, and a white band there gives the theme away. */
+html {
+    background-color: #ffffff;
+}
+
+html.dark {
+    background-color: #0b0f19;
+    color-scheme: dark;
+}
+
 body {
     font-family: var(--font-sans);
     background-color: #ffffff;
     color: var(--color-ink);
     margin: 0;
     padding: 0;
+}
+
+html.dark body {
+    background-color: #0b0f19;
+    color: #d3dae6;
 }
 
 /*
@@ -93,4 +126,38 @@ body {
         rgba(255, 87, 34, 0.045) 48%,
         rgba(255, 87, 34, 0) 100%
     );
+}
+
+/* The same glow over the dark canvas. At the light theme's alpha it blows out
+   to a brown wash behind the headline, so it comes down to about half. */
+html.dark .landing-backdrop {
+    background-color: #0b0f19;
+    background-image: radial-gradient(
+        55% 48% at 50% 42%,
+        rgba(255, 87, 34, 0.06) 0%,
+        rgba(255, 87, 34, 0.025) 48%,
+        rgba(255, 87, 34, 0) 100%
+    );
+}
+
+/* Otherwise a dark screen prints as light text on white paper. Every dark
+   colour is reached through its variable, so pointing the tokens back at their
+   light values re-colours the printout without touching the utilities. */
+@media print {
+    .dark {
+        --color-canvas-dark: #ffffff;
+        --color-surface-dark: #ffffff;
+        --color-line-dark: #e2e8f0;
+        --color-line-soft-dark: #f1f5f9;
+        --color-ink-dark: #0b1c30;
+        --color-body-dark: #475569;
+        --color-muted-dark: #64748b;
+    }
+
+    html.dark,
+    html.dark body {
+        background-color: #ffffff;
+        color: #0b1c30;
+        color-scheme: light;
+    }
 }

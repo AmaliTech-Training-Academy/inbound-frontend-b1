@@ -118,3 +118,54 @@ export function prepareEmail(html) {
 
   return `${styles}\n${doc.body.innerHTML}`
 }
+
+// A background the mail paints on <body> or <html> never shows: the frame keeps
+// the reading pane's canvas behind the mail, whatever the sender asks for. One
+// painted further in - a white panel, a coloured banner, a background image -
+// does show, and SafeHtmlEmail's default text colour is laid over it.
+const DECLARES_BACKGROUND =
+  /background(?:-color|-image)?\s*:\s*(?!(?:none|transparent|inherit|initial|unset)\b)[^;\s]/i
+
+const PAGE_ONLY = /^(?:html|body|:root)$/i
+
+function styleBlocksPaintSurface(styles) {
+  // `selector { declarations }`, innermost first: an @media wrapper never
+  // matches, because the selector and the braces either side of it are what
+  // this reads and an at-rule has another rule in between.
+  for (const [, selector, body] of styles.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!DECLARES_BACKGROUND.test(body)) continue
+    if (selector.split(',').every((part) => PAGE_ONLY.test(part.trim()))) continue
+    return true
+  }
+  return false
+}
+
+/**
+ * Whether the mail paints a surface of its own for its text to sit on.
+ *
+ * The frame's canvas is the reading pane's, so the reader lends the mail the
+ * theme's text colour. That colour is chosen to be read on the pane: on a panel
+ * the mail painted itself - nearly always a light one - the dark theme's
+ * near-white all but disappears. This is what tells the two apart.
+ */
+export function paintsOwnSurface(html) {
+  if (!html || typeof DOMParser === 'undefined') return false
+
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+
+  const styled = [...doc.querySelectorAll('style')].some((style) =>
+    styleBlocksPaintSurface(style.textContent ?? ''),
+  )
+  if (styled) return true
+
+  const template = doc.createElement('template')
+  template.innerHTML = html
+
+  return [...template.content.querySelectorAll('*')].some(
+    (el) =>
+      !PAGE_ONLY.test(el.tagName) &&
+      (el.hasAttribute('bgcolor') ||
+        el.hasAttribute('background') ||
+        DECLARES_BACKGROUND.test(el.getAttribute('style') ?? '')),
+  )
+}

@@ -21,10 +21,10 @@ export default function LandingPage() {
     // One screen tall: the hero takes what the footer leaves, so the footer
     // shows without scrolling on a laptop, and the page still scrolls when
     // its content needs more room.
-    <div className="flex min-h-dvh flex-col text-ink">
+    <div className="flex min-h-dvh flex-col text-ink dark:text-ink-dark">
       <SiteHero session={session} unread={unread} className="flex-1">
         <div className="relative -top-6 flex flex-1 flex-col items-center justify-center px-4 md:-top-12">
-          <div className="mx-auto flex max-w-full items-center gap-2 rounded-full border border-slate-200 px-4 py-2 hover:border-slate-300">
+          <div className="mx-auto flex max-w-full items-center gap-2 rounded-full border border-slate-200 px-4 py-2 hover:border-slate-300 dark:border-line-dark dark:hover:border-slate-600">
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-brand" />
             {active ? (
               <>
@@ -82,7 +82,7 @@ export default function LandingPage() {
             </h1>
           </div>
 
-          <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-slate-600 max-md:px-2 md:text-base">
+          <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-slate-600 max-md:px-2 md:text-base dark:text-body-dark">
             Protect your inbox with a disposable email address for sign-ups,
             verification codes, and temporary testing.
           </p>
@@ -99,10 +99,10 @@ export default function LandingPage() {
                 />
                 <Link
                   to={ROUTES.howItWorks}
-                  className="group flex items-center gap-3 rounded-full border border-slate-200 py-2 pl-8 pr-2 text-base font-medium text-ink transition hover:border-slate-300"
+                  className="group flex items-center gap-3 rounded-full border border-slate-200 py-2 pl-8 pr-2 text-base font-medium text-ink transition hover:border-slate-300 dark:border-line-dark dark:text-ink-dark dark:hover:border-slate-600"
                 >
                   <span>Learn More</span>
-                  <span className="flex items-center justify-center rounded-full border border-slate-200 bg-white p-3 text-ink transition-transform duration-300 ease-out group-hover:translate-x-0.5">
+                  <span className="flex items-center justify-center rounded-full border border-slate-200 bg-white p-3 text-ink transition-transform duration-300 ease-out group-hover:translate-x-0.5 dark:border-line-dark dark:bg-surface-dark dark:text-ink-dark">
                     <ArrowUpRight size={20} strokeWidth={2.25} aria-hidden="true" />
                   </span>
                 </Link>
@@ -110,7 +110,7 @@ export default function LandingPage() {
             )}
 
             {status === 'error' && (
-              <p role="alert" className="mt-3 text-center text-sm text-rose-600">
+              <p role="alert" className="mt-3 text-center text-sm text-rose-600 dark:text-rose-400">
                 {error?.message || 'Could not create an inbox. Try again in a moment.'}
               </p>
             )}

@@ -13,10 +13,10 @@ export default function HowItWorksPage() {
     // One screen tall: the hero takes what the footer leaves, so the footer
     // shows without scrolling on a laptop, and the page still scrolls when
     // its content needs more room.
-    <div className="flex min-h-dvh flex-col text-ink">
+    <div className="flex min-h-dvh flex-col text-ink dark:text-ink-dark">
       <SiteHero session={session} unread={unread} className="flex-1">
         <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-4 pb-10 pt-4 md:pt-6">
-          <div className="mx-auto max-w-full rounded-full border border-slate-200 px-4 py-2">
+          <div className="mx-auto max-w-full rounded-full border border-slate-200 px-4 py-2 dark:border-line-dark">
             <span className="block truncate">
               No account. No tracking. Gone in {INBOX_TTL_MINUTES} minutes.
             </span>
@@ -26,7 +26,7 @@ export default function HowItWorksPage() {
             How Inbound Works
           </h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-slate-600 max-md:px-2 md:text-base">
+          <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-slate-600 max-md:px-2 md:text-base dark:text-body-dark">
             Engineered for absolute frictionlessness and mathematical privacy.
           </p>
 

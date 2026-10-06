@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { prepareEmail } from "./emailHtml.js";
+import { paintsOwnSurface, prepareEmail } from "./emailHtml.js";
 // The team's own sanitization test: a shipping email on top, every common
 // attack underneath.
 import SANITIZATION_TEST from "../test/fixtures/sanitizationTestEmail.html?raw";
@@ -132,5 +132,46 @@ describe("prepareEmail", () => {
     it("returns nothing for an empty email", () => {
         expect(prepareEmail("")).toBe("");
         expect(prepareEmail(null)).toBe("");
+    });
+});
+
+// The dark theme's default text colour is chosen to be read on the reading
+// pane. On a panel the mail painted itself it would all but disappear, so this
+// is what decides which default the mail gets.
+describe("paintsOwnSurface", () => {
+    it("is false for a mail with no background of its own", () => {
+        expect(paintsOwnSurface("<p>Hello</p>")).toBe(false);
+        expect(paintsOwnSurface("")).toBe(false);
+        expect(paintsOwnSurface(null)).toBe(false);
+    });
+
+    it("finds a panel painted inline", () => {
+        expect(paintsOwnSurface('<div style="background: #ffffff"><p>Hi</p></div>')).toBe(true);
+        expect(paintsOwnSurface('<div style="background-color:#f4f4f4">Hi</div>')).toBe(true);
+    });
+
+    it("finds a banner painted as an image, and the old bgcolor attribute", () => {
+        expect(paintsOwnSurface('<td background="https://cdn.example.com/banner.png">Hi</td>')).toBe(true);
+        expect(paintsOwnSurface('<table bgcolor="#ffffff"><tr><td>Hi</td></tr></table>')).toBe(true);
+        expect(paintsOwnSurface('<div style="background-image: url(https://cdn.example.com/b.png)">Hi</div>')).toBe(true);
+    });
+
+    it("finds a panel painted from a style block", () => {
+        expect(paintsOwnSurface("<style>.panel { background: #ffffff }</style><div class='panel'>Hi</div>")).toBe(true);
+    });
+
+    it("ignores a background the frame's own canvas already covers", () => {
+        // html and body are forced transparent, so these never paint.
+        expect(paintsOwnSurface('<body style="background: #ffffff"><p>Hi</p></body>')).toBe(false);
+        expect(paintsOwnSurface("<style>body { background: #ff0000 !important }</style><p>Hi</p>")).toBe(false);
+        expect(paintsOwnSurface("<style>html, body { background: #fff }</style><p>Hi</p>")).toBe(false);
+    });
+
+    it("ignores a reset that paints nothing", () => {
+        expect(paintsOwnSurface('<div style="background: none">Hi</div>')).toBe(false);
+        expect(paintsOwnSurface('<div style="background-color: transparent">Hi</div>')).toBe(false);
+        expect(paintsOwnSurface('<div style="background-image: none">Hi</div>')).toBe(false);
+        expect(paintsOwnSurface('<div style="background-position: center">Hi</div>')).toBe(false);
+        expect(paintsOwnSurface('<div style="background-repeat: no-repeat">Hi</div>')).toBe(false);
     });
 });

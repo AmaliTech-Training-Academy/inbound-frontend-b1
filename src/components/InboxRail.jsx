@@ -52,7 +52,7 @@ export default function InboxRail({
                 disabled={!canAdd}
                 aria-label={addLabel}
                 title={addLabel}
-                className={`flex ${vertical ? "size-10" : "size-8"} shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-400 transition-colors enabled:hover:border-slate-400 enabled:hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50`}>
+                className={`flex ${vertical ? "size-10" : "size-8"} shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-400 transition-colors enabled:hover:border-slate-400 enabled:hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-line-dark dark:text-body-dark dark:enabled:hover:border-slate-500 dark:enabled:hover:text-ink-dark`}>
                 <Plus size={15} aria-hidden="true" className={adding ? "animate-pulse" : ""} />
             </button>
 
@@ -72,23 +72,23 @@ export default function InboxRail({
                             active ? ", open" : ""
                         }, ${left} left`}
                         title={`${inbox.address} · ${left} left`}
-                        className={`relative shrink-0 rounded-full transition-shadow focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-slate-900 ${
+                        className={`relative shrink-0 rounded-full transition-shadow focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-slate-900 dark:ring-offset-canvas-dark dark:focus-visible:outline-ink-dark ${
                             active
-                                ? `ring-2 ring-offset-2 ${ending ? "ring-rose-500" : "ring-slate-900"}`
-                                : "hover:ring-2 hover:ring-slate-200 hover:ring-offset-2"
+                                ? `ring-2 ring-offset-2 ${ending ? "ring-rose-500" : "ring-slate-900 dark:ring-ink-dark"}`
+                                : "hover:ring-2 hover:ring-slate-200 hover:ring-offset-2 dark:hover:ring-line-dark"
                         }`}>
                         <Avatar seed={inbox.address} size={avatarSize} animate="always" />
                         {unread > 0 && (
                             <span
                                 aria-hidden="true"
-                                className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-600 px-1 text-[9px] font-semibold text-white ring-2 ring-white">
+                                className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-600 px-1 text-[9px] font-semibold text-white ring-2 ring-white dark:bg-sky-500 dark:ring-canvas-dark">
                                 {unread > 99 ? "99+" : unread}
                             </span>
                         )}
                         {ending && !active && (
                             <span
                                 aria-hidden="true"
-                                className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-rose-500 ring-2 ring-white"
+                                className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-canvas-dark"
                             />
                         )}
                     </button>

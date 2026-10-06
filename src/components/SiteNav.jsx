@@ -1,6 +1,7 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { INBOX_PATH, ROUTES } from '../router'
 import BrandMark from './BrandMark.jsx'
+import ThemeToggle from './ThemeToggle.jsx'
 
 // The top bar of the public pages, from the design's landing nav: the brand,
 // the page links, and one call to action - into the inbox when there is one,
@@ -23,12 +24,14 @@ export default function SiteNav({ session, unread = 0 }) {
 
   const link = ({ isActive }) =>
     `whitespace-nowrap font-medium transition-colors ${
-      isActive ? 'text-ink' : 'text-slate-500 hover:text-ink'
+      isActive
+        ? 'text-ink dark:text-ink-dark'
+        : 'text-slate-500 hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark'
     }`
 
   return (
     <nav className="relative z-20 flex w-full items-center justify-between gap-4 p-4 md:px-16 md:py-6 lg:px-24 xl:px-32">
-      <Link to={ROUTES.home} className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight text-ink">
+      <Link to={ROUTES.home} className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight text-ink dark:text-ink-dark">
         <BrandMark size={24} />
         Inbound
       </Link>
@@ -38,6 +41,8 @@ export default function SiteNav({ session, unread = 0 }) {
         <NavLink to={ROUTES.howItWorks} className={link}>
           How it works
         </NavLink>
+
+        <ThemeToggle />
 
         {active ? (
           <Link
