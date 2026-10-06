@@ -508,3 +508,36 @@ export async function fetchUnreadMessages(token, { inboxId, signal } = {}) {
 
     return data.messages;
 }
+
+/**
+ * DELETE /api/v1/inbox/:id
+ *     -> { id, deletedMessages, deletedAttachments }
+ *
+ * A hard delete, in one transaction: attachments, then messages, then the
+ * inbox. Nothing is recoverable, and the address stops receiving mail at once
+ * rather than at its TTL.
+ *
+ * Scoped to the session server-side, so another session's inbox answers 404
+ * rather than 403 - no way to learn whether an id exists.
+ *
+ * Not in the published spec as of 2026-10-06, which still documents neither
+ * this nor /inbox/custom; it is live on the deployment and was smoke-tested
+ * there. Treat the spec as the weaker source.
+ */
+export async function deleteInbox(id, token, { signal } = {}) {
+    if (MOCK) {
+        await delay(200, signal);
+        const existed = mockState.delete(id);
+        return { id, deletedMessages: 0, deletedAttachments: 0, existed };
+    }
+
+    assertConfigured();
+
+    const res = await guardedFetch(
+        `${API_BASE}/inbox/${encodeURIComponent(id)}`,
+        { method: "DELETE", headers: authHeaders(token), signal },
+        "deleteInbox",
+    );
+
+    return await readEnvelope(res, "deleteInbox");
+}

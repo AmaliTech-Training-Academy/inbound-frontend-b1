@@ -9,12 +9,19 @@ vi.mock("../services/inboxApi.js", async () => {
         getInboxInfo: vi.fn(),
         getSessionInboxes: vi.fn(),
         extendInbox: vi.fn(),
+        deleteInbox: vi.fn(),
         rateLimitedFor: vi.fn(() => 0),
     };
 });
 
 import { useInbox } from "./useInbox.js";
-import { createInbox, getSessionInboxes, rateLimitedFor, ApiError } from "../services/inboxApi.js";
+import {
+    createInbox,
+    deleteInbox,
+    getSessionInboxes,
+    rateLimitedFor,
+    ApiError,
+} from "../services/inboxApi.js";
 import { MAX_INBOXES } from "../config.js";
 
 const LEGACY_KEY = "inbound.inbox";
@@ -72,6 +79,9 @@ function deferred() {
 beforeEach(() => {
     sessionStorage.clear();
     vi.clearAllMocks();
+    // destroy() deletes server-side now; the happy path is the default so
+    // tests that only care about the local effect do not each restate it.
+    deleteInbox.mockResolvedValue({ deletedMessages: 0, deletedAttachments: 0 });
     vi.spyOn(console, "error").mockImplementation(() => {});
     // Leave the sync hanging by default, so the restored state is what gets
     // asserted rather than the post-sync one.
@@ -232,7 +242,9 @@ describe("useInbox", () => {
 
             const { result } = renderHook(() => useInbox());
             await waitFor(() => expect(getSessionInboxes).toHaveBeenCalled());
-            act(() => result.current.destroy());
+            await act(async () => {
+                await result.current.destroy();
+            });
 
             await act(async () => {
                 answer.resolve([inboxA, inboxB]);
@@ -247,7 +259,9 @@ describe("useInbox", () => {
             // to outlive every prune - a reload prunes before the first sync.
             storeSession();
             const first = renderHook(() => useInbox());
-            act(() => first.result.current.destroy());
+            await act(async () => {
+                await first.result.current.destroy();
+            });
             first.unmount();
 
             getSessionInboxes.mockResolvedValue([inboxA, inboxB]);
@@ -264,7 +278,9 @@ describe("useInbox", () => {
             getSessionInboxes.mockResolvedValue([inboxA, inboxB]);
 
             const { result } = renderHook(() => useInbox());
-            act(() => result.current.destroy());
+            await act(async () => {
+                await result.current.destroy();
+            });
             await act(async () => {
                 await result.current.refresh();
             });
@@ -390,25 +406,64 @@ describe("useInbox", () => {
             expect(stored().activeId).toBe("b");
         });
 
-        it("destroys only the open inbox and moves to the next", () => {
+        it("destroys only the open inbox and moves to the next", async () => {
+            deleteInbox.mockResolvedValue({ id: "a", deletedMessages: 0, deletedAttachments: 0 });
             storeSession();
             const { result } = renderHook(() => useInbox());
 
-            act(() => result.current.destroy());
+            await act(async () => {
+                await result.current.destroy();
+            });
 
+            expect(deleteInbox).toHaveBeenCalledWith("a", "tok");
             expect(result.current.status).toBe("active");
             expect(result.current.inbox.id).toBe("b");
             expect(stored().hiddenIds).toEqual(["a"]);
+            expect(stored().inboxes.map((entry) => entry.id)).toEqual(["b"]);
         });
 
-        it("ends the session when the last inbox is destroyed", () => {
+        it("ends the session when the last inbox is destroyed", async () => {
+            deleteInbox.mockResolvedValue({ id: "a", deletedMessages: 0, deletedAttachments: 0 });
             storeSession({ inboxes: [inboxA] });
             const { result } = renderHook(() => useInbox());
 
-            act(() => result.current.destroy());
+            await act(async () => {
+                await result.current.destroy();
+            });
 
             expect(result.current.status).toBe("idle");
             expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
+        });
+
+        // The button says the inbox is destroyed. If the request failed the
+        // address is still alive and still taking mail, so it has to stay on
+        // screen - the alternative is telling the user something untrue.
+        it("keeps the inbox when the server could not delete it, and says so", async () => {
+            deleteInbox.mockRejectedValue(new ApiError(500, "Unable to delete inbox"));
+            storeSession();
+            const { result } = renderHook(() => useInbox());
+
+            await act(async () => {
+                await result.current.destroy();
+            });
+
+            expect(result.current.inbox.id).toBe("a");
+            expect(stored().hiddenIds).toEqual([]);
+            expect(result.current.error?.message).toMatch(/Could not destroy/);
+        });
+
+        // Already gone is the outcome that was asked for.
+        it("treats a 404 as destroyed", async () => {
+            deleteInbox.mockRejectedValue(new ApiError(404, "Inbox Not Found"));
+            storeSession();
+            const { result } = renderHook(() => useInbox());
+
+            await act(async () => {
+                await result.current.destroy();
+            });
+
+            expect(result.current.inbox.id).toBe("b");
+            expect(result.current.error).toBeNull();
         });
     });
 
