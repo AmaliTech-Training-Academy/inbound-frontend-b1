@@ -199,13 +199,17 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     [withAttachmentUrl],
   )
 
-  const onViewAttachment = useCallback(
-    (attachment) =>
-      withAttachmentUrl(attachment, (url) => {
-        window.open(url, '_blank', 'noopener,noreferrer')
-      }),
-    [withAttachmentUrl],
-  )
+  // No view action on purpose. Opening an attachment inline would mean
+  // navigating to a blob: url, and a blob: url runs in this page's origin -
+  // so an emailed text/html or image/svg+xml attachment would execute script
+  // here, with the session token sitting in sessionStorage. The server guards
+  // against this with Content-Disposition: attachment and nosniff; re-wrapping
+  // the bytes in our own blob throws both away. Anyone can email a disposable
+  // address, so that is a vector, not a corner case.
+  //
+  // Previewing is worth having, but only by constructing the blob with a type
+  // we have chosen from an allowlist (images, pdf) rather than the one the
+  // response carried. That is its own piece of work.
 
   // One request at a time: the API serves a single attachment per call, and
   // firing them in parallel is what makes a browser treat the page as a
@@ -444,7 +448,6 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
                   inboxAddress={inbox.address}
                   onBack={closeMessage}
                   onDownloadAttachment={onDownloadAttachment}
-                  onViewAttachment={onViewAttachment}
                   onDownloadAll={selected.attachments?.length > 1 ? onDownloadAll : undefined}
                 />
               </>
