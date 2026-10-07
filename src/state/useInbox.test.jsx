@@ -14,7 +14,7 @@ vi.mock("../services/inboxApi.js", async () => {
 });
 
 import { useInbox } from "./useInbox.js";
-import { createInbox, getSessionInboxes, rateLimitedFor, ApiError } from "../services/inboxApi.js";
+import { createInbox, extendInbox, getSessionInboxes, rateLimitedFor, ApiError } from "../services/inboxApi.js";
 import { MAX_INBOXES } from "../config.js";
 
 const LEGACY_KEY = "inbound.inbox";
@@ -470,6 +470,54 @@ describe("useInbox", () => {
 
             await waitFor(() => expect(result.current.status).toBe("expired"));
             expect(result.current.inbox).toBeNull();
+        });
+
+        describe("while an extend is on its way", () => {
+            const runningOut = () => new Date(Date.now() + 150).toISOString();
+            const pause = (ms) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
+
+            it("keeps the inbox when its clock runs out, and adopts the new time", async () => {
+                storeSession({ inboxes: [{ ...inboxA, expiresAt: runningOut() }] });
+                const answer = deferred();
+                extendInbox.mockReturnValue(answer.promise);
+                const { result } = renderHook(() => useInbox());
+
+                act(() => {
+                    result.current.extend();
+                });
+                await pause(300);
+                expect(result.current.status).toBe("active");
+                expect(result.current.inbox.id).toBe("a");
+
+                const later = inMinutes(5);
+                await act(async () => {
+                    answer.resolve({ expiresAt: later, extendCount: 1 });
+                });
+                await pause(50);
+
+                expect(result.current.status).toBe("active");
+                expect(result.current.inbox).toMatchObject({ id: "a", expiresAt: later });
+            });
+
+            it("lets the inbox go once a failed extend comes back", async () => {
+                storeSession({ inboxes: [{ ...inboxA, expiresAt: runningOut() }, inboxB] });
+                const answer = deferred();
+                extendInbox.mockReturnValue(answer.promise);
+                const { result } = renderHook(() => useInbox());
+
+                act(() => {
+                    result.current.extend();
+                });
+                await pause(300);
+                expect(result.current.inbox.id).toBe("a");
+
+                await act(async () => {
+                    answer.reject(new Error("network down"));
+                });
+
+                await waitFor(() => expect(result.current.inbox.id).toBe("b"));
+                expect(result.current.notice).toEqual({ addresses: [inboxA.address], switched: true });
+            });
         });
     });
 

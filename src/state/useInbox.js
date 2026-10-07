@@ -159,6 +159,10 @@ export function useInbox() {
 
     const actionLock = useRef(false);
 
+    // The inbox an extend is in flight for. Its clock can reach zero while the
+    // server is still answering, so it is not dropped until the answer is in.
+    const extendingId = useRef(null);
+
     // The latest session, for handlers and timers that must not act on a
     // stale copy. Updated after every commit.
     const sessionRef = useRef(session);
@@ -243,6 +247,7 @@ export function useInbox() {
     const backgroundSync = useCallback(() => {
         if (document.visibilityState === "hidden") return;
         if (rateLimitedFor() > 0) return;
+        if (extendingId.current) return;
         sync();
     }, [sync]);
 
@@ -272,6 +277,7 @@ export function useInbox() {
             (inbox) => !hidden.has(inbox.id) && msRemaining(inbox.expiresAt) <= 0,
         );
         if (gone.length === 0) return;
+        if (gone.some((inbox) => inbox.id === extendingId.current)) return;
 
         const next = pruneSession(current);
         if (!next) {
@@ -530,9 +536,11 @@ export function useInbox() {
         if (!inbox?.id || !inbox?.token) return;
         if (actionLock.current) return;
         actionLock.current = true;
+        extendingId.current = inbox.id;
         cancelSync();
         setBusy("extending");
         setError(null);
+        let extended = false;
         try {
             const res = await extendInbox(inbox.id, inbox.token);
             if (!res?.expiresAt) {
@@ -542,6 +550,7 @@ export function useInbox() {
                 expiresAt: res.expiresAt,
                 extendCount: res.extendCount ?? (inbox.extendCount ?? 0) + 1,
             });
+            extended = true;
         } catch (err) {
             console.error("[useInbox] extend failed", err);
             if (err instanceof ApiError && err.isDead) {
@@ -555,10 +564,14 @@ export function useInbox() {
                     : new Error("Could not extend the inbox. Try again."),
             );
         } finally {
+            extendingId.current = null;
             actionLock.current = false;
             setBusy(null);
         }
-    }, [inbox, cancelSync, updateInbox, dropInbox]);
+        // An extend that failed may have outlived the inbox's clock, whose
+        // timer has already fired and left it in place.
+        if (!extended) expireDue();
+    }, [inbox, cancelSync, updateInbox, dropInbox, expireDue]);
 
     // "Refresh". Re-reads the active inbox and the session's list, so an
     // expiry changed elsewhere (another tab extending it) is picked up.
