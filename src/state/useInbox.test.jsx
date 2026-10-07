@@ -132,8 +132,19 @@ describe("useInbox", () => {
             const { result } = renderHook(() => useInbox());
             expect(result.current.status).toBe("active");
 
-            await waitFor(() => expect(result.current.status).toBe("idle"));
+            // "ended", not "idle": the page explains it rather than quietly
+            // dropping the user on the landing page.
+            await waitFor(() => expect(result.current.status).toBe("ended"));
             expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
+        });
+
+        it("calls a session that outlived its time expired", async () => {
+            storeSession();
+            getSessionInboxes.mockRejectedValue(new ApiError(410, "Session Expired"));
+
+            const { result } = renderHook(() => useInbox());
+
+            await waitFor(() => expect(result.current.status).toBe("expired"));
         });
 
         describe("sparing the request budget", () => {
@@ -330,10 +341,14 @@ describe("useInbox", () => {
             expect(result.current.error?.message).toBe("Inbox limit reached for this session");
         });
 
-        it("starts a new session when the server no longer knows this one", async () => {
+        it.each([
+            [404, "Session Not Found"],
+            [401, "Session Not Found"],
+            [410, "Session Expired"],
+        ])("starts a new session when the server answers %i (%s)", async (status, message) => {
             storeSession({ inboxes: [inboxA] });
             createInbox
-                .mockRejectedValueOnce(new ApiError(404, "Session Not Found"))
+                .mockRejectedValueOnce(new ApiError(status, message))
                 .mockResolvedValueOnce(created("c", "tok_new"));
 
             const { result } = renderHook(() => useInbox());

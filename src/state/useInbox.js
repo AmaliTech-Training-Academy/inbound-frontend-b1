@@ -230,9 +230,10 @@ export function useInbox() {
             if (controller.signal.aborted) return;
             console.error("[useInbox] could not sync the session with the server", err);
             if (err instanceof ApiError && err.isDead) {
-                // 401/403/404/410 all mean the same thing to the user: this
-                // session is gone. 410 is the server saying it outlived its TTL.
-                endSession(err.isExpired ? "expired" : "idle");
+                // 401/403/404/410 all mean this session is gone. 410 is the
+                // server saying it outlived its TTL; the rest, that it no
+                // longer knows it, which the page explains as "ended".
+                endSession(err.isExpired ? "expired" : "ended");
             }
             // A network failure keeps what is on screen: a blip must not cost
             // someone their addresses.
@@ -372,14 +373,17 @@ export function useInbox() {
                     signal: controller.signal,
                 });
             } catch (err) {
-                // The server no longer knows the session (404): start a new
-                // one. Its old inboxes cannot be read without it anyway.
+                // The session is gone - unknown (404), unusable (401) or past
+                // its time (410): start a new one. Its old inboxes cannot be
+                // read without it anyway.
                 //
-                // Only a 404. Any other refusal - the session's inbox cap, a
+                // Only those. Any other refusal - the session's inbox cap, a
                 // rate limit - is the server saying no to this session, and
                 // quietly starting a fresh one would both dodge the cap and
                 // strand every inbox the session holds.
-                if (!current?.token || !(err instanceof ApiError && err.isNotFound)) throw err;
+                const sessionGone =
+                    err instanceof ApiError && (err.isNotFound || err.status === 401 || err.isExpired);
+                if (!current?.token || !sessionGone) throw err;
                 created = await createInbox({ signal: controller.signal });
             }
 

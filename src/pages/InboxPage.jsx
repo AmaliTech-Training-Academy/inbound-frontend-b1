@@ -30,10 +30,11 @@ export default function InboxPage() {
   const navigate = useNavigate()
   const { status, inbox, regenerating, regenerate, reset } = context.session
 
-  if (status === 'expired' || regenerating) {
+  if (status === 'expired' || status === 'ended' || regenerating) {
     return (
       <Purged
         session={context.session}
+        ended={status === 'ended'}
         creating={status === 'creating'}
         onGenerate={async () => {
           await regenerate()
@@ -566,9 +567,10 @@ function MissingMessage() {
   )
 }
 
-// Where an inbox ends up once its time runs out: the site's own header and
-// glow, and one card that says what happened and offers the two ways on.
-function Purged({ session, onGenerate, onLeave, creating }) {
+// Where an inbox ends up once its time runs out, or once the server stops
+// recognising the session: the site's own header and glow, and one card that
+// says what happened and offers the two ways on.
+function Purged({ session, onGenerate, onLeave, creating, ended }) {
   return (
     // One screen tall: the hero takes what the footer leaves, so the footer
     // shows without scrolling on a laptop, and the page still scrolls when
@@ -583,10 +585,13 @@ function Purged({ session, onGenerate, onLeave, creating }) {
             <span className="flex size-14 items-center justify-center rounded-full bg-brand-soft text-brand">
               <TimerOff size={26} strokeWidth={2} aria-hidden="true" />
             </span>
-            <h1 className="mt-6 text-2xl font-bold">This inbox has expired</h1>
+            <h1 className="mt-6 text-2xl font-bold">
+              {ended ? 'This session has ended' : 'This inbox has expired'}
+            </h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              Its address no longer receives mail, and its messages and
-              attachments have been permanently deleted.
+              {ended
+                ? 'The server no longer recognises this session, so its inboxes can’t be opened any more.'
+                : 'Its address no longer receives mail, and its messages and attachments have been permanently deleted.'}
             </p>
 
             <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
@@ -609,9 +614,11 @@ function Purged({ session, onGenerate, onLeave, creating }) {
               </button>
             </div>
 
-            <p className="mt-8 text-xs text-slate-400">
-              Need more time next time? Use +{EXTEND_MINUTES}m in the inbox before it runs out.
-            </p>
+            {!ended && (
+              <p className="mt-8 text-xs text-slate-400">
+                Need more time next time? Use +{EXTEND_MINUTES}m in the inbox before it runs out.
+              </p>
+            )}
           </div>
         </div>
       </SiteHero>
