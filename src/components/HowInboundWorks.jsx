@@ -1,28 +1,29 @@
 import { MailOpen, Trash2, Zap } from "lucide-react";
 import { INBOX_TTL_MINUTES } from "../config.js";
 
-// The original project's three steps, word for word, drawn as the design's
-// cards: a hairline border on white, the step number and its icon on top.
-// The redesign gives all three the same brand treatment — the red the purge
-// card used to carry is gone.
+// The three steps, in the words a first-time visitor would use: what they get,
+// what turns up in it, and when it goes away. Drawn as the design's cards: a
+// hairline border on white, the step number and its icon on top. The redesign
+// gives all three the same brand treatment — the red the purge card used to
+// carry is gone.
 const STEPS = [
     {
         icon: Zap,
         title: "Click Generate",
-        body: "Ephemeral mailbox instance bound instantly in volatile RAM. No account, password, or tracking cookie is ever created — only this tab keeps the address, so closing it forgets the inbox.",
-        note: "Allocation: < 20ms",
+        body: "You get a working email address right away — no account, no password, no tracking cookie. Only this tab remembers it, so closing the tab forgets the inbox.",
+        note: "Nothing to sign up for",
     },
     {
         icon: MailOpen,
-        title: "Receive OTPs & Links",
-        body: "Real-time WebSocket streaming with 1-click verification code extraction. Emails open in a sandbox: no scripts, no forms, no tracking pixels.",
-        note: "Streaming: End-to-end TLS",
+        title: "Receive Codes & Links",
+        body: "Mail arrives on its own, and any verification code is pulled out and ready to copy. Emails open safely: no scripts, no forms, no tracking pixels.",
+        note: "Sent over a secure connection",
     },
     {
         icon: Trash2,
-        title: "Auto-Shred & Purge",
-        body: `Permanent cryptographic zeroization after ${INBOX_TTL_MINUTES} minutes or instantly via manual destruction. The entire namespace is recycled.`,
-        note: "Purge: Unrecoverable",
+        title: "Everything Disappears",
+        body: `The inbox and everything in it are deleted after ${INBOX_TTL_MINUTES} minutes, or the moment you destroy it yourself. Once it is gone, it cannot be brought back.`,
+        note: "Gone for good",
     },
 ];
 

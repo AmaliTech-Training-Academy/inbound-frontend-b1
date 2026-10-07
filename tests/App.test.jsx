@@ -97,8 +97,8 @@ describe('App', () => {
       expect(screen.queryByRole('heading', { level: 1, name: HOME_HEADING })).toBeNull()
       expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
         'Click Generate',
-        'Receive OTPs & Links',
-        'Auto-Shred & Purge',
+        'Receive Codes & Links',
+        'Everything Disappears',
       ])
     })
 
