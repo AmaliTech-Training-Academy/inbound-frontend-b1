@@ -1,10 +1,8 @@
 import { MailOpen, Trash2, Zap } from "lucide-react";
 import { INBOX_TTL_MINUTES } from "../config.js";
 
-// The original project's three steps, word for word, drawn as the design's
-// cards: a hairline border on white, the step number and its icon on top.
-// The redesign gives all three the same brand treatment — the red the purge
-// card used to carry is gone.
+// The original project's three steps, word for word. All three carry the same
+// brand treatment; none is singled out by colour.
 const STEPS = [
     {
         icon: Zap,
