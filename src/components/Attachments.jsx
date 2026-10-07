@@ -47,12 +47,12 @@ function Attachments({
   // "files still loading".
   if (!attachments || attachments.length === 0) {
     return (
-      <p className={`mt-8 text-xs text-slate-400 ${className}`.trim()}>No attachments</p>
+      <p className={`mt-5 text-xs text-slate-400 ${className}`.trim()}>No attachments</p>
     )
   }
 
   return (
-    <section aria-label="Attachments" className={`mt-8 ${className}`.trim()}>
+    <section aria-label="Attachments" className={`mt-5 ${className}`.trim()}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-xs font-medium text-slate-400">
           {attachments.length} {attachments.length === 1 ? 'Attachment' : 'Attachments'}
