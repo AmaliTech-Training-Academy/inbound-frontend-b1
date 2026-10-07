@@ -26,9 +26,11 @@ const STEPS = [
     },
 ];
 
+// Three across only from lg up: at tablet widths three columns leave each card
+// narrow and tall, with dead space beneath the row.
 export default function HowInboundWorks({ className = "" }) {
     return (
-        <ol className={`m-0 grid w-full list-none grid-cols-1 gap-4 p-0 md:grid-cols-3 ${className}`}>
+        <ol className={`m-0 grid w-full list-none grid-cols-1 gap-4 p-0 lg:grid-cols-3 ${className}`}>
             {STEPS.map(({ icon: Icon, title, body, note }, index) => (
                 <li
                     key={title}
