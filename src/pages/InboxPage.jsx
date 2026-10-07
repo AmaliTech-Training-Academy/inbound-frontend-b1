@@ -346,6 +346,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
                 message={selected}
                 inboxAddress={inbox.address}
                 onBack={closeMessage}
+                onRetry={feed?.retry}
               />
             ) : messageId ? (
               <MissingMessage />

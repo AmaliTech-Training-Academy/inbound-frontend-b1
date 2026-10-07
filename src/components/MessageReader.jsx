@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { ArrowLeft, Check, Maximize2, Printer, X } from 'lucide-react'
+import { ArrowLeft, Check, Loader2, Maximize2, Printer, X } from 'lucide-react'
 import Avatar from './Avatar.jsx'
 import SafeHtmlEmail from './SafeHtmlEmail'
 import Attachments from './Attachments'
@@ -24,6 +24,7 @@ function MessageReader({
   // No fallback message: an absent one must not render someone else's mail.
   message,
   onBack,
+  onRetry,
   inboxAddress,
   onDownloadAttachment,
   onDownloadAll,
@@ -32,6 +33,10 @@ function MessageReader({
   const [isFullScreen, setIsFullScreen] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
   const copiedTimer = useRef(null)
+  // The row a retry was asked for. Any new row - loaded, or failed again -
+  // ends the "trying" state on its own.
+  const [retriedRow, setRetriedRow] = useState(null)
+  const retrying = retriedRow !== null && retriedRow === message
 
   const recipient = message?.recipientEmail || inboxAddress || null
   const relativeTime = formatRelativeTime(message?.receivedAt)
@@ -191,6 +196,38 @@ function MessageReader({
     />
   )
 
+  const notLoaded = (
+    <div role="status" className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-8 text-center">
+      <p className="text-sm font-medium text-slate-900">This message didn’t load</p>
+      <p className="mt-1 text-xs text-slate-500">
+        It arrived, but its content couldn’t be fetched. Inbound keeps trying for a little while.
+      </p>
+      {typeof onRetry === 'function' && (
+        <button
+          type="button"
+          onClick={() => {
+            setRetriedRow(message)
+            onRetry(message)
+          }}
+          disabled={retrying}
+          className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+        >
+          {retrying && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
+          {retrying ? 'Trying again…' : 'Try again'}
+        </button>
+      )}
+    </div>
+  )
+
+  const content = message?.incomplete ? (
+    notLoaded
+  ) : (
+    <>
+      {body}
+      {attachments}
+    </>
+  )
+
   return (
     <>
       <article className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 md:px-8 md:py-8">
@@ -236,8 +273,7 @@ function MessageReader({
         </h2>
 
         {codeCard}
-        {body}
-        {attachments}
+        {content}
       </article>
 
       {/* Two layers. The tinted, blurred backdrop sits still underneath; the
@@ -286,8 +322,7 @@ function MessageReader({
             </h2>
 
             {codeCard}
-            {body}
-            {attachments}
+            {content}
           </article>
         </div>
       )}

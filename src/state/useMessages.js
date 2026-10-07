@@ -6,13 +6,19 @@ import { createInboxSocket, SOCKET_STATUS } from "../services/inboxSocket.js";
 import { fetchMessage, fetchUnreadMessages, rateLimitedFor } from "../services/inboxApi.js";
 
 // The ingest webhook answers 202, so a message can be announced before it is
-// parsed. One retry covers that window; anything still PENDING falls back to
-// the preview row.
+// parsed. One quick retry covers that window; a message still PENDING after it
+// is listed as a preview and retried like any other that did not load.
 const PENDING_RETRY_MS = 700;
 
 // Lookups run one at a time (see the queue), so a request that never settles
 // would stall everything behind it. fetchMessage has no timeout of its own.
 const FETCH_TIMEOUT_MS = 8000;
+
+// A message that did not load is tried again on its own a few times: after the
+// rate-limit back-off if the server is refusing, otherwise after a short pause.
+// After that it waits for the reader's Retry, a Refresh or a reconnect.
+const AUTO_RETRIES = 3;
+const RETRY_PAUSE_MS = 5000;
 
 function byReceivedAtDesc(a, b) {
     const at = new Date(a.receivedAt ?? 0).getTime() || 0;
@@ -52,9 +58,6 @@ async function loadFullMessage(id, token) {
 
         await delay(PENDING_RETRY_MS);
         return await fetchMessage(id, token, { signal });
-    } catch (err) {
-        console.error("[useMessages] could not load message", id, err);
-        return null;
     } finally {
         clearTimeout(timer);
     }
@@ -82,6 +85,12 @@ export function useMessages(inbox) {
     const deferredSweep = useRef(null);
     const sweepRef = useRef(null);
 
+    // Automatic retries of messages that did not load: attempts so far per id,
+    // the timers waiting to run them, and the handler they call back into.
+    const retries = useRef(new Map());
+    const retryTimers = useRef(new Set());
+    const handleRef = useRef(null);
+
     // The socket is created once per inbox, so it reads credentials through a
     // ref rather than closing over a value that can go stale. Updated after
     // each commit: nothing reads it while rendering, only the socket's
@@ -105,11 +114,30 @@ export function useMessages(inbox) {
         setConnection(SOCKET_STATUS.CONNECTING);
     }
 
+    // A row that did not load is the only one that gives way: to the full
+    // message, or to a newer attempt that failed too.
     const insert = useCallback((message) => {
         setMessages((prev) => {
-            if (prev.some((m) => m.id === message.id)) return prev;
-            return [...prev, message].sort(byReceivedAtDesc);
+            const at = prev.findIndex((m) => m.id === message.id);
+            if (at === -1) return [...prev, message].sort(byReceivedAtDesc);
+            if (!prev[at].incomplete) return prev;
+            const next = [...prev];
+            next[at] = message;
+            return next.sort(byReceivedAtDesc);
         });
+    }, []);
+
+    const scheduleRetry = useCallback((partial) => {
+        const attempts = (retries.current.get(partial.id) ?? 0) + 1;
+        retries.current.set(partial.id, attempts);
+        if (attempts > AUTO_RETRIES) return;
+
+        const backoff = rateLimitedFor();
+        const timer = setTimeout(() => {
+            retryTimers.current.delete(timer);
+            handleRef.current?.(partial);
+        }, backoff > 0 ? backoff + 1000 : RETRY_PAUSE_MS);
+        retryTimers.current.add(timer);
     }, []);
 
     const enqueue = useCallback((task) => {
@@ -133,14 +161,45 @@ export function useMessages(inbox) {
             if (!token) return;
 
             enqueue(async () => {
-                const full = await loadFullMessage(partial.id, token);
-                // The id asked for is the message's id, whatever the reply
-                // carries: a row without one can be listed but never opened,
-                // since its link would lead to /inbox/undefined.
-                insert(full ? { ...full, id: full.id ?? partial.id } : toPreviewRow(partial));
+                let full = null;
+                try {
+                    full = await loadFullMessage(partial.id, token);
+                } catch (err) {
+                    console.error("[useMessages] could not load message", partial.id, err);
+                }
+
+                if (full && full.status !== "PENDING") {
+                    retries.current.delete(partial.id);
+                    // The id asked for is the message's id, whatever the reply
+                    // carries: a row without one can be listed but never opened,
+                    // since its link would lead to /inbox/undefined.
+                    insert({ ...full, id: full.id ?? partial.id });
+                    return;
+                }
+
+                // Not loaded (or still being parsed): list what is known, and
+                // release the id so a retry, a Refresh or a reconnect fetches it.
+                insert(toPreviewRow(partial));
+                seenIds.current.delete(partial.id);
+                scheduleRetry(partial);
             });
         },
-        [enqueue, insert],
+        [enqueue, insert, scheduleRetry],
+    );
+
+    useEffect(() => {
+        handleRef.current = handleMessageNew;
+    }, [handleMessageNew]);
+
+    // The reader's Retry: a fresh round of automatic attempts, starting now.
+    // A message already being fetched is left to that fetch.
+    const retry = useCallback(
+        (message) => {
+            if (!message?.id) return;
+            retries.current.delete(message.id);
+            handleMessageNew(message);
+        },
+        [handleMessageNew],
     );
 
     // Reconnect recovery. A re-join restores the transport but not the messages
@@ -200,6 +259,8 @@ export function useMessages(inbox) {
         // emptied while rendering, above).
         seenIds.current = new Set();
         queue.current = Promise.resolve();
+        retries.current = new Map();
+        const pendingRetries = retryTimers.current;
 
         // Created a tick late on purpose: StrictMode tears this effect down and
         // re-runs it on mount, and a socket created synchronously would open a
@@ -229,6 +290,8 @@ export function useMessages(inbox) {
         return () => {
             clearTimeout(connectTimer);
             clearTimeout(deferredSweep.current);
+            pendingRetries.forEach(clearTimeout);
+            pendingRetries.clear();
             socket?.close();
         };
     }, [inbox?.address, inbox?.token, handleMessageNew, recoverUnread]);
@@ -243,5 +306,5 @@ export function useMessages(inbox) {
     // The sweep, for a caller that wants one by hand - so never held off.
     const resync = useCallback(() => recoverUnread({ manual: true }), [recoverUnread]);
 
-    return { messages, connection, error, resync };
+    return { messages, connection, error, resync, retry };
 }
