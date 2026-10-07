@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { Loader2, MailOpen, Plus, RefreshCw, Search, Timer, TimerOff, Trash2 } from 'lucide-react'
+import { CloudOff, Loader2, MailOpen, Plus, RefreshCw, Search, Timer, TimerOff, Trash2 } from 'lucide-react'
 import Avatar from '../components/Avatar.jsx'
 import BrandMark from '../components/BrandMark.jsx'
 import CopyButton from '../components/CopyButton.jsx'
@@ -229,7 +229,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               No messages match “{query.trim()}”.
             </p>
           ) : (
-            <EmptyInbox address={inbox.address} />
+            <EmptyInbox address={inbox.address} feed={feed} />
           )}
         </div>
 
@@ -449,23 +449,70 @@ function ConnectionState({ connection, error }) {
   )
 }
 
-function EmptyInbox({ address }) {
+// An empty list is only called empty once it has been checked, and the line
+// under it says whether new mail can actually arrive right now.
+function EmptyInbox({ address, feed }) {
+  if (feed?.sweepError) {
+    return (
+      <div role="alert" className="flex flex-col items-center px-6 py-16 text-center">
+        <span className="flex size-12 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+          <CloudOff size={20} aria-hidden="true" />
+        </span>
+        <h2 className="mt-4 text-sm font-medium text-slate-900">Couldn’t check for messages</h2>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+          Mail that arrived before this page loaded may be missing.
+        </p>
+        <button
+          type="button"
+          onClick={() => feed.resync?.()}
+          className="mt-4 rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800"
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
+
+  const offline = feed?.connection === SOCKET_STATUS.ERROR
+  if (!feed?.synced && !offline) {
+    return (
+      <div role="status" className="flex flex-col items-center px-6 py-16 text-center text-xs text-slate-500">
+        <Loader2 size={20} className="animate-spin text-slate-400" aria-hidden="true" />
+        <p className="mt-3">Checking for messages…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col items-center px-6 py-16 text-center">
       <span className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
         <MailOpen size={20} aria-hidden="true" />
       </span>
       <h2 className="mt-4 text-sm font-medium text-slate-900">Your inbox is empty</h2>
-      <p className="mt-1 text-xs leading-relaxed text-slate-400">
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
         New messages and verification codes sent to{' '}
         <span className="break-all font-mono text-slate-600">{address}</span> will appear here
         in real-time without refreshing.
       </p>
-      <p className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500">
-        <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-        Waiting for incoming mail…
-      </p>
+      <LiveLine connection={feed?.connection} />
     </div>
+  )
+}
+
+function LiveLine({ connection }) {
+  const [dot, text] =
+    connection === SOCKET_STATUS.JOINED
+      ? ['animate-pulse bg-emerald-500', 'Waiting for incoming mail…']
+      : connection === SOCKET_STATUS.ERROR
+        ? ['bg-rose-500', 'Not connected. New mail will appear once the connection is back.']
+        : connection === SOCKET_STATUS.DISCONNECTED
+          ? ['bg-amber-500', 'Reconnecting…']
+          : ['bg-amber-500', 'Connecting…']
+  return (
+    <p role="status" className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500">
+      <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${dot}`} />
+      {text}
+    </p>
   )
 }
 

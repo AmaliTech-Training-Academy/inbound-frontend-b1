@@ -142,7 +142,7 @@ describe('App', () => {
       expectHomePage()
     })
 
-    it('says so when a message url names nothing in the open inbox', () => {
+    it('says so when a message url names nothing in the open inbox', async () => {
       seedSession()
       renderApp('/inbox/not-a-real-message')
 
@@ -151,7 +151,7 @@ describe('App', () => {
       fireEvent.click(screen.getByRole('link', { name: 'Back to inbox' }))
 
       expect(screen.queryByText('This message isn’t here')).toBeNull()
-      expect(screen.getByText('Your inbox is empty')).toBeInTheDocument()
+      expect(await screen.findByText('Your inbox is empty')).toBeInTheDocument()
     })
 
     it('leads from the inbox back to the landing page', () => {

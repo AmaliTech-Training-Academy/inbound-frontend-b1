@@ -81,7 +81,7 @@ describe("several inboxes in one session", () => {
         await addAnInbox();
 
         // The new inbox is the open one, and it has no mail of its own.
-        expect(screen.getByText("Your inbox is empty")).toBeInTheDocument();
+        expect(await screen.findByText("Your inbox is empty")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: ROW_LABEL })).toBeNull();
 
         // One click on the rail switches to the inbox: no profile in between.

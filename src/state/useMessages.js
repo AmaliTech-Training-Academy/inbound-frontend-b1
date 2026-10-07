@@ -67,6 +67,11 @@ export function useMessages(inbox) {
     const [messages, setMessages] = useState([]);
     const [connection, setConnection] = useState(SOCKET_STATUS.CONNECTING);
     const [error, setError] = useState(null);
+    // Whether the first sweep has settled and what it found is listed, and why
+    // the last sweep failed - so an empty list is only called empty once it
+    // has been checked.
+    const [synced, setSynced] = useState(false);
+    const [sweepError, setSweepError] = useState(null);
 
     // Ids already accepted, checked before the fetch so a replayed event costs
     // nothing. A ref because the socket handler needs it synchronously.
@@ -112,6 +117,8 @@ export function useMessages(inbox) {
         setMessages([]);
         setError(null);
         setConnection(SOCKET_STATUS.CONNECTING);
+        setSynced(false);
+        setSweepError(null);
     }
 
     // A row that did not load is the only one that gives way: to the full
@@ -209,7 +216,8 @@ export function useMessages(inbox) {
     // full-message load, same ordering.
     //
     // A failure here must not cost the caller anything - live arrivals keep
-    // working - so it is logged and swallowed rather than raised.
+    // working - so it is reported as sweepError rather than raised, and a sweep
+    // refused for too many requests runs again once the back-off is over.
     // `manual` is a sweep the user asked for (Refresh): it always goes out.
     // The automatic one, on every socket join, holds off after a 429.
     const recoverUnread = useCallback(async ({ manual = false } = {}) => {
@@ -233,19 +241,32 @@ export function useMessages(inbox) {
         const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
         recovering.current = true;
+        let swept = false;
 
         try {
             const unread = await fetchUnreadMessages(token, {
                 inboxId: inboxRef.current?.id,
                 signal: controller.signal,
             });
+            setSweepError(null);
             unread.forEach(handleMessageNew);
+            swept = true;
         } catch (err) {
             console.error("[useMessages] could not recover unread messages", err);
+            setSweepError(err);
+            const backoff = rateLimitedFor();
+            if (backoff > 0) {
+                clearTimeout(deferredSweep.current);
+                deferredSweep.current = setTimeout(() => sweepRef.current?.(), backoff + 1000);
+            }
         } finally {
             clearTimeout(timer);
             recovering.current = false;
         }
+
+        // What the sweep found is on screen before the list counts as checked.
+        if (swept) await queue.current;
+        setSynced(true);
     }, [handleMessageNew]);
 
     useEffect(() => {
@@ -306,5 +327,5 @@ export function useMessages(inbox) {
     // The sweep, for a caller that wants one by hand - so never held off.
     const resync = useCallback(() => recoverUnread({ manual: true }), [recoverUnread]);
 
-    return { messages, connection, error, resync, retry };
+    return { messages, connection, error, synced, sweepError, resync, retry };
 }

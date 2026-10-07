@@ -585,6 +585,60 @@ describe("useMessages", () => {
         expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(1);
     });
 
+    describe("whether the list has been checked", () => {
+        it("is not synced until the first sweep has listed what it found", async () => {
+            mocks.fetchUnreadMessages.mockResolvedValue([unread("msg-1", "2026-09-17T09:00:01.000Z")]);
+            const { result } = await renderMessages();
+            expect(result.current.synced).toBe(false);
+
+            await rejoin();
+
+            await waitFor(() => expect(result.current.synced).toBe(true));
+            expect(result.current.messages.map((m) => m.id)).toEqual(["msg-1"]);
+            expect(result.current.sweepError).toBeNull();
+        });
+
+        it("reports a failed sweep, and clears it when a later sweep works", async () => {
+            const refused = new Error("server down");
+            mocks.fetchUnreadMessages.mockRejectedValueOnce(refused).mockResolvedValue([]);
+            const { result } = await renderMessages();
+
+            await rejoin();
+            await waitFor(() => expect(result.current.sweepError).toBe(refused));
+            expect(result.current.synced).toBe(true);
+
+            await act(async () => {
+                await result.current.resync();
+            });
+            expect(result.current.sweepError).toBeNull();
+        });
+
+        it("sweeps again once the back-off is over when the sweep was refused", async () => {
+            const { result } = await renderMessages();
+            vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+            mocks.fetchUnreadMessages
+                .mockImplementationOnce(async () => {
+                    // What guardedFetch does when the server answers 429.
+                    mocks.rateLimitedFor.mockReturnValue(10_000);
+                    throw new Error("429");
+                })
+                .mockResolvedValue([unread("late-1", "2026-09-17T09:00:00.000Z")]);
+
+            await rejoin();
+            expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(1);
+
+            mocks.rateLimitedFor.mockReturnValue(0);
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(11_000);
+            });
+            vi.useRealTimers();
+
+            await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual(["late-1"]));
+            expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(2);
+            expect(result.current.sweepError).toBeNull();
+        });
+    });
+
     it("sweeps by hand even while the automatic sweep is holding off", async () => {
         // Refresh is the user asking: it goes out whatever the back-off says.
         mocks.rateLimitedFor.mockReturnValue(30_000);

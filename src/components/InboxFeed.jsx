@@ -10,11 +10,11 @@ import { useMessages } from "../state/useMessages.js";
 // not on screen.
 export default function InboxFeed({ inbox, onUpdate }) {
     const feed = useMessages(inbox);
-    const { messages, connection, error, resync, retry } = feed;
+    const { messages, connection, error, synced, sweepError, resync, retry } = feed;
 
     useEffect(() => {
-        onUpdate(inbox.id, { messages, connection, error, resync, retry });
-    }, [inbox.id, messages, connection, error, resync, retry, onUpdate]);
+        onUpdate(inbox.id, { messages, connection, error, synced, sweepError, resync, retry });
+    }, [inbox.id, messages, connection, error, synced, sweepError, resync, retry, onUpdate]);
 
     return null;
 }
