@@ -85,7 +85,7 @@ export const INBOX_TTL_MINUTES = 10;
 
 /**
  * Minutes added per extend. DISPLAY ONLY, for the same reason:
- * PATCH /api/v1/inbox/extend takes no body and always adds a fixed amount.
+ * PATCH /api/v1/inbox/extend/:id takes no body and always adds a fixed amount.
  */
 export const EXTEND_MINUTES = 5;
 
