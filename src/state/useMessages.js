@@ -4,20 +4,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createInboxSocket, SOCKET_STATUS } from "../services/inboxSocket.js";
 import { fetchMessage, fetchUnreadMessages, rateLimitedFor } from "../services/inboxApi.js";
-// TEMPORARY LATENCY DIAGNOSTICS - observation only: none of these calls change
-// control flow, ordering or timing. See utils/timingLog.js.
-import {
-    noteArrival,
-    noteQueued,
-    noteFetchStarted,
-    noteFetchReturned,
-    noteRetry,
-    noteRetryStarted,
-    noteInserted,
-    noteStage,
-    noteSweepStarted,
-    noteSweepReturned,
-} from "../utils/timingLog.js";
 
 // The ingest webhook answers 202, so a message can be announced before it is
 // parsed. One retry covers that window; anything still PENDING falls back to
@@ -61,27 +47,13 @@ async function loadFullMessage(id, token) {
     const signal = controller.signal;
 
     try {
-        // TEMPORARY DIAGNOSTICS: where the queue actually reaches this message,
-        // so it sits after any wait behind earlier fetches.
-        noteFetchStarted(id, 1);
-
         const first = await fetchMessage(id, token, { signal });
-        noteFetchReturned(id, first?.status, 1, first); // TEMPORARY DIAGNOSTICS
-
         if (first?.status !== "PENDING") return first;
 
-        // TEMPORARY DIAGNOSTICS: the retry is why a message can appear a
-        // further ~700ms late.
-        noteRetry(id, PENDING_RETRY_MS);
         await delay(PENDING_RETRY_MS);
-
-        noteRetryStarted(id); // TEMPORARY DIAGNOSTICS
-        const second = await fetchMessage(id, token, { signal });
-        noteFetchReturned(id, second?.status, 2, second); // TEMPORARY DIAGNOSTICS
-        return second;
+        return await fetchMessage(id, token, { signal });
     } catch (err) {
         console.error("[useMessages] could not load message", id, err);
-        noteStage(id, "[!] fetch failed", String(err?.message ?? err)); // TEMPORARY DIAGNOSTICS
         return null;
     } finally {
         clearTimeout(timer);
@@ -134,32 +106,17 @@ export function useMessages(inbox) {
     }
 
     const insert = useCallback((message) => {
-        // TEMPORARY DIAGNOSTICS: logged as the row goes into state. React
-        // commits the re-render right after, so `rendered` follows closely.
-        noteInserted(message.id);
-
         setMessages((prev) => {
             if (prev.some((m) => m.id === message.id)) return prev;
             return [...prev, message].sort(byReceivedAtDesc);
         });
     }, []);
 
-    // TEMPORARY DIAGNOSTICS: how many fetches are outstanding at any moment -
-    // the number a live arrival ends up waiting behind. Book-keeping only:
-    // nothing reads it to make a decision.
-    const pendingFetches = useRef(0);
-
     const enqueue = useCallback((task) => {
-        pendingFetches.current += 1; // TEMPORARY DIAGNOSTICS
-        queue.current = queue.current
-            .then(task)
-            .catch((err) => {
-                // A rejected task must not break the chain behind it.
-                console.error("[useMessages] queued task failed", err);
-            })
-            .finally(() => {
-                pendingFetches.current -= 1; // TEMPORARY DIAGNOSTICS
-            });
+        queue.current = queue.current.then(task).catch((err) => {
+            // A rejected task must not break the chain behind it.
+            console.error("[useMessages] queued task failed", err);
+        });
         return queue.current;
     }, []);
 
@@ -169,17 +126,7 @@ export function useMessages(inbox) {
     // one row.
     const handleMessageNew = useCallback(
         (partial) => {
-            if (!partial?.id) return;
-
-            // TEMPORARY DIAGNOSTICS: a no-op for a socket arrival, which the
-            // socket already stamped. For a recovery row this is the arrival,
-            // and it is labelled so the two are never confused.
-            noteArrival(partial.id, partial, "recovery sweep");
-
-            if (seenIds.current.has(partial.id)) {
-                noteStage(partial.id, "skipped (already accepted)"); // TEMPORARY DIAGNOSTICS
-                return;
-            }
+            if (!partial?.id || seenIds.current.has(partial.id)) return;
             seenIds.current.add(partial.id);
 
             const token = inboxRef.current?.token;
@@ -192,10 +139,6 @@ export function useMessages(inbox) {
                 // since its link would lead to /inbox/undefined.
                 insert(full ? { ...full, id: full.id ?? partial.id } : toPreviewRow(partial));
             });
-
-            // TEMPORARY DIAGNOSTICS: depth counts this task too, so "ahead" is
-            // how many fetches must finish before this message's fetch starts.
-            noteQueued(partial.id, pendingFetches.current - 1);
         },
         [enqueue, insert],
     );
@@ -231,19 +174,12 @@ export function useMessages(inbox) {
         const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
         recovering.current = true;
-        noteSweepStarted(); // TEMPORARY DIAGNOSTICS
 
         try {
             const unread = await fetchUnreadMessages(token, {
                 inboxId: inboxRef.current?.id,
                 signal: controller.signal,
             });
-
-            // TEMPORARY DIAGNOSTICS: every row below becomes one fetch queued
-            // ahead of anything that arrives while the sweep drains, so this
-            // count is the length of the queue a live message lands behind.
-            noteSweepReturned(unread.length);
-
             unread.forEach(handleMessageNew);
         } catch (err) {
             console.error("[useMessages] could not recover unread messages", err);

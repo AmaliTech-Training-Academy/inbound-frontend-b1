@@ -3,14 +3,11 @@
 // something is attached) and a line of the body. A row is a button, so the
 // caller decides what opening a message means.
 
-import { useEffect } from "react";
 import { Paperclip } from "lucide-react";
 import Avatar from "./Avatar.jsx";
 import { formatRelativeTime } from "../utils/time.js";
 import { splitSender } from "../utils/message.js";
 import { extractVerificationCode } from "../utils/verificationCode.js";
-// TEMPORARY LATENCY DIAGNOSTICS - observation only, see utils/timingLog.js.
-import { noteRendered } from "../utils/timingLog.js";
 
 // A one-line taste of the body, for under the subject. The body may be HTML or
 // plain text, and only needs to be readable here, not faithful.
@@ -39,15 +36,6 @@ export default function MessageList({
     selectedId = null,
     isUnread = (message) => !message.isRead,
 }) {
-    // TEMPORARY DIAGNOSTICS: the list is newest first, so messages[0] is the
-    // newest arrival. An effect runs after React has committed, so this is the
-    // first moment the row is on screen. Keyed on the id, so the once-a-second
-    // clock re-render does not re-log it.
-    const newestId = messages[0]?.id;
-    useEffect(() => {
-        if (newestId) noteRendered(newestId);
-    }, [newestId]);
-
     if (!messages || messages.length === 0) return null;
 
     return (
