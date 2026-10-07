@@ -107,6 +107,20 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     if (messageId) navigate(INBOX_PATH, { replace: true })
   }, [messageId, navigate])
 
+  // So when another inbox takes over by itself - the open one expired, or the
+  // server's list dropped it - the url goes back to the list too.
+  const shownInboxId = useRef(inbox.id)
+  useEffect(() => {
+    if (shownInboxId.current === inbox.id) return
+    shownInboxId.current = inbox.id
+    leaveMessage()
+  }, [inbox.id, leaveMessage])
+
+  // Until the list has been checked, a message url that matches nothing may
+  // simply not have loaded yet (a reload with a message open).
+  const listPending =
+    !feed?.synced && !feed?.sweepError && feed?.connection !== SOCKET_STATUS.ERROR
+
   // One click on the rail is the switch: no profile step in between.
   const switchTo = (id) => {
     select(id)
@@ -370,7 +384,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
                 onRetry={feed?.retry}
               />
             ) : messageId ? (
-              <MissingMessage />
+              listPending ? <LoadingMessage /> : <MissingMessage />
             ) : (
               <NothingOpen address={inbox.address} count={messages.length} />
             )}
@@ -553,12 +567,21 @@ function NothingOpen({ address, count }) {
   )
 }
 
+function LoadingMessage() {
+  return (
+    <div role="status" className="flex h-full flex-col items-center justify-center px-6 py-16 text-center text-xs text-slate-500">
+      <Loader2 size={20} className="animate-spin text-slate-400" aria-hidden="true" />
+      <p className="mt-3">Loading message…</p>
+    </div>
+  )
+}
+
 function MissingMessage() {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 py-16 text-center">
       <p className="text-sm font-medium text-slate-900">This message isn’t here</p>
-      <p className="mt-1 max-w-xs text-xs text-slate-400">
-        It may belong to another inbox, or it can’t be listed again after a reload.
+      <p className="mt-1 max-w-xs text-xs text-slate-500">
+        It may belong to another of your inboxes, or it has expired.
       </p>
       <Link to={INBOX_PATH} className="mt-4 text-xs font-medium text-sky-600 hover:underline">
         Back to inbox

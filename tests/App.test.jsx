@@ -146,12 +146,46 @@ describe('App', () => {
       seedSession()
       renderApp('/inbox/not-a-real-message')
 
-      expect(screen.getByText('This message isn’t here')).toBeInTheDocument()
+      expect(await screen.findByText('This message isn’t here')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('link', { name: 'Back to inbox' }))
 
       expect(screen.queryByText('This message isn’t here')).toBeNull()
       expect(await screen.findByText('Your inbox is empty')).toBeInTheDocument()
+    })
+
+    it('shows a message url as loading until the inbox has been checked', async () => {
+      // A reload with a message open: the list is rebuilt from the server
+      // first, so "not here" would be said too soon.
+      seedSession()
+      renderApp('/inbox/not-a-real-message')
+
+      expect(screen.getByText('Loading message…')).toBeInTheDocument()
+      expect(screen.queryByText('This message isn’t here')).toBeNull()
+
+      expect(await screen.findByText('This message isn’t here')).toBeInTheDocument()
+    })
+
+    it('goes back to the list when the open inbox expires with a message open', async () => {
+      const soon = new Date(Date.now() + 300).toISOString()
+      window.sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          token: 'token-app-1',
+          expiresAt: inMinutes(10),
+          inboxes: [
+            { id: 'inbox-a', address: 'going@inbound.mail', createdAt: new Date().toISOString(), expiresAt: soon, extendCount: 0 },
+            { id: 'inbox-b', address: 'staying@inbound.mail', createdAt: new Date().toISOString(), expiresAt: inMinutes(10), extendCount: 0 },
+          ],
+          activeId: 'inbox-a',
+          hiddenIds: [],
+        }),
+      )
+      renderApp('/inbox/a-message-in-inbox-a')
+
+      expect(await screen.findByText('Nothing here yet')).toBeInTheDocument()
+      expect(screen.queryByText('This message isn’t here')).toBeNull()
+      expect(screen.queryByText('Loading message…')).toBeNull()
     })
 
     it('leads from the inbox back to the landing page', () => {
