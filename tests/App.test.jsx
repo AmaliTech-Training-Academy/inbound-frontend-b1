@@ -102,8 +102,12 @@ describe('App', () => {
       ])
     })
 
-    it('is where Learn More and Read more lead', () => {
+    it('is where Learn More leads', () => {
       renderApp()
+
+      // Learn More is the only way in from the landing page: the pill that
+      // used to carry a second link to the same place no longer does.
+      expect(screen.queryByRole('link', { name: /Read more/ })).toBeNull()
 
       fireEvent.click(screen.getByRole('link', { name: /Learn More/ }))
       expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
@@ -111,8 +115,7 @@ describe('App', () => {
       // There is no Home link; the brand is the way back.
       expect(within(nav()).queryByRole('link', { name: 'Home' })).toBeNull()
       fireEvent.click(within(nav()).getByRole('link', { name: 'Inbound' }))
-      fireEvent.click(screen.getByRole('link', { name: /Read more/ }))
-      expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 1, name: /Generate/ })).toBeInTheDocument()
     })
 
     it('only explains: getting an inbox is left to the nav', () => {

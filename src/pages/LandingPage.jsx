@@ -39,13 +39,7 @@ export default function LandingPage() {
                 </Link>
               </>
             ) : (
-              <>
-                <span className="truncate">No sign-up. Self-destructs in {INBOX_TTL_MINUTES} min.</span>
-                <Link to={ROUTES.howItWorks} className="flex shrink-0 items-center gap-1 font-medium">
-                  <span>Read more</span>
-                  <ArrowIcon />
-                </Link>
-              </>
+              <span className="truncate">No sign-up. Self-destructs in {INBOX_TTL_MINUTES} min.</span>
             )}
           </div>
 
