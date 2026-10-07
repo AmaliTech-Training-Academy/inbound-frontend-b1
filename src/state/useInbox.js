@@ -459,6 +459,8 @@ export function useInbox() {
         );
     }, []);
 
+    const dismissError = useCallback(() => setError(null), []);
+
     // Ends everything, locally. Does not touch the server.
     const reset = useCallback(() => {
         endSession("idle");
@@ -619,5 +621,6 @@ export function useInbox() {
         destroy,
         extend,
         refresh,
+        dismissError,
     };
 }

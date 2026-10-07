@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { CloudOff, Loader2, MailOpen, Plus, RefreshCw, Search, Timer, TimerOff, Trash2 } from 'lucide-react'
+import { CloudOff, Loader2, MailOpen, Plus, RefreshCw, Search, Timer, TimerOff, Trash2, X } from 'lucide-react'
 import Avatar from '../components/Avatar.jsx'
 import BrandMark from '../components/BrandMark.jsx'
 import CopyButton from '../components/CopyButton.jsx'
@@ -70,6 +70,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     canExtend,
     busy,
     error,
+    dismissError,
     notice,
     maxInboxes,
     atInboxLimit,
@@ -118,7 +119,12 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     return created
   }, [addInbox, leaveMessage])
 
-  const closeAdd = useCallback(() => setAddOpen(false), [])
+  // The dialog has already said why an inbox could not be added, so the same
+  // error is not left behind it on the page.
+  const closeAdd = useCallback(() => {
+    setAddOpen(false)
+    dismissError()
+  }, [dismissError])
   const cancelDestroy = useCallback(() => setConfirmingDestroy(false), [])
 
   const confirmDestroy = () => {
@@ -334,9 +340,19 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
           <RateLimitNotice until={rateLimitedUntil()} now={now} />
 
           {error && (
-            <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700 sm:px-6">
-              {error.message}
-            </p>
+            <div className="flex items-start gap-3 border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700 sm:px-6">
+              <p role="alert" className="min-w-0 flex-1">
+                {error.message}
+              </p>
+              <button
+                type="button"
+                onClick={dismissError}
+                className="shrink-0 rounded text-rose-500 hover:text-rose-800"
+                aria-label="Dismiss error"
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            </div>
           )}
 
           <div
