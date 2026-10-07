@@ -297,24 +297,24 @@ function MessageReader({
             if (e.target === e.currentTarget) setIsFullScreen(false)
           }}
         >
+          {/* Pinned to the window's top right rather than sitting in the
+              header, so it stays where it is looked for as the email scrolls. */}
+          <button
+            type="button"
+            onClick={() => setIsFullScreen(false)}
+            className="fixed top-4 right-4 z-10 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+            aria-label="Exit Fullscreen"
+          >
+            <X size={14} aria-hidden="true" />
+            <span className="hidden sm:inline">Exit fullscreen</span>
+          </button>
           <article
             className="min-h-full w-full max-w-3xl bg-white p-6 shadow-2xl sm:min-h-0 sm:rounded-3xl sm:border sm:border-slate-200 sm:p-10"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-5">
               {sender}
-              <div className="flex shrink-0 items-center gap-3 text-slate-400">
-                {received}
-                <button
-                  type="button"
-                  onClick={() => setIsFullScreen(false)}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                  aria-label="Exit Fullscreen"
-                >
-                  <X size={14} aria-hidden="true" />
-                  <span className="hidden sm:inline">Exit fullscreen</span>
-                </button>
-              </div>
+              <div className="flex shrink-0 items-center gap-3 text-slate-400">{received}</div>
             </header>
 
             <h2 className="mt-6 wrap-break-word text-xl font-semibold text-slate-900 sm:text-2xl">
