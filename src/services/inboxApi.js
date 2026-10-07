@@ -43,9 +43,15 @@ function assertConfigured() {
 // Loud at start-up rather than at the first click.
 if (CONFIG_ERROR) console.error(`[inboxApi] ${CONFIG_ERROR}`);
 
+export const RATE_LIMITED_MESSAGE =
+    "Too many requests from your network. Please wait a few minutes and try again.";
+
 export class ApiError extends Error {
     constructor(status, message) {
-        super(message || `Request failed (${status})`);
+        // A 429 always reads the same, whatever the body said or whether it
+        // could be read: the server's wording names an IP address, which means
+        // nothing to someone on a shared office network.
+        super(status === 429 ? RATE_LIMITED_MESSAGE : message || `Request failed (${status})`);
         this.name = "ApiError";
         this.status = status;
     }
@@ -97,6 +103,11 @@ let refusals = 0;
 /** Milliseconds background requests should still hold off for; 0 when they need not. */
 export function rateLimitedFor() {
     return Math.max(0, coolingUntil - Date.now());
+}
+
+/** When background requests may go out again, as a timestamp; in the past once they may. */
+export function rateLimitedUntil() {
+    return coolingUntil;
 }
 
 /** Forgets any back-off. For tests, which share this module's state. */

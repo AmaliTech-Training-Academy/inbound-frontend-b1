@@ -9,8 +9,10 @@ import MessageReader from '../components/MessageReader.jsx'
 import InboxRail from '../components/InboxRail.jsx'
 import NewInboxDialog from '../components/NewInboxDialog.jsx'
 import ConfirmDestroyDialog from '../components/ConfirmDestroyDialog.jsx'
+import RateLimitNotice from '../components/RateLimitNotice.jsx'
 import { SiteFooter, SiteHero } from '../components/SiteChrome.jsx'
 import { SOCKET_STATUS } from '../services/inboxSocket.js'
+import { rateLimitedUntil } from '../services/inboxApi.js'
 import { useNow } from '../state/useNow.js'
 import { formatTimeLeft, isRunningOut } from '../utils/inboxProgress.js'
 import { toReaderMessage } from '../utils/message.js'
@@ -328,6 +330,8 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               </span>
             </button>
           </div>
+
+          <RateLimitNotice until={rateLimitedUntil()} now={now} />
 
           {error && (
             <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700 sm:px-6">
