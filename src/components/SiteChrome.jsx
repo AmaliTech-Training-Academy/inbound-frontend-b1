@@ -97,7 +97,7 @@ export function SiteFooter() {
       <span aria-hidden="true" className="mx-2 text-slate-300">
         •
       </span>
-      © 2026 Inbound. Zero logs, zero tracking. Ephemeral by architecture.
+      © 2026 Inbound. No logs, no tracking. Gone when you close the tab.
     </footer>
   )
 }
