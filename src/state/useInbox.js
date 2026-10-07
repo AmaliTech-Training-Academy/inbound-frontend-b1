@@ -287,8 +287,19 @@ export function useInbox() {
     useEffect(() => {
         const live = liveInboxes(session);
         if (live.length === 0) return undefined;
-        const soonest = Math.min(...live.map((inbox) => msRemaining(inbox.expiresAt)));
-        const t = setTimeout(expireDue, Math.max(0, soonest));
+        let t;
+        const schedule = () => {
+            const currentLive = liveInboxes(sessionRef.current);
+            if (currentLive.length === 0) return;
+            const soonest = Math.min(...currentLive.map((inbox) => msRemaining(inbox.expiresAt)));
+            t = setTimeout(() => {
+                expireDue();
+                if (liveInboxes(sessionRef.current).length > 0) {
+                    schedule();
+                }
+            }, Math.max(0, soonest) + 20);
+        };
+        schedule();
         return () => clearTimeout(t);
     }, [session, expireDue]);
 

@@ -25,7 +25,9 @@ export function useTheme() {
         document.documentElement.classList.toggle("dark", theme === "dark");
         try {
             localStorage.setItem(STORAGE_KEY, theme);
-        } catch {}
+        } catch {
+            // Storage may be blocked or unavailable; non-fatal.
+        }
         window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: theme }));
     }, [theme]);
 
