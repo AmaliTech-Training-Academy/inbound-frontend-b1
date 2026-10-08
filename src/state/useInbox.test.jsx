@@ -511,6 +511,19 @@ describe("useInbox", () => {
             });
         });
 
+        it("never shows an inbox that had already run out before the first render", async () => {
+            // Covers the restore path rather than the sweep: one that is
+            // already out when the session is read is pruned on the way in, so
+            // it is never drawn at all.
+            storeSession({
+                inboxes: [inboxA, { ...inboxB, expiresAt: inMinutes(-1) }],
+            });
+            const { result } = renderHook(() => useInbox());
+
+            await waitFor(() => expect(result.current.inboxes).toHaveLength(1));
+            expect(result.current.inbox.id).toBe("a");
+        });
+
         it("says so when the server's list drops an expired inbox", async () => {
             storeSession();
             getSessionInboxes.mockResolvedValue([

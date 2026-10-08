@@ -292,14 +292,24 @@ export function useInbox() {
 
     // One timeout aimed at the soonest expiry, re-armed whenever the inboxes
     // change (an extend pushes one out, an add brings a new one in).
+    //
+    // Aimed from every inbox still in the session, not from liveInboxes: that
+    // one drops an inbox the moment its clock reaches zero. An inbox that ran
+    // out but has not been swept yet was therefore invisible here, so a
+    // re-render in that window cleared the pending timer and re-armed it for
+    // the *next* inbox - minutes away - and the expired one sat on screen
+    // until a sync or a tab focus happened to sweep it. Counting it keeps its
+    // remaining time at 0, which fires the sweep immediately instead.
     useEffect(() => {
-        const live = liveInboxes(session);
-        if (live.length === 0) return undefined;
+        if (!session) return undefined;
         let t;
         const schedule = () => {
-            const currentLive = liveInboxes(sessionRef.current);
-            if (currentLive.length === 0) return;
-            const soonest = Math.min(...currentLive.map((inbox) => msRemaining(inbox.expiresAt)));
+            const current = sessionRef.current;
+            if (!current) return;
+            const hidden = new Set(current.hiddenIds ?? []);
+            const pending = current.inboxes.filter((inbox) => !hidden.has(inbox.id));
+            if (pending.length === 0) return;
+            const soonest = Math.min(...pending.map((inbox) => msRemaining(inbox.expiresAt)));
             t = setTimeout(() => {
                 expireDue();
                 if (liveInboxes(sessionRef.current).length > 0) {
