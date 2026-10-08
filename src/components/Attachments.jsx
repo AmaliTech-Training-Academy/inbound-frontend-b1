@@ -33,7 +33,14 @@ function fileType(att) {
 
 // A message's attachments as the design's file tiles. Each action is drawn
 // only when a handler is passed for it, so a button that does nothing is never
-// shown.
+// shown. The API serves one attachment per request and has no zip endpoint, so
+// Download All saves them one after another.
+//
+// onViewAttachment is supported but deliberately not wired by InboxPage. Do
+// not hand it something that opens the bytes in a tab: a blob: url runs in
+// this page's origin, so an emailed text/html or svg attachment would execute
+// script next to the session token. Anything that previews has to build the
+// blob with a type chosen from an allowlist, not the one the response carried.
 function Attachments({
   attachments = [],
   totalAttachmentSize = '',
@@ -63,7 +70,7 @@ function Attachments({
             type="button"
             onClick={onDownloadAll}
             className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
-            aria-label="Download all attachments as zip"
+            aria-label="Download all attachments"
           >
             Download All
           </button>
