@@ -43,7 +43,9 @@ function SafeHtmlEmail({ htmlContent }) {
   // a mail with no surface of its own is read light-on-dark; one that painted
   // its own panel needs the light default, or the near-white would vanish on
   // it. A colour the sender set themselves wins over either.
-  const defaultTextColor = isDark && !ownSurface ? '#d3dae6' : '#111213'
+  // Light-on-dark only when the mail brought no surface of its own.
+  const darkFrame = isDark && !ownSurface
+  const defaultTextColor = darkFrame ? '#d3dae6' : '#111213'
 
   // The reader's own base styles come after the sender's, so the frame's
   // background stays the reader's: an email's `body { background }` paints its
@@ -63,6 +65,12 @@ ${content}
     margin: 0 !important;
     padding: 0 !important;
     background: transparent !important;
+    /* A transparent background is not enough on its own: a frame's canvas is
+       the browser's own, and under a light color-scheme that canvas is white,
+       so the mail sat in a white panel with near-white text on it. This is
+       what decides the canvas, and it follows the same condition as the text
+       colour so the two can never disagree. */
+    color-scheme: ${darkFrame ? 'dark' : 'light'};
   }
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
