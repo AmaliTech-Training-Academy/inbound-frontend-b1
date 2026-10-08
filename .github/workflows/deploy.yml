@@ -87,7 +87,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition inbound-cluster-inbound-client-a1a \
+            --task-definition inbound-cluster-inbound-client-a1a4 \
             --query taskDefinition > task-definition.json
 
       - name: Render new task definition revision
