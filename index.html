@@ -15,7 +15,9 @@
                 if (localStorage.getItem("inbound-theme") === "dark") {
                     document.documentElement.classList.add("dark");
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error("Failed to read theme from localStorage:", e);
+            }
         </script>
     </head>
     <body>

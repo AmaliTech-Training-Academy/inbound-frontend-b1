@@ -13,7 +13,8 @@ const THEME_EVENT = "inbound:theme";
 function readStored() {
     try {
         return localStorage.getItem(STORAGE_KEY) === "dark" ? "dark" : "light";
-    } catch {
+    } catch (e) {
+        console.error("Failed to read theme from localStorage:", e);
         return "light";
     }
 }
@@ -25,8 +26,8 @@ export function useTheme() {
         document.documentElement.classList.toggle("dark", theme === "dark");
         try {
             localStorage.setItem(STORAGE_KEY, theme);
-        } catch {
-            // Storage may be blocked or unavailable; non-fatal.
+        } catch (e) {
+            console.error("Failed to save theme to localStorage:", e);
         }
         window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: theme }));
     }, [theme]);
