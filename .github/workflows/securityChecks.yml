@@ -2,9 +2,9 @@ name: Backend Security
 
 on:
   push:
-    branches: [main, dev,feat/frontend-devops] #remove the temp feat/github-actions branch after the PR is merged
+    branches: [main, dev,devops-stable] #remove the temp feat/github-actions branch after the PR is merged
   pull_request:
-    branches: [main, dev,feat/frontend-devops]
+    branches: [main, dev,devops-stable]
      
 permissions:
   contents: read
@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
