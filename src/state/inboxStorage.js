@@ -95,9 +95,10 @@ export function loadInbox() {
 //   { token, expiresAt, inboxes: [{ id, address, createdAt, expiresAt,
 //     extendCount }], activeId, hiddenIds: [] }
 //
-// hiddenIds are inboxes destroyed in this tab. The API has no delete, so a
-// destroyed inbox lives on server-side until its TTL and has to be kept out
-// of the list here.
+// hiddenIds are inboxes destroyed in this tab. destroy() deletes them on the
+// server too, so this is no longer the only thing keeping them off screen -
+// but a sync already in flight when the delete landed can still answer with
+// one, so the list stays filtered here as well.
 
 const SESSION_KEY = "inbound.session";
 

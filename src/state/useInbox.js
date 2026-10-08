@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     createInbox,
+    deleteInbox,
     getInboxInfo,
     getSessionInboxes,
     extendInbox,
@@ -354,9 +355,10 @@ export function useInbox() {
         const count = liveInboxes(current).length;
 
         // The backend caps a session's inboxes; asking past the cap would only
-        // be refused. Destroying one here does not free a place server-side
-        // until its TTL runs out (there is no delete), so a refusal can still
-        // come back below, and it is shown as the server words it.
+        // be refused. Destroying one frees its place server-side straight away
+        // now that destroy() really deletes, but an expiry the server has seen
+        // and this tab has not can still put the two counts out of step, so a
+        // refusal can come back below and is shown as the server words it.
         if (count >= MAX_INBOXES) {
             setError(
                 new Error(
@@ -490,19 +492,57 @@ export function useInbox() {
 
     // "Destroy Inbox": the one being viewed.
     //
-    // Local-only, because the API has no DELETE: the address keeps receiving
-    // mail server-side until its TTL runs out. Hiding it is the most this
-    // client can do. With other inboxes left the next one takes over; with
-    // none, the session ends. If a delete endpoint is added, this is where it
-    // goes.
-    const destroy = useCallback(() => {
-        cancelSync();
-        setError(null);
+    // A real delete now that the API has one. The address stops receiving mail
+    // at once rather than lingering until its TTL, and the messages and
+    // attachments go with it - which is what the button has always claimed.
+    //
+    // The server is asked first and the inbox is only taken off screen once it
+    // agrees. Hiding it first would read as "destroyed" while the address
+    // quietly kept accepting mail whenever the call failed.
+    //
+    // With other inboxes left the next one takes over; with none, the session
+    // ends at "idle" - a deliberate destroy is not an expiry.
+    const destroy = useCallback(async () => {
         const current = sessionRef.current;
-        if (!current) return;
+        if (!current?.activeId) return;
+        if (actionLock.current) return;
+        const id = current.activeId;
+
+        actionLock.current = true;
+        cancelSync();
+        setBusy("destroying");
+        setError(null);
+
+        let gone = false;
+        try {
+            await deleteInbox(id, current.token);
+            gone = true;
+        } catch (err) {
+            console.error("[useInbox] destroy failed", err);
+            // 404/410: the server has already let it go, which is the outcome
+            // that was asked for. Anything else leaves it alive and still
+            // taking mail, so it stays on screen and the user is told.
+            if (err instanceof ApiError && (err.isNotFound || err.isExpired)) {
+                gone = true;
+            } else {
+                setError(new Error("Could not destroy the inbox. Try again."));
+            }
+        } finally {
+            actionLock.current = false;
+            setBusy(null);
+        }
+
+        if (!gone) return;
+
+        // Re-read: the await above gave other handlers a chance to move it on.
+        const latest = sessionRef.current;
+        if (!latest) return;
         const next = pruneSession({
-            ...current,
-            hiddenIds: [...current.hiddenIds, current.activeId],
+            ...latest,
+            // Still hidden as well as deleted: a sync already in flight can
+            // answer with the inbox the server has only just dropped.
+            hiddenIds: [...latest.hiddenIds, id],
+            inboxes: latest.inboxes.filter((entry) => entry.id !== id),
         });
         if (!next) {
             endSession("idle");
