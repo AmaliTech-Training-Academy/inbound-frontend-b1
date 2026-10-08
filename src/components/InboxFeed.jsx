@@ -9,8 +9,7 @@ import { useMessages } from "../state/useMessages.js";
 // and socket alive, and the rail can count unread mail in inboxes that are
 // not on screen.
 export default function InboxFeed({ inbox, onUpdate }) {
-    const feed = useMessages(inbox);
-    const { messages, connection, error, synced, sweepError, resync, retry } = feed;
+    const { messages, connection, error, synced, sweepError, resync, retry } = useMessages(inbox);
 
     useEffect(() => {
         onUpdate(inbox.id, { messages, connection, error, synced, sweepError, resync, retry });
