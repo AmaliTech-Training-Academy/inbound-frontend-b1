@@ -1,7 +1,7 @@
 // What the list does with an arrival: fetch, order, de-duplicate, degrade -
 // and, after a re-join, recover what arrived while the socket was down.
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
@@ -262,6 +262,133 @@ describe("useMessages", () => {
         });
     });
 
+    describe("messages that did not load", () => {
+        const FULL = { id: "msg-1", subject: "Loaded", receivedAt: "2026-09-17T09:00:00.000Z" };
+
+        /** Mounts, switches to fake timers, and delivers one message. */
+        async function deliverWithFakeTimers() {
+            const rendered = await renderMessages();
+            vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+            await deliver(preview("msg-1", "2026-09-17T09:00:00.000Z"));
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(0);
+            });
+            return rendered;
+        }
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it("tries again on its own and replaces the preview row", async () => {
+            mocks.fetchMessage.mockRejectedValueOnce(new Error("boom")).mockResolvedValue(FULL);
+
+            const { result } = await deliverWithFakeTimers();
+            expect(result.current.messages[0].incomplete).toBe(true);
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5_000);
+            });
+
+            expect(mocks.fetchMessage).toHaveBeenCalledTimes(2);
+            expect(result.current.messages).toHaveLength(1);
+            expect(result.current.messages[0]).toMatchObject({ id: "msg-1", subject: "Loaded" });
+            expect(result.current.messages[0].incomplete).toBeUndefined();
+        });
+
+        it("waits out the rate-limit back-off before trying again", async () => {
+            mocks.fetchMessage.mockRejectedValueOnce(new Error("429")).mockResolvedValue(FULL);
+            mocks.rateLimitedFor.mockReturnValue(20_000);
+
+            const { result } = await deliverWithFakeTimers();
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(10_000);
+            });
+            expect(mocks.fetchMessage).toHaveBeenCalledTimes(1);
+
+            mocks.rateLimitedFor.mockReturnValue(0);
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(11_000);
+            });
+            expect(mocks.fetchMessage).toHaveBeenCalledTimes(2);
+            expect(result.current.messages[0].subject).toBe("Loaded");
+        });
+
+        it("stops trying on its own after three more attempts", async () => {
+            mocks.fetchMessage.mockRejectedValue(new Error("boom"));
+
+            const { result } = await deliverWithFakeTimers();
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(60_000);
+            });
+
+            expect(mocks.fetchMessage).toHaveBeenCalledTimes(4);
+            expect(result.current.messages).toHaveLength(1);
+            expect(result.current.messages[0].incomplete).toBe(true);
+        });
+
+        it("keeps checking a message that is still being parsed", async () => {
+            mocks.fetchMessage
+                .mockResolvedValueOnce({ id: "msg-1", status: "PENDING" })
+                .mockResolvedValueOnce({ id: "msg-1", status: "PENDING" })
+                .mockResolvedValue({ ...FULL, status: "PARSED" });
+
+            const { result } = await deliverWithFakeTimers();
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(1_000);
+            });
+            expect(result.current.messages[0].incomplete).toBe(true);
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5_000);
+            });
+            expect(result.current.messages[0]).toMatchObject({ subject: "Loaded", status: "PARSED" });
+        });
+
+        it("loads it when asked to retry, after the automatic attempts ran out", async () => {
+            mocks.fetchMessage.mockRejectedValue(new Error("boom"));
+
+            const { result } = await deliverWithFakeTimers();
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(60_000);
+            });
+
+            mocks.fetchMessage.mockResolvedValue(FULL);
+            await act(async () => {
+                result.current.retry(result.current.messages[0]);
+                await vi.advanceTimersByTimeAsync(0);
+            });
+
+            expect(result.current.messages[0].subject).toBe("Loaded");
+        });
+
+        it("loads it again on a Refresh", async () => {
+            mocks.fetchMessage.mockRejectedValueOnce(new Error("boom")).mockResolvedValue(FULL);
+            mocks.fetchUnreadMessages.mockResolvedValue([unread("msg-1", "2026-09-17T09:00:00.000Z")]);
+
+            const { result } = await deliverWithFakeTimers();
+            await act(async () => {
+                await result.current.resync();
+                await vi.advanceTimersByTimeAsync(0);
+            });
+
+            expect(result.current.messages[0].subject).toBe("Loaded");
+        });
+
+        it("drops waiting retries when the list unmounts", async () => {
+            mocks.fetchMessage.mockRejectedValue(new Error("boom"));
+
+            const { unmount } = await deliverWithFakeTimers();
+            unmount();
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(60_000);
+            });
+
+            expect(mocks.fetchMessage).toHaveBeenCalledTimes(1);
+        });
+    });
+
     it("reports connection status upward", async () => {
         const { result } = await renderMessages();
 
@@ -456,6 +583,60 @@ describe("useMessages", () => {
 
         await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual(["late-1"]));
         expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(1);
+    });
+
+    describe("whether the list has been checked", () => {
+        it("is not synced until the first sweep has listed what it found", async () => {
+            mocks.fetchUnreadMessages.mockResolvedValue([unread("msg-1", "2026-09-17T09:00:01.000Z")]);
+            const { result } = await renderMessages();
+            expect(result.current.synced).toBe(false);
+
+            await rejoin();
+
+            await waitFor(() => expect(result.current.synced).toBe(true));
+            expect(result.current.messages.map((m) => m.id)).toEqual(["msg-1"]);
+            expect(result.current.sweepError).toBeNull();
+        });
+
+        it("reports a failed sweep, and clears it when a later sweep works", async () => {
+            const refused = new Error("server down");
+            mocks.fetchUnreadMessages.mockRejectedValueOnce(refused).mockResolvedValue([]);
+            const { result } = await renderMessages();
+
+            await rejoin();
+            await waitFor(() => expect(result.current.sweepError).toBe(refused));
+            expect(result.current.synced).toBe(true);
+
+            await act(async () => {
+                await result.current.resync();
+            });
+            expect(result.current.sweepError).toBeNull();
+        });
+
+        it("sweeps again once the back-off is over when the sweep was refused", async () => {
+            const { result } = await renderMessages();
+            vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+            mocks.fetchUnreadMessages
+                .mockImplementationOnce(async () => {
+                    // What guardedFetch does when the server answers 429.
+                    mocks.rateLimitedFor.mockReturnValue(10_000);
+                    throw new Error("429");
+                })
+                .mockResolvedValue([unread("late-1", "2026-09-17T09:00:00.000Z")]);
+
+            await rejoin();
+            expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(1);
+
+            mocks.rateLimitedFor.mockReturnValue(0);
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(11_000);
+            });
+            vi.useRealTimers();
+
+            await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual(["late-1"]));
+            expect(mocks.fetchUnreadMessages).toHaveBeenCalledTimes(2);
+            expect(result.current.sweepError).toBeNull();
+        });
     });
 
     it("sweeps by hand even while the automatic sweep is holding off", async () => {

@@ -1,23 +1,39 @@
-import Button from './Button'
-import Card from './Card'
-import Badge from './Badge'
+import { Download, FileText } from 'lucide-react'
+import { formatFileSize } from '../utils/helpers'
 
-const getFileBadgeStyle = (type = '') => {
-  switch (type.toUpperCase()) {
+// The chip colour for a file type, as the design's attachment tiles use them.
+const getFileTileStyle = (type) => {
+  // The API may send null for an unknown type, which a default parameter lets through.
+  switch (String(type ?? '').toUpperCase()) {
     case 'PDF':
-      return 'bg-danger/10 text-danger border-danger/30'
+      return 'bg-rose-500'
     case 'PNG':
     case 'JPG':
     case 'JPEG':
-      return 'bg-purple-50 text-purple-700 border-purple-200'
+    case 'GIF':
+    case 'WEBP':
+      return 'bg-sky-500'
     case 'ZIP':
     case 'TAR':
-      return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'GZ':
+      return 'bg-amber-500'
     default:
-      return 'bg-chip text-text-secondary border-border-default'
+      return 'bg-emerald-500'
   }
 }
 
+// The short type a tile shows: the one given, else the file's extension, else
+// nothing (the tile then says "File"). The API sends a MIME contentType rather
+// than a short type, so for live mail the extension is what there is.
+function fileType(att) {
+  if (att.type) return att.type
+  const extension = att.filename?.match(/\.([a-z0-9]{1,5})$/i)?.[1]
+  return extension ? extension.toUpperCase() : null
+}
+
+// A message's attachments as the design's file tiles. The actions are only
+// drawn when there is something behind them: the API has no attachment
+// download yet, and a button that does nothing is worse than none.
 function Attachments({
   attachments = [],
   totalAttachmentSize = '',
@@ -25,183 +41,87 @@ function Attachments({
   onDownloadAll,
   onDownloadAttachment,
   onViewAttachment,
-  variant = 'card',
   className = '',
 }) {
-  if (!attachments || attachments.length === 0) return null
-
-  const isFullscreen = variant === 'fullscreen'
-  const Container = isFullscreen ? 'section' : Card
-  const containerProps = isFullscreen
-    ? {
-        'aria-label': 'Attachments',
-        className: `pt-5 border-t border-border-default flex flex-col gap-4 mt-2 ${className}`.trim(),
-      }
-    : {
-        className: `p-6 flex flex-col gap-4 ${className}`.trim(),
-      }
-
-  const HeadingTag = isFullscreen ? 'h3' : 'h2'
+  // Said outright rather than left blank, so "no files" is never mistaken for
+  // "files still loading".
+  if (!attachments || attachments.length === 0) {
+    return (
+      <p className={`mt-5 text-xs text-slate-400 ${className}`.trim()}>No attachments</p>
+    )
+  }
 
   return (
-    <Container {...containerProps}>
-      <div
-        className={
-          isFullscreen
-            ? 'flex items-center justify-between gap-3'
-            : 'flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border-default'
-        }
-      >
-        <div className="flex items-center gap-2">
-          <svg
-            className="w-4 h-4 text-text-primary shrink-0"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
+    <section aria-label="Attachments" className={`mt-5 ${className}`.trim()}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-xs font-medium text-slate-400">
+          {attachments.length} {attachments.length === 1 ? 'Attachment' : 'Attachments'}
+          {totalAttachmentSize ? ` · ${totalAttachmentSize}` : ''}
+        </h3>
+        {typeof onDownloadAll === 'function' && (
+          <button
+            type="button"
+            onClick={onDownloadAll}
+            className="text-xs font-medium text-sky-600 hover:underline"
+            aria-label="Download all attachments as zip"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-            />
-          </svg>
-          <HeadingTag
-            className={
-              isFullscreen
-                ? 'text-sm font-bold text-text-primary'
-                : 'text-sm sm:text-base font-bold text-text-primary'
-            }
-          >
-            Attachments
-          </HeadingTag>
-          <Badge className="bg-chip text-text-secondary px-2 py-0.5 font-mono text-[11px]">
-            {attachments.length} {attachments.length === 1 ? 'file' : 'files'}
-            {totalAttachmentSize ? ` · ${totalAttachmentSize}` : ''}
-          </Badge>
-        </div>
-
-        <Button
-          variant="light"
-          onClick={onDownloadAll}
-          className={
-            isFullscreen
-              ? 'text-xs px-2.5 py-1 gap-1.5'
-              : 'text-xs px-3 py-1.5 gap-1.5 self-start sm:self-auto'
-          }
-          aria-label="Download all attachments as zip"
-        >
-          <svg
-            className="w-3.5 h-3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-            />
-          </svg>
-          <span>{isFullscreen ? 'Download All' : 'Download All (.zip)'}</span>
-        </Button>
+            Download All
+          </button>
+        )}
       </div>
 
-      <div
-        className={
-          isFullscreen
-            ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
-            : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5'
-        }
-      >
+      <ul className="m-0 flex list-none flex-wrap gap-3 p-0">
         {attachments.map((att) => (
-          <div
+          <li
             key={att.id || att.filename}
-            className={`${
-              isFullscreen ? 'bg-surface-subtle' : 'bg-surface'
-            } border border-border-default rounded-[8px] p-3 flex flex-col justify-between hover:border-border-strong transition-colors gap-2.5 min-w-0`}
+            className="flex min-w-0 max-w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5"
           >
-            <div className="flex items-start gap-2.5 min-w-0">
-              <span
-                className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-[3px] border uppercase shrink-0 ${getFileBadgeStyle(
-                  att.type
-                )}`}
-              >
-                {att.type || 'FILE'}
-              </span>
-              <span
-                className="font-medium text-xs text-text-primary truncate block flex-1"
-                title={att.filename}
-              >
+            {/* On paper the tile is drawn, not filled: browsers drop background
+                colours in print unless the reader ticks "Background graphics",
+                and a white icon on a dropped background prints as nothing at
+                all. An outline and a dark icon need no background to survive.
+                The colour carries the file type on screen; in print the type
+                is still written out beside the name. */}
+            <span
+              aria-hidden="true"
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white print:border print:border-slate-500 print:bg-transparent print:text-slate-900 ${getFileTileStyle(fileType(att))}`}
+            >
+              <FileText size={16} />
+            </span>
+            <div className="min-w-0 leading-tight">
+              <p className="max-w-48 truncate text-xs font-medium text-slate-800" title={att.filename}>
                 {att.filename}
-              </span>
+              </p>
+              <p className="text-[11px] text-slate-400">
+                <span className="uppercase">{fileType(att) || 'File'}</span>
+                {formatFileSize(att.size) ? ` · ${formatFileSize(att.size)}` : ''}
+              </p>
             </div>
-
-            <div className="flex items-center justify-between pt-1 border-t border-page text-[11px] text-text-secondary">
-              <span className="font-mono">{att.size || ''}</span>
-              <div className={isFullscreen ? 'flex items-center gap-2' : 'flex items-center gap-1.5'}>
-                {typeof onViewAttachment === 'function' && (
-                  <button
-                    type="button"
-                    onClick={() => onViewAttachment(att)}
-                    className="hover:text-text-primary font-medium transition-colors cursor-pointer"
-                  >
-                    View
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() =>
-                    typeof onDownloadAttachment === 'function' && onDownloadAttachment(att)
-                  }
-                  className="hover:text-text-primary font-medium transition-colors cursor-pointer inline-flex items-center gap-1"
-                  aria-label={`Download ${att.filename}`}
-                >
-                  <svg
-                    className="w-3 h-3"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    />
-                  </svg>
-                  <span>Download</span>
-                </button>
-              </div>
-            </div>
-          </div>
+            {typeof onViewAttachment === 'function' && (
+              <button
+                type="button"
+                onClick={() => onViewAttachment(att)}
+                className="text-[11px] font-medium text-slate-500 hover:text-slate-900"
+              >
+                View
+              </button>
+            )}
+            {typeof onDownloadAttachment === 'function' && (
+              <button
+                type="button"
+                onClick={() => onDownloadAttachment(att)}
+                className="text-slate-400 hover:text-slate-700"
+                aria-label={`Download ${att.filename}`}
+              >
+                <Download size={14} aria-hidden="true" />
+              </button>
+            )}
+          </li>
         ))}
-      </div>
+      </ul>
 
-      {scanInfo && !isFullscreen && (
-        <div className="mt-2 pt-3 border-t border-border-default flex items-center gap-2 text-xs font-mono text-text-secondary">
-          <svg
-            className="w-3.5 h-3.5 text-success shrink-0"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <span>{scanInfo}</span>
-        </div>
-      )}
-    </Container>
+      {scanInfo && <p className="mt-3 font-mono text-[11px] text-slate-400">{scanInfo}</p>}
+    </section>
   )
 }
 
