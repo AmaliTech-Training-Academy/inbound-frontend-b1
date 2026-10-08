@@ -76,6 +76,28 @@ describe('SafeHtmlEmail', () => {
     }
   })
 
+  // The same reasoning as the panel above, for the mail that paints nothing at
+  // all but sets its own near-black text - a forwarded thread, most plain
+  // newsletters. The dark canvas would go straight under that text.
+  it('keeps the light canvas on a mail that sets its own dark text', () => {
+    document.documentElement.classList.add('dark')
+    localStorage.setItem('inbound-theme', 'dark')
+
+    try {
+      render(
+        <SafeHtmlEmail htmlContent='<div style="color:#000000">Hello Abdul-Azeem</div>' />,
+      )
+
+      const doc = screen.getByTitle('Sandboxed Email Content').getAttribute('srcdoc')
+      expect(doc).toContain('color: #111213')
+      expect(doc).toContain('color-scheme: light')
+      expect(doc).not.toContain('color: #d3dae6')
+    } finally {
+      document.documentElement.classList.remove('dark')
+      localStorage.clear()
+    }
+  })
+
   it('sandboxes the frame without allowing scripts to run', () => {
     render(<SafeHtmlEmail htmlContent="<p>Hello</p>" />)
 

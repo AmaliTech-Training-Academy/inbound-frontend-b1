@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { paintsOwnSurface, prepareEmail } from "./emailHtml.js";
+import { paintsOwnSurface, prepareEmail, setsDarkText } from "./emailHtml.js";
 // The team's own sanitization test: a shipping email on top, every common
 // attack underneath.
 import SANITIZATION_TEST from "../test/fixtures/sanitizationTestEmail.html?raw";
@@ -173,5 +173,42 @@ describe("paintsOwnSurface", () => {
         expect(paintsOwnSurface('<div style="background-image: none">Hi</div>')).toBe(false);
         expect(paintsOwnSurface('<div style="background-position: center">Hi</div>')).toBe(false);
         expect(paintsOwnSurface('<div style="background-repeat: no-repeat">Hi</div>')).toBe(false);
+    });
+});
+
+describe("setsDarkText", () => {
+    it("finds the forwarded thread that sets near-black text and no surface", () => {
+        // What a forwarded Gmail message carries: its own text colour, nothing
+        // behind it. Left on the dark canvas it would be read black-on-black.
+        const forwarded =
+            '<div style="font-family:arial;font-size:small;color:#000000">' +
+            "<p>---------- Forwarded message ---------</p>" +
+            "<p>Hello Abdul-Azeem,</p></div>";
+        expect(paintsOwnSurface(forwarded)).toBe(false);
+        expect(setsDarkText(forwarded)).toBe(true);
+    });
+
+    it("reads the colour however the sender wrote it", () => {
+        expect(setsDarkText('<p style="color:#000">Hi</p>')).toBe(true);
+        expect(setsDarkText('<p style="color: rgb(17, 17, 17)">Hi</p>')).toBe(true);
+        expect(setsDarkText('<p style="color:black">Hi</p>')).toBe(true);
+        expect(setsDarkText("<style>.body { color: #222222 }</style><p class='body'>Hi</p>")).toBe(true);
+        expect(setsDarkText('<font color="#1a1a1a">Hi</font>')).toBe(true);
+    });
+
+    it("leaves the dark canvas to mail that is readable on it", () => {
+        expect(setsDarkText("<p>Hi</p>")).toBe(false);
+        expect(setsDarkText('<p style="color:#ffffff">Hi</p>')).toBe(false);
+        expect(setsDarkText('<p style="color: rgb(200, 200, 200)">Hi</p>')).toBe(false);
+        // Mid grey small print stays legible on either canvas.
+        expect(setsDarkText('<p style="color:#8a8a8a">Hi</p>')).toBe(false);
+    });
+
+    it("does not read a background colour as a text colour", () => {
+        expect(setsDarkText('<div style="background-color:#000000">Hi</div>')).toBe(false);
+    });
+
+    it("leaves a colour it cannot read to the sender", () => {
+        expect(setsDarkText('<p style="color: var(--brand)">Hi</p>')).toBe(false);
     });
 });

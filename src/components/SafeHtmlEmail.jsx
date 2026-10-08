@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { paintsOwnSurface, prepareEmail } from '../utils/emailHtml.js'
+import { paintsOwnSurface, prepareEmail, setsDarkText } from '../utils/emailHtml.js'
 import { useTheme } from '../state/useTheme.js'
 
 // An HTML email, shown as its sender laid it out, inside a sandbox it cannot
@@ -37,14 +37,16 @@ function SafeHtmlEmail({ htmlContent }) {
   const { isDark } = useTheme()
   const content = useMemo(() => prepareEmail(htmlContent), [htmlContent])
   const ownSurface = useMemo(() => paintsOwnSurface(htmlContent), [htmlContent])
+  const ownDarkText = useMemo(() => setsDarkText(htmlContent), [htmlContent])
 
   // A frame does not inherit the page's CSS, so the theme reaches the email
   // through this one declaration. The frame's canvas is the reading pane's, so
   // a mail with no surface of its own is read light-on-dark; one that painted
   // its own panel needs the light default, or the near-white would vanish on
   // it. A colour the sender set themselves wins over either.
-  // Light-on-dark only when the mail brought no surface of its own.
-  const darkFrame = isDark && !ownSurface
+  // Light-on-dark only when the mail brought neither a surface nor a dark
+  // text colour of its own.
+  const darkFrame = isDark && !ownSurface && !ownDarkText
   const defaultTextColor = darkFrame ? '#d3dae6' : '#111213'
 
   // The reader's own base styles come after the sender's, so the frame's
