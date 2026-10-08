@@ -3,8 +3,8 @@ name: Inbound-Frontend-Deployment-Pipeline
 on:
   push:
     branches:
-      - dev
-      - feat/frontend-devops
+      # - dev
+      - devops-stable
 
 env:
   ECR_REPOSITORY: inbound-client
@@ -47,7 +47,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
@@ -83,7 +83,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition inbound-api \
+            --task-definition inbound-cluster-inbound-client-a1a \
             --query taskDefinition > task-definition.json
 
       - name: Render new task definition revision
@@ -98,6 +98,5 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: inbound-api-b299
+          service: inbound-client-a1a4
           cluster: inbound-cluster
-          wait-for-service-stability: true
