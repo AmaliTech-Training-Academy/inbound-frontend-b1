@@ -70,22 +70,24 @@ export default function MessageList({
                             aria-label={`Open message from ${sender.name}: ${subject}${
                                 unread ? ", unread" : ""
                             }${hasFiles ? ", with attachments" : ""}`}
-                            className={`relative flex w-full items-start gap-3 border-b border-slate-100 px-4 py-4 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-900 sm:px-5 ${
-                                selected ? "bg-slate-50" : "hover:bg-slate-50/70"
+                            className={`relative flex w-full items-start gap-3 border-b border-slate-100 px-4 py-4 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-900 sm:px-5 dark:border-line-soft-dark dark:focus-visible:outline-ink-dark ${
+                                selected
+                                    ? "bg-slate-50 dark:bg-surface-dark"
+                                    : "hover:bg-slate-50/70 dark:hover:bg-surface-dark/70"
                             }`}>
                             <Avatar seed={sender.email || sender.name} size={42} />
 
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-2">
                                     <span
-                                        className={`truncate text-slate-900 ${
+                                        className={`truncate text-slate-900 dark:text-ink-dark ${
                                             unread ? "font-semibold" : "font-medium"
                                         }`}>
                                         {sender.name}
                                     </span>
                                     <time
                                         dateTime={message.receivedAt}
-                                        className="shrink-0 text-[11px] text-slate-400">
+                                        className="shrink-0 text-[11px] text-slate-400 dark:text-muted-dark">
                                         {formatRelativeTime(message.receivedAt)}
                                     </time>
                                 </div>
@@ -95,11 +97,11 @@ export default function MessageList({
                                         <Paperclip
                                             size={12}
                                             aria-hidden="true"
-                                            className="shrink-0 text-slate-400"
+                                            className="shrink-0 text-slate-400 dark:text-muted-dark"
                                         />
                                     )}
                                     <span
-                                        className={`truncate text-slate-800 ${
+                                        className={`truncate text-slate-800 dark:text-ink-dark ${
                                             unread ? "font-semibold" : "font-medium"
                                         }`}>
                                         {subject}
@@ -107,18 +109,20 @@ export default function MessageList({
                                 </div>
 
                                 {preview && (
-                                    <p className="mt-0.5 truncate text-slate-400">{preview}</p>
+                                    <p className="mt-0.5 truncate text-slate-400 dark:text-muted-dark">
+                                        {preview}
+                                    </p>
                                 )}
 
                                 {(code || message.incomplete) && (
                                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                         {code && (
-                                            <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-700">
+                                            <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
                                                 OTP: {code.replace(/\s+/g, "")}
                                             </span>
                                         )}
                                         {message.incomplete && (
-                                            <span className="text-[11px] font-medium text-rose-600">
+                                            <span className="text-[11px] font-medium text-rose-600 dark:text-rose-400">
                                                 Could not load
                                             </span>
                                         )}
@@ -130,7 +134,7 @@ export default function MessageList({
                             <span
                                 aria-hidden="true"
                                 className={`mt-1.5 size-2 shrink-0 rounded-full ${
-                                    unread ? "bg-sky-600" : "bg-transparent"
+                                    unread ? "bg-sky-600 dark:bg-sky-500" : "bg-transparent"
                                 }`}
                             />
                         </button>

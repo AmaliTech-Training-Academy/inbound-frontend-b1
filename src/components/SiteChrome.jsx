@@ -46,8 +46,8 @@ export function ActiveAddress({ inbox, others = 0 }) {
 
   return (
     <div key="result" className="animate-fade-up">
-      <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 p-2 pl-6 sm:pl-8">
-        <span ref={addressRef} className="min-w-0 flex-1 truncate text-base text-ink">
+      <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 p-2 pl-6 sm:pl-8 dark:border-line-dark dark:bg-surface-dark/90">
+        <span ref={addressRef} className="min-w-0 flex-1 truncate text-base text-ink dark:text-ink-dark">
           {inbox.address}
         </span>
         <CopyButton text={inbox.address} fallbackRef={addressRef} size={16} className="p-2" />
@@ -65,7 +65,7 @@ export function ActiveAddress({ inbox, others = 0 }) {
         </Link>
       </div>
       {others > 0 && (
-        <p className="mt-3 text-center text-xs text-slate-500">
+        <p className="mt-3 text-center text-xs text-slate-500 dark:text-muted-dark">
           and {others} more {others === 1 ? 'inbox' : 'inboxes'} in this session
         </p>
       )}
@@ -89,12 +89,12 @@ export function ArrowIcon() {
 
 export function SiteFooter() {
   return (
-    <footer className="px-6 py-6 text-center text-xs text-slate-500">
-      <span className="inline-flex items-center gap-1.5 align-middle font-semibold text-ink">
+    <footer className="px-6 py-6 text-center text-xs text-slate-500 dark:text-muted-dark">
+      <span className="inline-flex items-center gap-1.5 align-middle font-semibold text-ink dark:text-ink-dark">
         <BrandMark size={14} />
         Inbound
       </span>
-      <span aria-hidden="true" className="mx-2 text-slate-300">
+      <span aria-hidden="true" className="mx-2 text-slate-300 dark:text-slate-600">
         •
       </span>
       © 2026 Inbound. No logs, no tracking. Gone when you close the tab.

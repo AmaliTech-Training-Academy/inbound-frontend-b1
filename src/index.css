@@ -6,6 +6,8 @@
  */
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @font-face {
     font-family: "Haffer";
     src: url("/fonts/HafferXH-Regular.otf") format("opentype");
@@ -57,6 +59,14 @@
     --color-brand-soft: rgba(255, 87, 34, 0.25);
     --color-ink: #0b1c30;
 
+    --color-canvas-dark: #0b0f19;
+    --color-surface-dark: #162035;
+    --color-line-dark: #24324d;
+    --color-line-soft-dark: #1b2439;
+    --color-ink-dark: #ffffff;
+    --color-body-dark: #d3dae6;
+    --color-muted-dark: #a3aec0;
+
     --animate-fade-up: fade-up 0.35s ease-out both;
 
     @keyframes fade-up {
@@ -71,6 +81,15 @@
     }
 }
 
+html {
+    background-color: #ffffff;
+}
+
+html.dark {
+    background-color: #0b0f19;
+    color-scheme: dark;
+}
+
 body {
     font-family: var(--font-sans);
     background-color: #ffffff;
@@ -79,14 +98,48 @@ body {
     padding: 0;
 }
 
+html.dark body {
+    background-color: #0b0f19;
+    color: #d3dae6;
+}
+
 /* The public pages' backdrop: a soft brand-orange glow behind the headline,
-   fading out into white. Static, so it costs one paint. */
+   fading out into the page. Static, so it costs one paint. */
 .landing-backdrop {
     background-color: #ffffff;
     background-image: radial-gradient(
         55% 48% at 50% 42%,
-        rgba(255, 87, 34, 0.1) 0%,
-        rgba(255, 87, 34, 0.045) 48%,
+        rgba(255, 87, 34, 0.28) 0%,
+        rgba(255, 87, 34, 0.12) 48%,
         rgba(255, 87, 34, 0) 100%
     );
+}
+
+html.dark .landing-backdrop {
+    background-color: #0b0f19;
+    background-image: radial-gradient(
+        55% 48% at 50% 42%,
+        rgba(255, 87, 34, 0.18) 0%,
+        rgba(255, 87, 34, 0.06) 48%,
+        rgba(255, 87, 34, 0) 100%
+    );
+}
+
+@media print {
+    .dark {
+        --color-canvas-dark: #ffffff;
+        --color-surface-dark: #ffffff;
+        --color-line-dark: #e2e8f0;
+        --color-line-soft-dark: #f1f5f9;
+        --color-ink-dark: #0b1c30;
+        --color-body-dark: #475569;
+        --color-muted-dark: #64748b;
+    }
+
+    html.dark,
+    html.dark body {
+        background-color: #ffffff;
+        color: #0b1c30;
+        color-scheme: light;
+    }
 }

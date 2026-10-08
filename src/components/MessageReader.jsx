@@ -98,10 +98,10 @@ function MessageReader({
     <div className="flex min-w-0 items-center gap-3">
       <Avatar seed={message?.senderEmail || message?.senderName} size={42} />
       <div className="min-w-0">
-        <p className="truncate font-semibold text-slate-900">
+        <p className="truncate font-semibold text-slate-900 dark:text-ink-dark">
           {message?.senderName || 'Unknown Sender'}
         </p>
-        <p className="truncate text-xs text-slate-400">
+        <p className="truncate text-xs text-slate-400 dark:text-muted-dark">
           {message?.senderEmail}
           {message?.senderEmail && recipient && <span aria-hidden="true"> · </span>}
           {recipient && <span>to {recipient}</span>}
@@ -120,13 +120,13 @@ function MessageReader({
   const codeCard = message?.verificationCode && (
     <section
       aria-label="Verification Code"
-      className="mt-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+      className="mt-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 dark:border-line-dark dark:bg-surface-dark"
     >
       <div className="min-w-0">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-muted-dark">
           Verification code · auto-extracted
         </p>
-        <p className="mt-1 select-all break-all font-mono text-2xl font-semibold tracking-widest text-slate-900 sm:text-3xl">
+        <p className="mt-1 select-all break-all font-mono text-2xl font-semibold tracking-widest text-slate-900 sm:text-3xl dark:text-ink-dark">
           {message.verificationCode}
         </p>
       </div>
@@ -134,7 +134,7 @@ function MessageReader({
         <button
           type="button"
           onClick={handleCopyCode}
-          className="flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+          className="flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white ring-1 ring-transparent transition-colors hover:bg-slate-800 dark:bg-surface-dark dark:text-ink-dark dark:ring-line-dark dark:hover:bg-line-dark"
           aria-label="Copy verification code"
         >
           {copiedCode ? (
@@ -151,7 +151,7 @@ function MessageReader({
             href={message.contextUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+            className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-line-dark dark:bg-surface-dark dark:text-body-dark dark:hover:bg-line-dark"
           >
             {contextButtonLabel} <span aria-hidden="true">→</span>
           </a>
@@ -166,7 +166,7 @@ function MessageReader({
         <SafeHtmlEmail htmlContent={message.htmlBody} />
       ) : (
         <div className="space-y-4">
-          <div className="whitespace-pre-wrap wrap-break-word leading-relaxed text-slate-600 select-text">
+          <div className="whitespace-pre-wrap wrap-break-word leading-relaxed text-slate-600 select-text dark:text-body-dark">
             {message?.textBody || message?.body || '(Empty message body)'}
           </div>
           {message?.actionText && message?.contextUrl && (
@@ -174,7 +174,7 @@ function MessageReader({
               href={message.contextUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white ring-1 ring-transparent transition-colors hover:bg-slate-800 dark:bg-surface-dark dark:text-ink-dark dark:ring-line-dark dark:hover:bg-line-dark"
             >
               <span>{message.actionText}</span>
               <span aria-hidden="true">→</span>
@@ -235,7 +235,7 @@ function MessageReader({
           <button
             type="button"
             onClick={onBack}
-            className="mb-5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 lg:hidden print:hidden"
+            className="mb-5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 lg:hidden print:hidden dark:text-muted-dark dark:hover:text-ink-dark"
             aria-label="Back to inbox"
           >
             <ArrowLeft size={15} aria-hidden="true" />
@@ -245,12 +245,12 @@ function MessageReader({
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           {sender}
-          <div className="flex shrink-0 items-center gap-3 pt-1 text-slate-400 sm:gap-4">
+          <div className="flex shrink-0 items-center gap-3 pt-1 text-slate-400 sm:gap-4 dark:text-muted-dark">
             {received && <span className="hidden sm:inline">{received}</span>}
             <button
               type="button"
               onClick={() => window.print()}
-              className="hover:text-slate-700 print:hidden"
+              className="hover:text-slate-700 print:hidden dark:hover:text-ink-dark"
               aria-label="Print email"
               title="Print email"
             >
@@ -259,7 +259,7 @@ function MessageReader({
             <button
               type="button"
               onClick={() => setIsFullScreen(true)}
-              className="hover:text-slate-700 print:hidden"
+              className="hover:text-slate-700 print:hidden dark:hover:text-ink-dark"
               aria-label="Expand email to full-screen view"
               title="Expand (F)"
             >
@@ -268,7 +268,7 @@ function MessageReader({
           </div>
         </div>
 
-        <h2 className="mt-6 wrap-break-word text-lg font-semibold text-slate-900 sm:text-xl">
+        <h2 className="mt-6 wrap-break-word text-lg font-semibold text-slate-900 sm:text-xl dark:text-ink-dark">
           {message?.subject || '(No Subject)'}
         </h2>
 
@@ -283,7 +283,7 @@ function MessageReader({
       {isFullScreen && (
         <div
           aria-hidden="true"
-          className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-sm"
+          className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-sm dark:bg-black/60"
         />
       )}
       {isFullScreen && (
@@ -302,22 +302,22 @@ function MessageReader({
           <button
             type="button"
             onClick={() => setIsFullScreen(false)}
-            className="fixed top-4 right-4 z-10 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+            className="fixed top-4 right-4 z-10 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 dark:border-line-dark dark:bg-surface-dark dark:text-body-dark dark:hover:bg-line-soft-dark"
             aria-label="Exit Fullscreen"
           >
             <X size={14} aria-hidden="true" />
             <span className="hidden sm:inline">Exit fullscreen</span>
           </button>
           <article
-            className="min-h-full w-full max-w-3xl bg-white p-6 shadow-2xl sm:min-h-0 sm:rounded-3xl sm:border sm:border-slate-200 sm:p-10"
+            className="min-h-full w-full max-w-3xl border-slate-200 bg-white p-6 shadow-2xl sm:min-h-0 sm:rounded-3xl sm:border sm:p-10 dark:border-line-dark dark:bg-canvas-dark"
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-5">
+            <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-5 dark:border-line-soft-dark">
               {sender}
-              <div className="flex shrink-0 items-center gap-3 text-slate-400">{received}</div>
+              <div className="flex shrink-0 items-center gap-3 text-slate-400 dark:text-muted-dark">{received}</div>
             </header>
 
-            <h2 className="mt-6 wrap-break-word text-xl font-semibold text-slate-900 sm:text-2xl">
+            <h2 className="mt-6 wrap-break-word text-xl font-semibold text-slate-900 sm:text-2xl dark:text-ink-dark">
               {message?.subject || '(No Subject)'}
             </h2>
 

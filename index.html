@@ -8,6 +8,15 @@
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#ff5722" />
+        <script>
+            // Before the first paint: a stored dark choice must not flash white
+            // on the way in. useTheme keeps the class true from here on.
+            try {
+                if (localStorage.getItem("inbound-theme") === "dark") {
+                    document.documentElement.classList.add("dark");
+                }
+            } catch (e) {}
+        </script>
     </head>
     <body>
         <div id="root"></div>

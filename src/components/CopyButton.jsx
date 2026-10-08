@@ -53,10 +53,10 @@ export default function CopyButton({
             title={state === "failed" ? "Couldn't copy automatically" : "Copy address"}
             className={`inline-flex shrink-0 items-center gap-1.5 transition-colors ${
                 state === "copied"
-                    ? "text-emerald-600"
+                    ? "text-emerald-600 dark:text-emerald-400"
                     : state === "failed"
-                      ? "text-rose-600"
-                      : "text-slate-400 hover:text-slate-700"
+                      ? "text-rose-600 dark:text-rose-400"
+                      : "text-slate-400 hover:text-slate-700 dark:text-muted-dark dark:hover:text-ink-dark"
             } ${className}`}>
             {state === "copied" ? <Check size={size} /> : <Copy size={size} />}
             {children}
