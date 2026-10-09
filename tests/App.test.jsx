@@ -202,7 +202,7 @@ describe('App', () => {
   })
 
   describe('the end of an inbox', () => {
-    it('ends on the landing page once the last inbox is destroyed', () => {
+    it('ends on the landing page once the last inbox is destroyed', async () => {
       seedSession()
       renderApp('/inbox')
 
@@ -211,7 +211,9 @@ describe('App', () => {
       expect(dialog).toHaveTextContent('seeded@inbound.mail')
       fireEvent.click(within(dialog).getByRole('button', { name: 'Yes, destroy inbox' }))
 
-      expectHomePage()
+      // Destroying now asks the server to delete the inbox, so the landing
+      // page arrives when that answers rather than on the click itself.
+      await waitFor(expectHomePage)
       expect(window.sessionStorage.getItem(SESSION_KEY)).toBeNull()
     })
 
