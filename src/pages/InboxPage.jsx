@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { Plus, RefreshCw, Search, Timer, TimerOff, Trash2, X } from 'lucide-react'
+import { Plus, RefreshCw, Search, Timer, Trash2, X } from 'lucide-react'
 import Avatar from '../components/Avatar.jsx'
 import BrandMark from '../components/BrandMark.jsx'
 import CopyButton from '../components/CopyButton.jsx'
@@ -19,9 +19,12 @@ import {
   NothingOpen,
 } from '../components/InboxPlaceholders.jsx'
 import Purged from '../components/PurgedInbox.jsx'
+import NotificationStack from '../components/NotificationStack.jsx'
 import { SOCKET_STATUS } from '../services/inboxSocket.js'
 import { rateLimitedUntil } from '../services/inboxApi.js'
 import { useAttachmentDownload } from '../hooks/useAttachmentDownload.js'
+import { useInboxNotifications } from '../hooks/useInboxNotifications.js'
+import { useNotifications } from '../hooks/useNotifications.js'
 import { useNow } from '../hooks/useNow.js'
 import { useResizableSidebar } from '../hooks/useResizableSidebar.js'
 import { formatTimeLeft, isRunningOut } from '../utils/inboxProgress.js'
@@ -89,6 +92,11 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
   const now = useNow(1000)
 
   const feed = feeds[inbox.id]
+
+  // The five events QA asked for (IB-008). The watcher only ever reports
+  // changes, so nothing is announced for state that was already true on load.
+  const { notifications, notify, dismiss } = useNotifications()
+  useInboxNotifications({ inboxes, feeds, notice, notify })
   const messages = useMemo(() => (feed?.messages ?? []).map(toReaderMessage), [feed?.messages])
 
   const [query, setQuery] = useState('')
@@ -421,26 +429,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
         unreadCounts={unreadCounts}
       />
 
-      {notice && (
-        // Top right, under the header and clear of the inbox rail, where a
-        // notification is looked for; full width at the top on a phone.
-        <p
-          role="status"
-          className="fixed inset-x-4 top-16 z-40 flex animate-fade-up items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-sm sm:inset-x-auto sm:right-4 sm:w-80 lg:right-20 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
-        >
-          <TimerOff size={16} aria-hidden="true" className="mt-px shrink-0 text-amber-600 dark:text-amber-400" />
-          <span className="min-w-0 break-words">
-            {notice.addresses.map((address, index) => (
-              <span key={address}>
-                {index > 0 && (index === notice.addresses.length - 1 ? ' and ' : ', ')}
-                <span className="font-mono">{address}</span>
-              </span>
-            ))}{' '}
-            expired.
-            {notice.switched && ' Switched to your next inbox.'}
-          </span>
-        </p>
-      )}
+      <NotificationStack notifications={notifications} onDismiss={dismiss} />
 
       {addOpen && (
         <NewInboxDialog
