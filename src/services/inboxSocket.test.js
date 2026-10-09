@@ -65,7 +65,7 @@ beforeEach(() => {
     ioMock.mockReset();
 });
 
-describe("createInboxSocket", () => {
+describe("inboxSocket", () => {
     it("requires both an address and a token", () => {
         expect(() => createInboxSocket({ address: "a@b.c" })).toThrow();
         expect(() => createInboxSocket({ token: "t" })).toThrow();
