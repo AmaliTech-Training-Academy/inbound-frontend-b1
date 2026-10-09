@@ -1,5 +1,5 @@
 import { Blobatar } from "@blobatar/react";
-import { useTheme } from "../state/useTheme.js";
+import { useTheme } from "../hooks/useTheme.js";
 
 // Blobatar draws the same face for the same name, so an address or sender
 // looks like itself across rows, the rail and reloads. Decorative, so hidden

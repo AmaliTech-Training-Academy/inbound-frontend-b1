@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useMessages } from "../state/useMessages.js";
+import { useMessages } from "../hooks/useMessages.js";
 
 // The live feed of one inbox: its socket, its message list, its reconnect
 // recovery. Renders nothing - it exists so each inbox can own a useMessages,

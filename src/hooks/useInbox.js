@@ -31,7 +31,7 @@ import {
     liveInboxes,
     pruneSession,
     msRemaining,
-} from "./inboxStorage.js";
+} from "../state/inboxStorage.js";
 
 // The timeout exists to turn a hung request into a retryable error
 // rather than a button stuck on "Generating…" forever.
