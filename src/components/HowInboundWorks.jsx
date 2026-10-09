@@ -1,32 +1,35 @@
 import { MailOpen, Trash2, Zap } from "lucide-react";
 import { INBOX_TTL_MINUTES } from "../config.js";
 
-// The original project's three steps, word for word. All three carry the same
-// brand treatment; none is singled out by colour.
+// The three steps, in the words a first-time visitor would use: what they get,
+// what turns up in it, and when it goes away. All three carry the same brand
+// treatment; none is singled out by colour.
 const STEPS = [
     {
         icon: Zap,
         title: "Click Generate",
-        body: "Ephemeral mailbox instance bound instantly in volatile RAM. No account, password, or tracking cookie is ever created — only this tab keeps the address, so closing it forgets the inbox.",
-        note: "Allocation: < 20ms",
+        body: "You get a working email address right away — no account, no password, no tracking cookie. Only this tab remembers it, so closing the tab forgets the inbox.",
+        note: "Nothing to sign up for",
     },
     {
         icon: MailOpen,
-        title: "Receive OTPs & Links",
-        body: "Real-time WebSocket streaming with 1-click verification code extraction. Emails open in a sandbox: no scripts, no forms, no tracking pixels.",
-        note: "Streaming: End-to-end TLS",
+        title: "Receive Codes & Links",
+        body: "Mail arrives on its own, and any verification code is pulled out and ready to copy. Emails open safely: no scripts, no forms, no tracking pixels.",
+        note: "Sent over a secure connection",
     },
     {
         icon: Trash2,
-        title: "Auto-Shred & Purge",
-        body: `Permanent cryptographic zeroization after ${INBOX_TTL_MINUTES} minutes or instantly via manual destruction. The entire namespace is recycled.`,
-        note: "Purge: Unrecoverable",
+        title: "Everything Disappears",
+        body: `The inbox and everything in it are deleted after ${INBOX_TTL_MINUTES} minutes, or the moment you destroy it yourself. Once it is gone, it cannot be brought back.`,
+        note: "Gone for good",
     },
 ];
 
+// Three across only from lg up: at tablet widths three columns leave each card
+// narrow and tall, with dead space beneath the row.
 export default function HowInboundWorks({ className = "" }) {
     return (
-        <ol className={`m-0 grid w-full list-none grid-cols-1 gap-4 p-0 md:grid-cols-3 ${className}`}>
+        <ol className={`m-0 grid w-full list-none grid-cols-1 gap-4 p-0 lg:grid-cols-3 ${className}`}>
             {STEPS.map(({ icon: Icon, title, body, note }, index) => (
                 <li
                     key={title}

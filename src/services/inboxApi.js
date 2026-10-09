@@ -43,9 +43,15 @@ function assertConfigured() {
 // Loud at start-up rather than at the first click.
 if (CONFIG_ERROR) console.error(`[inboxApi] ${CONFIG_ERROR}`);
 
+export const RATE_LIMITED_MESSAGE =
+    "Too many requests from your network. Please wait a few minutes and try again.";
+
 export class ApiError extends Error {
     constructor(status, message) {
-        super(message || `Request failed (${status})`);
+        // A 429 always reads the same, whatever the body said or whether it
+        // could be read: the server's wording names an IP address, which means
+        // nothing to someone on a shared office network.
+        super(status === 429 ? RATE_LIMITED_MESSAGE : message || `Request failed (${status})`);
         this.name = "ApiError";
         this.status = status;
     }
@@ -74,7 +80,8 @@ export class ApiError extends Error {
     }
 }
 
-// --- Rate limit ------------------------------------------------------
+// Rate limit.
+//
 // The API allows each IP 100 requests per 15 minutes, across every route
 // (express-rate-limit in the backend's utils/rateLimit.js), and answers 429
 // past that. Every request counts against the same budget, so after a 429 the
@@ -99,6 +106,11 @@ export function rateLimitedFor() {
     return Math.max(0, coolingUntil - Date.now());
 }
 
+/** When background requests may go out again, as a timestamp; in the past once they may. */
+export function rateLimitedUntil() {
+    return coolingUntil;
+}
+
 /** Forgets any back-off. For tests, which share this module's state. */
 export function resetRateLimit() {
     coolingUntil = 0;
@@ -121,7 +133,8 @@ function noteRateLimited(res) {
     coolingUntil = Date.now() + wait;
 }
 
-// --- Mock mode -------------------------------------------------------
+// Mock mode.
+//
 // Selected explicitly in config.js (VITE_USE_MOCK=true only), and not gated
 // on DEV, so a build made with the mock on still works. The mock returns exactly the shapes the real client returns
 // after unwrapping, so swapping between them changes nothing upstream.
@@ -165,7 +178,8 @@ function mockId() {
     );
 }
 
-// --- Transport -------------------------------------------------------
+// Transport.
+//
 
 // fetch only rejects on network-level failure: DNS, CORS, offline, or an
 // abort. Non-2xx responses resolve normally and are handled by readEnvelope.
@@ -220,7 +234,7 @@ function authHeaders(token) {
     return { Authorization: `Bearer ${token}` };
 }
 
-// --- Endpoints -------------------------------------------------------
+// Endpoints.
 
 /**
  * POST /api/v1/inbox -> { session: { token, expiresAt }, id, address, expiresAt }
@@ -234,7 +248,7 @@ function authHeaders(token) {
  * preferredLocalPart are not options the API offers.
  *
  * `createdAt` is added client-side. The create response omits it (only
- * /inbox/info returns one) but the progress ring needs a start point, and the
+ * the inbox fetch returns one) but the progress ring needs a start point, and the
  * moment the response lands is within a round-trip of the real value. It is
  * used only for that denominator, never sent back to the server.
  *
