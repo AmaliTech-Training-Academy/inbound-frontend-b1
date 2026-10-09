@@ -71,4 +71,16 @@ function toReaderMessage(message) {
     };
 }
 
-export { splitSender, toReaderMessage };
+// Whether a message answers a search. Everything the reader can see is
+// searchable - sender, subject, body and the extracted code - with html
+// stripped so a tag name never matches. An empty query matches everything.
+function matches(message, query) {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  const body = (message.textBody || message.htmlBody || '').replace(/<[^>]+>/g, ' ')
+  return [message.senderName, message.senderEmail, message.subject, body, message.verificationCode].some(
+    (value) => typeof value === 'string' && value.toLowerCase().includes(needle),
+  )
+}
+
+export { matches, splitSender, toReaderMessage };
