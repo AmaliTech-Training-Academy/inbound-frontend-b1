@@ -3,8 +3,8 @@ name: Inbound-Frontend-Deployment-Pipeline
 on:
   push:
     branches:
-      # - dev
-      - devops-stable
+       - dev
+
 
 env:
   ECR_REPOSITORY: inbound-client
