@@ -81,4 +81,36 @@ describe("App", () => {
 
         expect(await screen.findByText("from-landing@inbound.dev")).toBeInTheDocument();
     });
+
+    describe("an error on the inbox page", () => {
+        async function failToAddAnInbox(user) {
+            vi.spyOn(console, "error").mockImplementation(() => {});
+            createInbox.mockResolvedValueOnce(CREATED).mockRejectedValueOnce(new ApiError(429));
+            renderApp();
+
+            await user.click(screen.getByRole("button", { name: "Generate Inbox" }));
+            await user.click(await screen.findByRole("link", { name: "Go to inbox" }));
+            await user.click(screen.getAllByRole("button", { name: "Add an inbox" })[0]);
+            await user.click(screen.getByRole("button", { name: "Generate inbox" }));
+            await screen.findByRole("button", { name: "Dismiss error" });
+        }
+
+        it("can be dismissed", async () => {
+            const user = userEvent.setup();
+            await failToAddAnInbox(user);
+
+            await user.click(screen.getByRole("button", { name: "Dismiss error" }));
+
+            expect(screen.queryByRole("button", { name: "Dismiss error" })).toBeNull();
+        });
+
+        it("goes away with the dialog that already showed it", async () => {
+            const user = userEvent.setup();
+            await failToAddAnInbox(user);
+
+            await user.click(screen.getByRole("button", { name: "Close" }));
+
+            expect(screen.queryByRole("alert")).toBeNull();
+        });
+    });
 });

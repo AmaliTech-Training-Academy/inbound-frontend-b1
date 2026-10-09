@@ -31,9 +31,9 @@ function fileType(att) {
   return extension ? extension.toUpperCase() : null
 }
 
-// A message's attachments as the design's file tiles. The actions are only
-// drawn when there is something behind them: the API has no attachment
-// download yet, and a button that does nothing is worse than none.
+// A message's attachments as the design's file tiles. Each action is drawn
+// only when a handler is passed for it, so a button that does nothing is never
+// shown.
 function Attachments({
   attachments = [],
   totalAttachmentSize = '',
@@ -47,12 +47,12 @@ function Attachments({
   // "files still loading".
   if (!attachments || attachments.length === 0) {
     return (
-      <p className={`mt-8 text-xs text-slate-400 ${className}`.trim()}>No attachments</p>
+      <p className={`mt-5 text-xs text-slate-400 ${className}`.trim()}>No attachments</p>
     )
   }
 
   return (
-    <section aria-label="Attachments" className={`mt-8 ${className}`.trim()}>
+    <section aria-label="Attachments" className={`mt-5 ${className}`.trim()}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-xs font-medium text-slate-400">
           {attachments.length} {attachments.length === 1 ? 'Attachment' : 'Attachments'}
@@ -76,9 +76,15 @@ function Attachments({
             key={att.id || att.filename}
             className="flex min-w-0 max-w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5"
           >
+            {/* On paper the tile is drawn, not filled: browsers drop background
+                colours in print unless the reader ticks "Background graphics",
+                and a white icon on a dropped background prints as nothing at
+                all. An outline and a dark icon need no background to survive.
+                The colour carries the file type on screen; in print the type
+                is still written out beside the name. */}
             <span
               aria-hidden="true"
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white ${getFileTileStyle(fileType(att))}`}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white print:border print:border-slate-500 print:bg-transparent print:text-slate-900 ${getFileTileStyle(fileType(att))}`}
             >
               <FileText size={16} />
             </span>

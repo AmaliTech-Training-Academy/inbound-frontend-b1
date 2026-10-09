@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { ArrowLeft, Check, Maximize2, Printer, X } from 'lucide-react'
+import { ArrowLeft, Check, Loader2, Maximize2, Printer, X } from 'lucide-react'
 import Avatar from './Avatar.jsx'
 import SafeHtmlEmail from './SafeHtmlEmail'
 import Attachments from './Attachments'
@@ -24,6 +24,7 @@ function MessageReader({
   // No fallback message: an absent one must not render someone else's mail.
   message,
   onBack,
+  onRetry,
   inboxAddress,
   onDownloadAttachment,
   onDownloadAll,
@@ -32,6 +33,10 @@ function MessageReader({
   const [isFullScreen, setIsFullScreen] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
   const copiedTimer = useRef(null)
+  // The row a retry was asked for. Any new row - loaded, or failed again -
+  // ends the "trying" state on its own.
+  const [retriedRow, setRetriedRow] = useState(null)
+  const retrying = retriedRow !== null && retriedRow === message
 
   const recipient = message?.recipientEmail || inboxAddress || null
   const relativeTime = formatRelativeTime(message?.receivedAt)
@@ -191,6 +196,38 @@ function MessageReader({
     />
   )
 
+  const notLoaded = (
+    <div role="status" className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-8 text-center">
+      <p className="text-sm font-medium text-slate-900">This message didn’t load</p>
+      <p className="mt-1 text-xs text-slate-500">
+        It arrived, but its content couldn’t be fetched. Inbound keeps trying for a little while.
+      </p>
+      {typeof onRetry === 'function' && (
+        <button
+          type="button"
+          onClick={() => {
+            setRetriedRow(message)
+            onRetry(message)
+          }}
+          disabled={retrying}
+          className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+        >
+          {retrying && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
+          {retrying ? 'Trying again…' : 'Try again'}
+        </button>
+      )}
+    </div>
+  )
+
+  const content = message?.incomplete ? (
+    notLoaded
+  ) : (
+    <>
+      {body}
+      {attachments}
+    </>
+  )
+
   return (
     <>
       <article className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 md:px-8 md:py-8">
@@ -236,8 +273,7 @@ function MessageReader({
         </h2>
 
         {codeCard}
-        {body}
-        {attachments}
+        {content}
       </article>
 
       {/* Two layers. The tinted, blurred backdrop sits still underneath; the
@@ -261,24 +297,24 @@ function MessageReader({
             if (e.target === e.currentTarget) setIsFullScreen(false)
           }}
         >
+          {/* Pinned to the window's top right rather than sitting in the
+              header, so it stays where it is looked for as the email scrolls. */}
+          <button
+            type="button"
+            onClick={() => setIsFullScreen(false)}
+            className="fixed top-4 right-4 z-10 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+            aria-label="Exit Fullscreen"
+          >
+            <X size={14} aria-hidden="true" />
+            <span className="hidden sm:inline">Exit fullscreen</span>
+          </button>
           <article
             className="min-h-full w-full max-w-3xl bg-white p-6 shadow-2xl sm:min-h-0 sm:rounded-3xl sm:border sm:border-slate-200 sm:p-10"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-5">
               {sender}
-              <div className="flex shrink-0 items-center gap-3 text-slate-400">
-                {received}
-                <button
-                  type="button"
-                  onClick={() => setIsFullScreen(false)}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                  aria-label="Exit Fullscreen"
-                >
-                  <X size={14} aria-hidden="true" />
-                  <span className="hidden sm:inline">Exit fullscreen</span>
-                </button>
-              </div>
+              <div className="flex shrink-0 items-center gap-3 text-slate-400">{received}</div>
             </header>
 
             <h2 className="mt-6 wrap-break-word text-xl font-semibold text-slate-900 sm:text-2xl">
@@ -286,8 +322,7 @@ function MessageReader({
             </h2>
 
             {codeCard}
-            {body}
-            {attachments}
+            {content}
           </article>
         </div>
       )}

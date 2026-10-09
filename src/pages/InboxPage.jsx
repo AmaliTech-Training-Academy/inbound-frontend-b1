@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { Loader2, MailOpen, Plus, RefreshCw, Search, Timer, TimerOff, Trash2 } from 'lucide-react'
+import { CloudOff, Loader2, MailOpen, Plus, RefreshCw, Search, Timer, TimerOff, Trash2, X } from 'lucide-react'
 import Avatar from '../components/Avatar.jsx'
 import BrandMark from '../components/BrandMark.jsx'
 import CopyButton from '../components/CopyButton.jsx'
@@ -9,8 +9,10 @@ import MessageReader from '../components/MessageReader.jsx'
 import InboxRail from '../components/InboxRail.jsx'
 import NewInboxDialog from '../components/NewInboxDialog.jsx'
 import ConfirmDestroyDialog from '../components/ConfirmDestroyDialog.jsx'
+import RateLimitNotice from '../components/RateLimitNotice.jsx'
 import { SiteFooter, SiteHero } from '../components/SiteChrome.jsx'
 import { SOCKET_STATUS } from '../services/inboxSocket.js'
+import { rateLimitedUntil } from '../services/inboxApi.js'
 import { useNow } from '../state/useNow.js'
 import { formatTimeLeft, isRunningOut } from '../utils/inboxProgress.js'
 import { toReaderMessage } from '../utils/message.js'
@@ -28,10 +30,11 @@ export default function InboxPage() {
   const navigate = useNavigate()
   const { status, inbox, regenerating, regenerate, reset } = context.session
 
-  if (status === 'expired' || regenerating) {
+  if (status === 'expired' || status === 'ended' || regenerating) {
     return (
       <Purged
         session={context.session}
+        ended={status === 'ended'}
         creating={status === 'creating'}
         onGenerate={async () => {
           await regenerate()
@@ -68,6 +71,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     canExtend,
     busy,
     error,
+    dismissError,
     notice,
     maxInboxes,
     atInboxLimit,
@@ -103,6 +107,20 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     if (messageId) navigate(INBOX_PATH, { replace: true })
   }, [messageId, navigate])
 
+  // So when another inbox takes over by itself - the open one expired, or the
+  // server's list dropped it - the url goes back to the list too.
+  const shownInboxId = useRef(inbox.id)
+  useEffect(() => {
+    if (shownInboxId.current === inbox.id) return
+    shownInboxId.current = inbox.id
+    leaveMessage()
+  }, [inbox.id, leaveMessage])
+
+  // Until the list has been checked, a message url that matches nothing may
+  // simply not have loaded yet (a reload with a message open).
+  const listPending =
+    !feed?.synced && !feed?.sweepError && feed?.connection !== SOCKET_STATUS.ERROR
+
   // One click on the rail is the switch: no profile step in between.
   const switchTo = (id) => {
     select(id)
@@ -116,7 +134,12 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     return created
   }, [addInbox, leaveMessage])
 
-  const closeAdd = useCallback(() => setAddOpen(false), [])
+  // The dialog has already said why an inbox could not be added, so the same
+  // error is not left behind it on the page.
+  const closeAdd = useCallback(() => {
+    setAddOpen(false)
+    dismissError()
+  }, [dismissError])
   const cancelDestroy = useCallback(() => setConfirmingDestroy(false), [])
 
   const confirmDestroy = () => {
@@ -229,7 +252,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               No messages match “{query.trim()}”.
             </p>
           ) : (
-            <EmptyInbox address={inbox.address} />
+            <EmptyInbox address={inbox.address} feed={feed} />
           )}
         </div>
 
@@ -329,10 +352,22 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
             </button>
           </div>
 
+          <RateLimitNotice until={rateLimitedUntil()} now={now} />
+
           {error && (
-            <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700 sm:px-6">
-              {error.message}
-            </p>
+            <div className="flex items-start gap-3 border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700 sm:px-6">
+              <p role="alert" className="min-w-0 flex-1">
+                {error.message}
+              </p>
+              <button
+                type="button"
+                onClick={dismissError}
+                className="shrink-0 rounded text-rose-500 hover:text-rose-800"
+                aria-label="Dismiss error"
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            </div>
           )}
 
           <div
@@ -346,9 +381,10 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
                 message={selected}
                 inboxAddress={inbox.address}
                 onBack={closeMessage}
+                onRetry={feed?.retry}
               />
             ) : messageId ? (
-              <MissingMessage />
+              listPending ? <LoadingMessage /> : <MissingMessage />
             ) : (
               <NothingOpen address={inbox.address} count={messages.length} />
             )}
@@ -448,23 +484,70 @@ function ConnectionState({ connection, error }) {
   )
 }
 
-function EmptyInbox({ address }) {
+// An empty list is only called empty once it has been checked, and the line
+// under it says whether new mail can actually arrive right now.
+function EmptyInbox({ address, feed }) {
+  if (feed?.sweepError) {
+    return (
+      <div role="alert" className="flex flex-col items-center px-6 py-16 text-center">
+        <span className="flex size-12 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+          <CloudOff size={20} aria-hidden="true" />
+        </span>
+        <h2 className="mt-4 text-sm font-medium text-slate-900">Couldn’t check for messages</h2>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+          Mail that arrived before this page loaded may be missing.
+        </p>
+        <button
+          type="button"
+          onClick={() => feed.resync?.()}
+          className="mt-4 rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800"
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
+
+  const offline = feed?.connection === SOCKET_STATUS.ERROR
+  if (!feed?.synced && !offline) {
+    return (
+      <div role="status" className="flex flex-col items-center px-6 py-16 text-center text-xs text-slate-500">
+        <Loader2 size={20} className="animate-spin text-slate-400" aria-hidden="true" />
+        <p className="mt-3">Checking for messages…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col items-center px-6 py-16 text-center">
       <span className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
         <MailOpen size={20} aria-hidden="true" />
       </span>
       <h2 className="mt-4 text-sm font-medium text-slate-900">Your inbox is empty</h2>
-      <p className="mt-1 text-xs leading-relaxed text-slate-400">
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
         New messages and verification codes sent to{' '}
         <span className="break-all font-mono text-slate-600">{address}</span> will appear here
         in real-time without refreshing.
       </p>
-      <p className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500">
-        <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-        Waiting for incoming mail…
-      </p>
+      <LiveLine connection={feed?.connection} />
     </div>
+  )
+}
+
+function LiveLine({ connection }) {
+  const [dot, text] =
+    connection === SOCKET_STATUS.JOINED
+      ? ['animate-pulse bg-emerald-500', 'Waiting for incoming mail…']
+      : connection === SOCKET_STATUS.ERROR
+        ? ['bg-rose-500', 'Not connected. New mail will appear once the connection is back.']
+        : connection === SOCKET_STATUS.DISCONNECTED
+          ? ['bg-amber-500', 'Reconnecting…']
+          : ['bg-amber-500', 'Connecting…']
+  return (
+    <p role="status" className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500">
+      <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${dot}`} />
+      {text}
+    </p>
   )
 }
 
@@ -484,12 +567,21 @@ function NothingOpen({ address, count }) {
   )
 }
 
+function LoadingMessage() {
+  return (
+    <div role="status" className="flex h-full flex-col items-center justify-center px-6 py-16 text-center text-xs text-slate-500">
+      <Loader2 size={20} className="animate-spin text-slate-400" aria-hidden="true" />
+      <p className="mt-3">Loading message…</p>
+    </div>
+  )
+}
+
 function MissingMessage() {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 py-16 text-center">
       <p className="text-sm font-medium text-slate-900">This message isn’t here</p>
-      <p className="mt-1 max-w-xs text-xs text-slate-400">
-        It may belong to another inbox, or it can’t be listed again after a reload.
+      <p className="mt-1 max-w-xs text-xs text-slate-500">
+        It may belong to another of your inboxes, or it has expired.
       </p>
       <Link to={INBOX_PATH} className="mt-4 text-xs font-medium text-sky-600 hover:underline">
         Back to inbox
@@ -498,9 +590,10 @@ function MissingMessage() {
   )
 }
 
-// Where an inbox ends up once its time runs out: the site's own header and
-// glow, and one card that says what happened and offers the two ways on.
-function Purged({ session, onGenerate, onLeave, creating }) {
+// Where an inbox ends up once its time runs out, or once the server stops
+// recognising the session: the site's own header and glow, and one card that
+// says what happened and offers the two ways on.
+function Purged({ session, onGenerate, onLeave, creating, ended }) {
   return (
     // One screen tall: the hero takes what the footer leaves, so the footer
     // shows without scrolling on a laptop, and the page still scrolls when
@@ -515,10 +608,13 @@ function Purged({ session, onGenerate, onLeave, creating }) {
             <span className="flex size-14 items-center justify-center rounded-full bg-brand-soft text-brand">
               <TimerOff size={26} strokeWidth={2} aria-hidden="true" />
             </span>
-            <h1 className="mt-6 text-2xl font-bold">This inbox has expired</h1>
+            <h1 className="mt-6 text-2xl font-bold">
+              {ended ? 'This session has ended' : 'This inbox has expired'}
+            </h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              Its address no longer receives mail, and its messages and
-              attachments have been permanently deleted.
+              {ended
+                ? 'The server no longer recognises this session, so its inboxes can’t be opened any more.'
+                : 'Its address no longer receives mail, and its messages and attachments have been permanently deleted.'}
             </p>
 
             <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
@@ -541,9 +637,11 @@ function Purged({ session, onGenerate, onLeave, creating }) {
               </button>
             </div>
 
-            <p className="mt-8 text-xs text-slate-400">
-              Need more time next time? Use +{EXTEND_MINUTES}m in the inbox before it runs out.
-            </p>
+            {!ended && (
+              <p className="mt-8 text-xs text-slate-400">
+                Need more time next time? Use +{EXTEND_MINUTES}m in the inbox before it runs out.
+              </p>
+            )}
           </div>
         </div>
       </SiteHero>

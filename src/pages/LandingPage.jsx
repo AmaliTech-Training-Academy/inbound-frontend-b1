@@ -39,13 +39,7 @@ export default function LandingPage() {
                 </Link>
               </>
             ) : (
-              <>
-                <span className="truncate">No sign-up. Self-destructs in {INBOX_TTL_MINUTES} min.</span>
-                <Link to={ROUTES.howItWorks} className="flex shrink-0 items-center gap-1 font-medium">
-                  <span>Read more</span>
-                  <ArrowIcon />
-                </Link>
-              </>
+              <span className="truncate">No sign-up. Self-destructs in {INBOX_TTL_MINUTES} min.</span>
             )}
           </div>
 
@@ -123,17 +117,10 @@ export default function LandingPage() {
   )
 }
 
-// The tilted stamp the design sets beside the headline's last word: the
-// design's dashed circle around the expiry clock, inside a solid one. The
-// dashed ring alone read as a halo of faint dots rather than as a ring, so a
-// continuous circle sits just outside it and the pair reads as a postmark. The
-// dashed ring is pulled in from 46 to 40 to leave the solid one room inside the
-// 100-unit box, and the two texts still clear it. Drawn as SVG rather than
-// shipped as an image so it takes its colour from the brand token.
-//
-// It hangs off the end of "Need" and straddles that word's cap height, so it
-// reads as stamped beside the headline rather than floating above it; only from
-// laptop width up, where there is room beside the word.
+// The tilted postmark beside the headline's last word: a dashed ring around
+// the expiry clock, with a solid one just outside it. SVG rather than an image
+// so it takes its colour from the brand token. Shown from laptop width up,
+// where there is room beside the word.
 function ExpiryStamp() {
   return (
     <span

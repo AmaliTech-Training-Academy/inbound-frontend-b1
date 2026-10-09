@@ -1,6 +1,6 @@
 // join-inbox must be re-emitted on every connect, reconnects included.
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Exercises the real transport path so the io() call itself is covered; the
 // fake socket stands in for what it returns.
@@ -65,7 +65,7 @@ beforeEach(() => {
     ioMock.mockReset();
 });
 
-describe("createInboxSocket", () => {
+describe("inboxSocket", () => {
     it("requires both an address and a token", () => {
         expect(() => createInboxSocket({ address: "a@b.c" })).toThrow();
         expect(() => createInboxSocket({ token: "t" })).toThrow();
@@ -146,6 +146,86 @@ describe("createInboxSocket", () => {
             SOCKET_STATUS.JOINED,
             expect.anything(),
         );
+    });
+
+    describe("a join that does not succeed", () => {
+        const joins = (socket) =>
+            socket.emit.mock.calls.filter(([event]) => event === "join-inbox").length;
+
+        beforeEach(() => {
+            vi.useFakeTimers();
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it("is asked again, a little later each time", () => {
+            const { socket, onStatusChange } = setup();
+            socket.fire("connect");
+            latestJoinAck(socket)({ success: false, error: "busy" });
+
+            vi.advanceTimersByTime(1_999);
+            expect(joins(socket)).toBe(1);
+            vi.advanceTimersByTime(1);
+            expect(joins(socket)).toBe(2);
+
+            latestJoinAck(socket)({ success: false, error: "busy" });
+            vi.advanceTimersByTime(4_999);
+            expect(joins(socket)).toBe(2);
+            vi.advanceTimersByTime(1);
+            expect(joins(socket)).toBe(3);
+
+            latestJoinAck(socket)({ success: true, room: "inbox:abc" });
+            expect(onStatusChange).toHaveBeenLastCalledWith(SOCKET_STATUS.JOINED, "inbox:abc");
+        });
+
+        it("counts as failed when the server never answers, and is asked again", () => {
+            const { socket, onStatusChange } = setup();
+            socket.fire("connect");
+
+            vi.advanceTimersByTime(10_000);
+            expect(onStatusChange).toHaveBeenLastCalledWith(
+                SOCKET_STATUS.ERROR,
+                "the server did not answer",
+            );
+
+            vi.advanceTimersByTime(2_000);
+            expect(joins(socket)).toBe(2);
+        });
+
+        it("ignores an answer that arrives after it was given up on", () => {
+            const { socket, onStatusChange } = setup();
+            socket.fire("connect");
+            const lateAck = latestJoinAck(socket);
+
+            vi.advanceTimersByTime(10_000);
+            lateAck({ success: true, room: "inbox:abc" });
+
+            expect(onStatusChange).not.toHaveBeenCalledWith(SOCKET_STATUS.JOINED, expect.anything());
+        });
+
+        it("is left to the reconnect when the connection drops", () => {
+            const { socket } = setup();
+            socket.fire("connect");
+            latestJoinAck(socket)({ success: false, error: "busy" });
+            socket.fire("disconnect", "transport close");
+
+            vi.advanceTimersByTime(60_000);
+
+            expect(joins(socket)).toBe(1);
+        });
+
+        it("is not asked again once closed", () => {
+            const { socket, connection } = setup();
+            socket.fire("connect");
+            latestJoinAck(socket)({ success: false, error: "busy" });
+            connection.close();
+
+            vi.advanceTimersByTime(60_000);
+
+            expect(joins(socket)).toBe(1);
+        });
     });
 
     it("passes message:new previews through", () => {

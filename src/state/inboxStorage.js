@@ -89,8 +89,6 @@ export function loadInbox() {
     return inbox;
 }
 
-// --- Sessions --------------------------------------------------------
-//
 // One session token can own several inboxes, so what is stored is the
 // session, not an inbox:
 //

@@ -1,17 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { prepareEmail } from "./emailHtml.js";
+import { cleaned } from "../test/helpers.js";
 // The team's own sanitization test: a shipping email on top, every common
 // attack underneath.
 import SANITIZATION_TEST from "../test/fixtures/sanitizationTestEmail.html?raw";
-
-/** The cleaned email as a document, to query like the reader would see it. */
-function cleaned(html) {
-    // In this document rather than a separate one, so jest-dom's matchers
-    // accept the elements.
-    const root = document.createElement("div");
-    root.innerHTML = prepareEmail(html);
-    return { body: root, querySelector: (s) => root.querySelector(s), querySelectorAll: (s) => root.querySelectorAll(s) };
-}
 
 describe("prepareEmail", () => {
     describe("the team's sanitization test email", () => {

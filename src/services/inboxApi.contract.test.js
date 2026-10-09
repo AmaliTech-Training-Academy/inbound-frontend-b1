@@ -18,7 +18,9 @@ import {
     fetchUnreadMessages,
     getSessionInboxes,
     rateLimitedFor,
+    rateLimitedUntil,
     resetRateLimit,
+    RATE_LIMITED_MESSAGE,
 } from "./inboxApi.js";
 
 const API = "https://api.test/server/api/v1";
@@ -190,10 +192,7 @@ describe("inboxApi (session-token contract)", () => {
         it("holds background traffic off after a 429, without blocking the next call", async () => {
             fetchMock.mockReturnValueOnce(tooMany()).mockReturnValueOnce(reply({ inboxes: [] }));
 
-            await expect(getSessionInboxes("tok")).rejects.toMatchObject({
-                status: 429,
-                message: "Too many requests from this IP, please try again later.",
-            });
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
             expect(rateLimitedFor()).toBeGreaterThan(0);
 
             // A click still goes out: blocking it on a guess helps nobody.
@@ -223,6 +222,33 @@ describe("inboxApi (session-token contract)", () => {
             }
 
             expect(waits).toEqual([30_000, 60_000, 60_000, 60_000]);
+        });
+
+        it("says a 429 in plain words, not the server's", async () => {
+            fetchMock.mockReturnValueOnce(tooMany());
+
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({
+                status: 429,
+                message: RATE_LIMITED_MESSAGE,
+            });
+        });
+
+        it("says the same when the 429's body cannot be read", async () => {
+            fetchMock.mockReturnValueOnce(Promise.resolve(new Response("Too Many Requests", { status: 429 })));
+
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({
+                status: 429,
+                message: RATE_LIMITED_MESSAGE,
+            });
+        });
+
+        it("says when background traffic may go out again", async () => {
+            vi.useFakeTimers({ toFake: ["Date"] });
+            fetchMock.mockReturnValueOnce(tooMany());
+
+            await expect(getSessionInboxes("tok")).rejects.toMatchObject({ status: 429 });
+
+            expect(rateLimitedUntil()).toBe(Date.now() + 30_000);
         });
 
         it("ends the wait as soon as a request gets through", async () => {
