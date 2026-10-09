@@ -24,8 +24,8 @@ export function SiteHero({ session, unread = 0, className = '', children }) {
   )
 }
 
-// Text only: the sparkle that used to sit beside the label read as an AI
-// product. A spinner takes its place only while the inbox is being made.
+// Text only, with no decorative icon beside the label. The spinner appears
+// only while the inbox is being made.
 export function GenerateButton({ onClick, creating, label = null }) {
   return (
     <button
@@ -97,7 +97,7 @@ export function SiteFooter() {
       <span aria-hidden="true" className="mx-2 text-slate-300">
         •
       </span>
-      © 2026 Inbound. Zero logs, zero tracking. Ephemeral by architecture.
+      © 2026 Inbound. No logs, no tracking. Gone when you close the tab.
     </footer>
   )
 }

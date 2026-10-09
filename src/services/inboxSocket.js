@@ -1,8 +1,9 @@
 import { io } from "socket.io-client";
 import { SOCKET_ORIGIN, SOCKET_PATH, USE_MOCK } from "../config.js";
 import { rememberMockMessage, sampleMessages } from "./mockMail.js";
-// TEMPORARY LATENCY DIAGNOSTICS - observation only, see utils/timingLog.js.
-import { noteArrival } from "../utils/timingLog.js";
+
+const JOIN_TIMEOUT_MS = 10_000;
+const JOIN_RETRY_MS = [2_000, 5_000, 10_000, 30_000];
 
 export const SOCKET_STATUS = {
     CONNECTING: "connecting",
@@ -36,39 +37,65 @@ export function createInboxSocket({
               reconnection: true,
           });
 
+    // A rejected or unanswered join leaves the socket connected but receiving
+    // nothing, so it is asked again, a little later each time, for as long as
+    // the socket stays connected. A drop needs no retry: the reconnect joins.
+    let connected = false;
+    let closed = false;
+    let joinAttempt = 0;
+    let ackTimer = null;
+    let retryTimer = null;
+
+    const join = () => {
+        let settled = false;
+
+        const failed = (reason) => {
+            if (settled || closed) return;
+            settled = true;
+            console.error("[inboxSocket] join-inbox failed:", reason);
+            report(SOCKET_STATUS.ERROR, reason);
+            if (!connected) return;
+            const wait = JOIN_RETRY_MS[Math.min(joinAttempt, JOIN_RETRY_MS.length - 1)];
+            joinAttempt += 1;
+            retryTimer = setTimeout(join, wait);
+        };
+
+        clearTimeout(ackTimer);
+        ackTimer = setTimeout(() => failed("the server did not answer"), JOIN_TIMEOUT_MS);
+
+        socket.emit("join-inbox", { address, token }, (ack) => {
+            clearTimeout(ackTimer);
+            if (settled || closed) return;
+            if (!ack?.success) {
+                failed(ack?.error || "unable to validate inbox credentials");
+                return;
+            }
+            settled = true;
+            joinAttempt = 0;
+            report(SOCKET_STATUS.JOINED, ack.room);
+        });
+    };
+
     // Bound to `connect`, not run once: the server does not restore room
     // membership after a drop, so every reconnect needs a fresh join.
     const handleConnect = () => {
+        connected = true;
+        joinAttempt = 0;
+        clearTimeout(retryTimer);
         report(SOCKET_STATUS.CONNECTED);
-
-        socket.emit("join-inbox", { address, token }, (ack) => {
-            if (ack?.success) {
-                report(SOCKET_STATUS.JOINED, ack.room);
-                return;
-            }
-
-            // A failed ack means connected but receiving nothing, so it must
-            // not be reported as joined.
-            console.error("[inboxSocket] join-inbox was rejected:", ack?.error);
-            report(
-                SOCKET_STATUS.ERROR,
-                ack?.error || "unable to validate inbox credentials",
-            );
-        });
+        join();
     };
 
     const handleMessageNew = (payload) => {
         if (!payload?.id) return;
-
-        // TEMPORARY DIAGNOSTICS: the true arrival moment - the first point in
-        // the app the browser has seen this event, before any handling.
-        noteArrival(payload.id, payload, "socket");
-
         if (typeof onMessageNew === "function") onMessageNew(payload);
     };
 
     // Socket.IO reconnects on its own; this only surfaces the state.
     const handleDisconnect = (reason) => {
+        connected = false;
+        clearTimeout(retryTimer);
+        clearTimeout(ackTimer);
         report(SOCKET_STATUS.DISCONNECTED, reason);
     };
 
@@ -86,6 +113,9 @@ export function createInboxSocket({
 
     return {
         close() {
+            closed = true;
+            clearTimeout(retryTimer);
+            clearTimeout(ackTimer);
             socket.off("connect", handleConnect);
             socket.off("disconnect", handleDisconnect);
             socket.off("connect_error", handleConnectError);

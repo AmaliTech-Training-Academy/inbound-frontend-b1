@@ -1,5 +1,5 @@
 
-// Central config. 
+// Central config.
 const env =
     typeof import.meta !== "undefined" && import.meta.env
         ? import.meta.env
@@ -32,8 +32,11 @@ export function splitSocketTarget(apiBase) {
         const url = new URL(apiBase.replace(/\/api\/v1\/?$/, ""));
         const prefix = url.pathname.replace(/\/+$/, "");
         return { origin: url.origin, path: `${prefix}/socket.io` };
-    } catch {
-        // Relative or unparseable: fall back to same-origin defaults.
+    } catch (err) {
+        // Relative or unparseable: fall back to same-origin defaults. Said out
+        // loud because the socket then quietly points somewhere else, which is
+        // otherwise only visible as mail never arriving.
+        console.error(`[config] could not read a socket target from ${apiBase}`, err);
         return { origin: undefined, path: "/socket.io" };
     }
 }
@@ -45,13 +48,11 @@ export const SOCKET_ORIGIN = env.VITE_SOCKET_ORIGIN || socketTarget.origin;
 export const SOCKET_PATH = env.VITE_SOCKET_PATH || socketTarget.path;
 
 /**
- * Flip this on to run entirely against the in-memory mock backend — no API,
- * no socket. Required by the tracker so UI work isn't blocked on backend
- * availability.
+ * Runs entirely against the in-memory mock backend: no API, no socket. Keeps
+ * UI work from being blocked on backend availability.
  *
- * Only ever on when asked for. It used to switch on by itself whenever
- * VITE_API_BASE was missing, which is how a deploy built without the variable
- * went out showing fake addresses instead of failing.
+ * Opt-in only. Never infer it from a missing VITE_API_BASE, or a build that
+ * was never given one ships fake addresses instead of failing.
  */
 export const USE_MOCK = env.VITE_USE_MOCK === "true";
 
@@ -87,7 +88,7 @@ export const INBOX_TTL_MINUTES = 10;
 
 /**
  * Minutes added per extend. DISPLAY ONLY, for the same reason:
- * PATCH /api/v1/inbox/extend takes no body and always adds a fixed amount.
+ * PATCH /api/v1/inbox/extend/:id takes no body and always adds a fixed amount.
  */
 export const EXTEND_MINUTES = 5;
 
@@ -105,9 +106,7 @@ export const MAX_EXTENDS = 3;
  *
  * The backend caps inboxes per session, and the client holds itself to the
  * same number rather than letting the server be the first to say no. Keep
- * VITE_MAX_INBOXES equal to the backend's cap. The default, 5, is the cap the
- * rail carried before the backend had one; no number was in the backend's
- * own code as of dev on 2026-09-30.
+ * VITE_MAX_INBOXES equal to the backend's cap.
  *
  * Each open inbox also keeps a socket of its own (a socket joins one inbox
  * room), so this bounds the connections as well as the rail.
