@@ -1,5 +1,5 @@
 import { Moon, Sun } from 'lucide-react'
-import { useTheme } from '../state/useTheme.js'
+import { useTheme } from '../hooks/useTheme.js'
 
 // The light/dark switch. The icon is the theme it would take you to: the moon
 // sits in light mode, the sun in dark.

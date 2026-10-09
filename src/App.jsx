@@ -6,8 +6,8 @@ import LandingPage from './pages/LandingPage.jsx'
 import HowItWorksPage from './pages/HowItWorksPage.jsx'
 import InboxPage from './pages/InboxPage.jsx'
 import { ROUTES } from './router'
-import { useInbox } from './state/useInbox.js'
-import { useTheme } from './state/useTheme.js'
+import { useInbox } from './hooks/useInbox.js'
+import { useTheme } from './hooks/useTheme.js'
 
 // Everything that has to outlive a single screen. The landing page and the
 // inbox read the same session, and each inbox's feed - its socket, its list,

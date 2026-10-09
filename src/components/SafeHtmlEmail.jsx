@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { paintsOwnSurface, prepareEmail, setsDarkText } from '../utils/emailHtml.js'
-import { useTheme } from '../state/useTheme.js'
+import { useTheme } from '../hooks/useTheme.js'
 
 // An HTML email, shown as its sender laid it out, inside a sandbox it cannot
 // reach out of.

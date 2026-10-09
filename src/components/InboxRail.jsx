@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import Avatar from "./Avatar.jsx";
-import { useNow } from "../state/useNow.js";
+import { useNow } from "../hooks/useNow.js";
 import { formatTimeLeft, isRunningOut } from "../utils/inboxProgress.js";
 
 // The session's inboxes as the design's avatar rail: + for a new one, then a
