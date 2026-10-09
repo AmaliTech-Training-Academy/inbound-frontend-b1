@@ -76,9 +76,15 @@ function Attachments({
             key={att.id || att.filename}
             className="flex min-w-0 max-w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5"
           >
+            {/* On paper the tile is drawn, not filled: browsers drop background
+                colours in print unless the reader ticks "Background graphics",
+                and a white icon on a dropped background prints as nothing at
+                all. An outline and a dark icon need no background to survive.
+                The colour carries the file type on screen; in print the type
+                is still written out beside the name. */}
             <span
               aria-hidden="true"
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white ${getFileTileStyle(fileType(att))}`}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white print:border print:border-slate-500 print:bg-transparent print:text-slate-900 ${getFileTileStyle(fileType(att))}`}
             >
               <FileText size={16} />
             </span>
