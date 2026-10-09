@@ -54,7 +54,12 @@ export const SOCKET_PATH = env.VITE_SOCKET_PATH || socketTarget.path;
  * Opt-in only. Never infer it from a missing VITE_API_BASE, or a build that
  * was never given one ships fake addresses instead of failing.
  */
-export const USE_MOCK = env.VITE_USE_MOCK === "true";
+// Written as the whole `import.meta.env.X` expression rather than through
+// `env` above, and that is the point: Vite only substitutes this exact form
+// with a literal at build time. Fold it to `false` and the bundler can drop
+// every `if (MOCK)` branch, and with them the mock inbox, the sample mail and
+// the window helpers - none of which belong in a production build.
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 /**
  * Why these settings cannot run the app, or null when they can: either a
