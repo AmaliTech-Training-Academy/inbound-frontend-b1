@@ -8,10 +8,12 @@
 // unless the word before it makes it some other kind of code (see NOT_A_LOGIN).
 // "token" counts only behind a qualifier ("login token", "security token"),
 // never bare: on its own the word is more often a crypto or marketing one.
-// "key" is left out for the same reason - an "access key" is a credential and
-// a "security key" is hardware, neither of them something to type in.
+// "key" is read the same way, on Prince's call: a qualifier in front and
+// never bare. It is the loosest of the nouns - an "access key" is often an
+// API credential and a "security key" is hardware - so the shape rules are
+// doing more of the work here than the wording is.
 const CODE_KEYWORD =
-    /\b(?:(?:one[\s-]time|two[\s-]factor|2fa|verification|verify|security|auth|authentication|login|log[\s-]in|sign[\s-]in|confirmation|access|activation|reset|recovery|temporary|single[\s-]use)\s+(?:code|pin|passcode|password|number|token)|passcode|otp|pin|code)\b/gi;
+    /\b(?:(?:one[\s-]time|two[\s-]factor|2fa|verification|verify|security|auth|authentication|login|log[\s-]in|sign[\s-]in|confirmation|access|activation|reset|recovery|temporary|single[\s-]use)\s+(?:code|pin|passcode|password|number|token|key)|passcode|otp|pin|code)\b/gi;
 
 // Words that, said on their own, point back at a code written before them:
 // "Use 839201 to verify your account".

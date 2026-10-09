@@ -447,22 +447,27 @@ describe("extractVerificationCode on mail that had defeated it", () => {
         ).toBe("839201");
     });
 
-    // Cloudflare, Stripe and Twilio all say "token" where others say "code".
+    // Cloudflare, Stripe and Twilio all say "token" where others say "code",
+    // and "key" is read the same way on Prince's call.
     it.each([
         ["Your Cloudflare login token: 4206283", "4206283"],
         ["Your Stripe security token is 558210", "558210"],
         ["Your authentication token is 9921AB", "9921AB"],
         ["Your one-time token is 773001", "773001"],
-    ])("reads a token: %s", (subject, expected) => {
+        ["Your access key is 55213", "55213"],
+        ["Your recovery key is 448120", "448120"],
+        ["Your login key is 7781AB", "7781AB"],
+    ])("reads %s", (subject, expected) => {
         expect(extractVerificationCode({ subject })).toBe(expected);
     });
 
-    // Bare "token" is not a trigger, and neither is "key": on their own they
-    // are far more often crypto, marketing or credentials than a code to type.
+    // Neither word is a trigger standing on its own, which is what keeps the
+    // wallet and the API credential out. A qualifier is required, and "api"
+    // is not one of them.
     it.each([
         "Your token has been credited to your wallet: 4206283",
-        "Your access key is 55213",
-        "Your security key is registered, reference 992144",
+        "Your API key expires in 30 days, reference 884120",
+        "Your key is in the app",
     ])("leaves alone: %s", (subject) => {
         expect(extractVerificationCode({ subject })).toBeNull();
     });
