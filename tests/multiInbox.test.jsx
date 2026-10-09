@@ -67,7 +67,7 @@ async function addAnInbox() {
     expect(screen.queryByRole("dialog", { name: "New temporary inbox" })).toBeNull();
 }
 
-describe("several inboxes in one session", () => {
+describe("multiInbox", () => {
     beforeEach(() => {
         window.sessionStorage.clear();
         window.sessionStorage.setItem("inbound.inbox", JSON.stringify(STORED_INBOX));

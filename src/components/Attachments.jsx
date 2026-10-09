@@ -31,9 +31,9 @@ function fileType(att) {
   return extension ? extension.toUpperCase() : null
 }
 
-// A message's attachments as the design's file tiles. The actions are only
-// drawn when there is something behind them: the API has no attachment
-// download yet, and a button that does nothing is worse than none.
+// A message's attachments as the design's file tiles. Each action is drawn
+// only when a handler is passed for it, so a button that does nothing is never
+// shown.
 function Attachments({
   attachments = [],
   totalAttachmentSize = '',
