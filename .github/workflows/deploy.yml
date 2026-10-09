@@ -83,7 +83,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition inbound-api \
+            --task-definition inbound-cluster-inbound-client-a1a4 \
             --query taskDefinition > task-definition.json
 
       - name: Render new task definition revision
@@ -98,6 +98,6 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: inbound-api-b299
+          service: inbound-client-a1a4
           cluster: inbound-cluster
           wait-for-service-stability: true
