@@ -7,7 +7,16 @@ import { afterEach, vi } from "vitest";
 // a shared CI runner, where a different one of them failed each time. A
 // longer ceiling costs nothing when the UI is quick: they return as soon as it
 // appears.
-configure({ asyncUtilTimeout: 5000 });
+//
+// Raised again from 5s on 2026-10-09, after the expiry specs failed a deploy
+// from dev on a tree that had passed CI on its own branch minutes earlier.
+// These waits are wall-clock, and so is the ceiling: when a runner deschedules
+// the worker, the budget burns while the timer and the render do not get to
+// run. Nothing here is slow - the ceiling only decides how much starvation a
+// passing test survives, so it is kept well under vite.config.js's testTimeout
+// so that a genuinely stuck wait still fails as a waitFor timeout, which names
+// the condition, rather than as a bare test timeout, which does not.
+configure({ asyncUtilTimeout: 10000 });
 
 // jsdom draws nothing, and says so on console.error for every click the app's
 // spark canvas answers. No context is exactly what the component handles.
