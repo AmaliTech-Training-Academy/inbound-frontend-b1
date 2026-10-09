@@ -34,7 +34,7 @@ function reply(data, status = 200) {
     );
 }
 
-describe("inboxApi (session-token contract)", () => {
+describe("inboxApi contract", () => {
     let fetchMock;
 
     beforeEach(() => {
