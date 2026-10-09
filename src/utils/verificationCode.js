@@ -6,8 +6,12 @@
 // is read as one trigger rather than as "code" alone. A bare "code" counts too
 // - "Your code is 123456" and "Code: 839201" are how much real mail puts it -
 // unless the word before it makes it some other kind of code (see NOT_A_LOGIN).
+// "token" counts only behind a qualifier ("login token", "security token"),
+// never bare: on its own the word is more often a crypto or marketing one.
+// "key" is left out for the same reason - an "access key" is a credential and
+// a "security key" is hardware, neither of them something to type in.
 const CODE_KEYWORD =
-    /\b(?:(?:one[\s-]time|two[\s-]factor|2fa|verification|verify|security|auth|authentication|login|log[\s-]in|sign[\s-]in|confirmation|access|activation|reset|recovery|temporary|single[\s-]use)\s+(?:code|pin|passcode|password|number)|passcode|otp|pin|code)\b/gi;
+    /\b(?:(?:one[\s-]time|two[\s-]factor|2fa|verification|verify|security|auth|authentication|login|log[\s-]in|sign[\s-]in|confirmation|access|activation|reset|recovery|temporary|single[\s-]use)\s+(?:code|pin|passcode|password|number|token)|passcode|otp|pin|code)\b/gi;
 
 // Words that, said on their own, point back at a code written before them:
 // "Use 839201 to verify your account".
@@ -38,8 +42,14 @@ const JOINS_CODE_TO_WORDS =
 
 // Not anchored with \b, because \b treats "-" and "." as boundaries and
 // "555-1234" and "$19.00" must not match.
+//
+// The alphanumeric branch covers digit-only codes too, so there is no
+// digits-only branch of its own. There was one, ahead of it, and it made
+// "3443AX" unreachable: the digits matched first, were rejected for the letter
+// glued to them, and the retry resumed one character in - so the whole token
+// was never tried from its own start.
 const CODE_PATTERN =
-    /\d{3}[ \t-]\d{3}|[A-Z0-9]{1,4}[ \t-][A-Z0-9]{1,4}|\d{4,8}|[A-Z0-9]{4,8}/g;
+    /\d{3}[ \t-]\d{3}|[A-Z0-9]{1,4}[ \t-][A-Z0-9]{1,4}|[A-Z0-9]{4,8}/g;
 
 // Characters that, glued to a candidate, mean it is part of something longer
 // rather than a code standing alone ("e742b6", "#4928", "2026-09").
@@ -155,7 +165,8 @@ function codesIn(text) {
 
 function firstCodeAfter(text, from) {
     const window = text.slice(from, from + LOOKAHEAD_CHARS);
-    return codesIn(window)[0]?.code ?? null;
+    const found = codesIn(window)[0];
+    return found ? { code: found.code, gap: found.start } : null;
 }
 
 /** The nearest code before `to`, when the words between join it to them. */
@@ -196,10 +207,17 @@ export function extractVerificationCode({ subject, body } = {}) {
         isLoginCodeWording(text, match),
     );
 
+    // The trigger whose code sits closest to it wins, rather than the first
+    // trigger in the text. A forwarded mail carries its own headers, and the
+    // subject's bare "code" would otherwise reach a hundred characters down
+    // into "Date: Thu, Oct 1, 2026" and hand back the year - while the real
+    // "verification code: 3443AX" sat one character from its own trigger.
+    let best = null;
     for (const match of triggers) {
-        const code = firstCodeAfter(text, match.index + match[0].length);
-        if (code) return code;
+        const found = firstCodeAfter(text, match.index + match[0].length);
+        if (found && (best === null || found.gap < best.gap)) best = found;
     }
+    if (best) return best.code;
 
     for (const match of [...triggers, ...text.matchAll(VERIFY_WORD)]) {
         const code = codeJustBefore(text, match.index);

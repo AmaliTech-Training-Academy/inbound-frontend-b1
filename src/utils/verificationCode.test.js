@@ -405,3 +405,65 @@ describe("extractVerificationCode does not join a stray number to the wording", 
         expect(extractVerificationCode({ body: "839201 - your Acme sign-in code" })).toBe("839201");
     });
 });
+
+// All three of these were found by Josiah testing the deployed app against his
+// own mail, which is why the wording is his rather than invented.
+describe("extractVerificationCode on mail that had defeated it", () => {
+    const forwarded = (code) =>
+        [
+            "---------- Forwarded message ---------",
+            "From: Ababio Josiah <josiahababio56@gmail.com>",
+            "Date: Thu, Oct 1, 2026 at 3:23 PM",
+            "Subject: Your Code",
+            "To: <324felixolsotm8i8gwpe0b@avagroceries.com>",
+            "",
+            `This is your verification code: ${code}`,
+        ].join("\n");
+
+    // A code of four or more digits followed by letters used to be unreachable:
+    // the digits matched first, were thrown out for the letter glued to them,
+    // and the retry resumed one character in, so the token was never tried
+    // whole. Anything up to the first letter was lost with it.
+    it.each([
+        ["3443AX", "digits then letters"],
+        ["123456A", "digits then one letter"],
+        ["9921AB", "the Twilio shape"],
+    ])("reads %s (%s)", (code) => {
+        expect(extractVerificationCode({ body: `This is your verification code: ${code}` })).toBe(code);
+    });
+
+    // The forwarded headers carry a date, and the subject's bare "code" reached
+    // a hundred characters down into it. 2026 is a clean four-digit token with
+    // spaces either side, so every other guard let it through.
+    it("reads the code, not the year out of the forwarded headers", () => {
+        expect(
+            extractVerificationCode({ subject: "Fwd: Your Code", body: forwarded("3443AX") }),
+        ).toBe("3443AX");
+    });
+
+    it("prefers the nearer trigger when two could both answer", () => {
+        expect(
+            extractVerificationCode({ subject: "Fwd: Your Code", body: forwarded("839201") }),
+        ).toBe("839201");
+    });
+
+    // Cloudflare, Stripe and Twilio all say "token" where others say "code".
+    it.each([
+        ["Your Cloudflare login token: 4206283", "4206283"],
+        ["Your Stripe security token is 558210", "558210"],
+        ["Your authentication token is 9921AB", "9921AB"],
+        ["Your one-time token is 773001", "773001"],
+    ])("reads a token: %s", (subject, expected) => {
+        expect(extractVerificationCode({ subject })).toBe(expected);
+    });
+
+    // Bare "token" is not a trigger, and neither is "key": on their own they
+    // are far more often crypto, marketing or credentials than a code to type.
+    it.each([
+        "Your token has been credited to your wallet: 4206283",
+        "Your access key is 55213",
+        "Your security key is registered, reference 992144",
+    ])("leaves alone: %s", (subject) => {
+        expect(extractVerificationCode({ subject })).toBeNull();
+    });
+});
