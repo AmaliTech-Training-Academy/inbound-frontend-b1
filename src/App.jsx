@@ -1,48 +1,79 @@
-import { useEffect, useState } from "react";
-import Header from "./components/Header.jsx";
-import Hero from "./components/Hero.jsx";
-import Footer from "./components/Footer.jsx";
-import { useInbox } from "./state/useInbox.js";
-import { MOCK_MESSAGES } from "./data/mockMessages.js";
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import ClickSpark from './components/fx/ClickSpark.jsx'
+import InboxFeed from './components/InboxFeed.jsx'
+import LandingPage from './pages/LandingPage.jsx'
+import HowItWorksPage from './pages/HowItWorksPage.jsx'
+import InboxPage from './pages/InboxPage.jsx'
+import { ROUTES } from './router'
+import { useInbox } from './state/useInbox.js'
 
-export default function App() {
-    // Called once: useInbox owns its state, so a second call creates a second inbox.
-    const inbox = useInbox();
+// Everything that has to outlive a single screen. The landing page and the
+// inbox read the same session, and each inbox's feed - its socket, its list,
+// its reconnect recovery - stays mounted here, so going from one screen to the
+// other never drops a connection or a message already on screen.
+function SessionLayout() {
+  const session = useInbox()
 
-    const [selectedMessageId, setSelectedMessageId] = useState(null);
+  // A new page starts at its top, as it would on a full page load.
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
 
-    // Only feed in the app: the API has no message-list endpoint yet, so
-    // incoming mail stays on the fixtures.
-    const messages = MOCK_MESSAGES;
-    const activeMessage =
-        messages.find((message) => message.id === selectedMessageId) ?? null;
+  // Each inbox's live feed, reported by its InboxFeed.
+  const [feeds, setFeeds] = useState({})
+  const onFeedUpdate = useCallback(
+    (id, feed) => setFeeds((prev) => ({ ...prev, [id]: feed })),
+    [],
+  )
 
-    // Without this, the id would reopen the reader on the next address generated.
-    useEffect(() => {
-        if (inbox.status !== "active") {
-            setSelectedMessageId(null);
-        }
-    }, [inbox.status]);
+  // Messages opened in this tab. The socket's previews carry no read flag, so
+  // "unread" is the server's word where it has one, and this otherwise. Kept
+  // for every inbox, so the rail, the list and the landing page agree.
+  const [openedIds, setOpenedIds] = useState(() => new Set())
+  const isUnread = useCallback(
+    (message) => !message.isRead && !openedIds.has(message.id),
+    [openedIds],
+  )
+  const markOpened = useCallback(
+    (id) =>
+      setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id))),
+    [],
+  )
 
-    return (
-        <div className="flex h-screen flex-col">
-            <Header
-                status={inbox.status}
-                generate={inbox.generate}
-                regenerate={inbox.regenerate}
-            />
-            <main className="flex-1">
-                <Hero
-                    {...inbox}
-                    messages={messages}
-                    activeMessage={activeMessage}
-                    onSelectMessage={(message) =>
-                        setSelectedMessageId(message.id)
-                    }
-                    onBack={() => setSelectedMessageId(null)}
-                />
-            </main>
-            <Footer />
-        </div>
-    );
+  const unreadCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        session.inboxes.map((entry) => [
+          entry.id,
+          (feeds[entry.id]?.messages ?? []).filter(isUnread).length,
+        ]),
+      ),
+    [session.inboxes, feeds, isUnread],
+  )
+
+  return (
+    <ClickSpark sparkColor="#050040" sparkSize={8} sparkRadius={18}>
+      {session.inboxes.map((entry) => (
+        <InboxFeed key={entry.id} inbox={entry} onUpdate={onFeedUpdate} />
+      ))}
+      <Outlet context={{ session, feeds, isUnread, markOpened, unreadCounts }} />
+    </ClickSpark>
+  )
 }
+
+function App() {
+  return (
+    <Routes>
+      <Route element={<SessionLayout />}>
+        <Route path={ROUTES.home} element={<LandingPage />} />
+        <Route path={ROUTES.howItWorks} element={<HowItWorksPage />} />
+        <Route path={ROUTES.inbox} element={<InboxPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
+    </Routes>
+  )
+}
+
+export default App
