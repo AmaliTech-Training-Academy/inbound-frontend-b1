@@ -27,4 +27,12 @@ function formatRelativeTime(iso) {
     return new Date(then).toLocaleDateString();
 }
 
-export { formatRelativeTime };
+// A timestamp as a wall clock in the reader's own locale, or an empty string
+// when there is nothing usable to show.
+function formatClock(timestamp) {
+  const date = new Date(timestamp ?? '')
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+export { formatClock, formatRelativeTime };
