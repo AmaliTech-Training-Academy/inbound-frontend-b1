@@ -97,13 +97,17 @@ describe('App', () => {
       expect(screen.queryByRole('heading', { level: 1, name: HOME_HEADING })).toBeNull()
       expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
         'Click Generate',
-        'Receive OTPs & Links',
-        'Auto-Shred & Purge',
+        'Receive Codes & Links',
+        'Everything Disappears',
       ])
     })
 
-    it('is where Learn More and Read more lead', () => {
+    it('is where Learn More leads', () => {
       renderApp()
+
+      // Learn More is the only way in from the landing page: the pill that
+      // used to carry a second link to the same place no longer does.
+      expect(screen.queryByRole('link', { name: /Read more/ })).toBeNull()
 
       fireEvent.click(screen.getByRole('link', { name: /Learn More/ }))
       expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
@@ -111,8 +115,7 @@ describe('App', () => {
       // There is no Home link; the brand is the way back.
       expect(within(nav()).queryByRole('link', { name: 'Home' })).toBeNull()
       fireEvent.click(within(nav()).getByRole('link', { name: 'Inbound' }))
-      fireEvent.click(screen.getByRole('link', { name: /Read more/ }))
-      expect(screen.getByRole('heading', { level: 1, name: 'How Inbound Works' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 1, name: /Generate/ })).toBeInTheDocument()
     })
 
     it('only explains: getting an inbox is left to the nav', () => {
@@ -142,16 +145,50 @@ describe('App', () => {
       expectHomePage()
     })
 
-    it('says so when a message url names nothing in the open inbox', () => {
+    it('says so when a message url names nothing in the open inbox', async () => {
       seedSession()
       renderApp('/inbox/not-a-real-message')
 
-      expect(screen.getByText('This message isn’t here')).toBeInTheDocument()
+      expect(await screen.findByText('This message isn’t here')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('link', { name: 'Back to inbox' }))
 
       expect(screen.queryByText('This message isn’t here')).toBeNull()
-      expect(screen.getByText('Your inbox is empty')).toBeInTheDocument()
+      expect(await screen.findByText('Your inbox is empty')).toBeInTheDocument()
+    })
+
+    it('shows a message url as loading until the inbox has been checked', async () => {
+      // A reload with a message open: the list is rebuilt from the server
+      // first, so "not here" would be said too soon.
+      seedSession()
+      renderApp('/inbox/not-a-real-message')
+
+      expect(screen.getByText('Loading message…')).toBeInTheDocument()
+      expect(screen.queryByText('This message isn’t here')).toBeNull()
+
+      expect(await screen.findByText('This message isn’t here')).toBeInTheDocument()
+    })
+
+    it('goes back to the list when the open inbox expires with a message open', async () => {
+      const soon = new Date(Date.now() + 300).toISOString()
+      window.sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          token: 'token-app-1',
+          expiresAt: inMinutes(10),
+          inboxes: [
+            { id: 'inbox-a', address: 'going@inbound.mail', createdAt: new Date().toISOString(), expiresAt: soon, extendCount: 0 },
+            { id: 'inbox-b', address: 'staying@inbound.mail', createdAt: new Date().toISOString(), expiresAt: inMinutes(10), extendCount: 0 },
+          ],
+          activeId: 'inbox-a',
+          hiddenIds: [],
+        }),
+      )
+      renderApp('/inbox/a-message-in-inbox-a')
+
+      expect(await screen.findByText('Nothing here yet')).toBeInTheDocument()
+      expect(screen.queryByText('This message isn’t here')).toBeNull()
+      expect(screen.queryByText('Loading message…')).toBeNull()
     })
 
     it('leads from the inbox back to the landing page', () => {
@@ -165,7 +202,7 @@ describe('App', () => {
   })
 
   describe('the end of an inbox', () => {
-    it('ends on the landing page once the last inbox is destroyed', () => {
+    it('ends on the landing page once the last inbox is destroyed', async () => {
       seedSession()
       renderApp('/inbox')
 
@@ -174,7 +211,9 @@ describe('App', () => {
       expect(dialog).toHaveTextContent('seeded@inbound.mail')
       fireEvent.click(within(dialog).getByRole('button', { name: 'Yes, destroy inbox' }))
 
-      expectHomePage()
+      // Destroying now asks the server to delete the inbox, so the landing
+      // page arrives when that answers rather than on the click itself.
+      await waitFor(expectHomePage)
       expect(window.sessionStorage.getItem(SESSION_KEY)).toBeNull()
     })
 

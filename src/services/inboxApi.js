@@ -43,9 +43,15 @@ function assertConfigured() {
 // Loud at start-up rather than at the first click.
 if (CONFIG_ERROR) console.error(`[inboxApi] ${CONFIG_ERROR}`);
 
+export const RATE_LIMITED_MESSAGE =
+    "Too many requests from your network. Please wait a few minutes and try again.";
+
 export class ApiError extends Error {
     constructor(status, message) {
-        super(message || `Request failed (${status})`);
+        // A 429 always reads the same, whatever the body said or whether it
+        // could be read: the server's wording names an IP address, which means
+        // nothing to someone on a shared office network.
+        super(status === 429 ? RATE_LIMITED_MESSAGE : message || `Request failed (${status})`);
         this.name = "ApiError";
         this.status = status;
     }
@@ -68,13 +74,28 @@ export class ApiError extends Error {
         return this.isUnauthorized || this.isNotFound || this.isExpired;
     }
 
+    /**
+     * The token itself is no good, so every other call is about to fail too.
+     *
+     * Deliberately narrower than isDead: it leaves 404 out. On the per-inbox
+     * endpoints a 404 does mean that inbox is gone, but on a sub-resource -
+     * /inbox/attachments/:id answers 404 for a file that is missing or was
+     * stored without content - it says nothing about the session, and ending
+     * the session over one unavailable file would throw the user out of a
+     * working inbox.
+     */
+    get isSessionDead() {
+        return this.isUnauthorized || this.isExpired;
+    }
+
     /** 429: the server is asking this client to slow down. */
     get isRateLimited() {
         return this.status === 429;
     }
 }
 
-// --- Rate limit ------------------------------------------------------
+// Rate limit.
+//
 // The API allows each IP 100 requests per 15 minutes, across every route
 // (express-rate-limit in the backend's utils/rateLimit.js), and answers 429
 // past that. Every request counts against the same budget, so after a 429 the
@@ -99,6 +120,11 @@ export function rateLimitedFor() {
     return Math.max(0, coolingUntil - Date.now());
 }
 
+/** When background requests may go out again, as a timestamp; in the past once they may. */
+export function rateLimitedUntil() {
+    return coolingUntil;
+}
+
 /** Forgets any back-off. For tests, which share this module's state. */
 export function resetRateLimit() {
     coolingUntil = 0;
@@ -121,7 +147,8 @@ function noteRateLimited(res) {
     coolingUntil = Date.now() + wait;
 }
 
-// --- Mock mode -------------------------------------------------------
+// Mock mode.
+//
 // Selected explicitly in config.js (VITE_USE_MOCK=true only), and not gated
 // on DEV, so a build made with the mock on still works. The mock returns exactly the shapes the real client returns
 // after unwrapping, so swapping between them changes nothing upstream.
@@ -165,7 +192,8 @@ function mockId() {
     );
 }
 
-// --- Transport -------------------------------------------------------
+// Transport.
+//
 
 // fetch only rejects on network-level failure: DNS, CORS, offline, or an
 // abort. Non-2xx responses resolve normally and are handled by readEnvelope.
@@ -220,7 +248,7 @@ function authHeaders(token) {
     return { Authorization: `Bearer ${token}` };
 }
 
-// --- Endpoints -------------------------------------------------------
+// Endpoints.
 
 /**
  * POST /api/v1/inbox -> { session: { token, expiresAt }, id, address, expiresAt }
@@ -234,7 +262,7 @@ function authHeaders(token) {
  * preferredLocalPart are not options the API offers.
  *
  * `createdAt` is added client-side. The create response omits it (only
- * /inbox/info returns one) but the progress ring needs a start point, and the
+ * the inbox fetch returns one) but the progress ring needs a start point, and the
  * moment the response lands is within a round-trip of the real value. It is
  * used only for that denominator, never sent back to the server.
  *
@@ -507,4 +535,117 @@ export async function fetchUnreadMessages(token, { inboxId, signal } = {}) {
     }
 
     return data.messages;
+}
+
+/**
+ * GET /api/v1/inbox/attachments/:attachmentId -> the attachment's bytes
+ *
+ * The only endpoint that does not answer with the {success, message, data}
+ * envelope: a success is the raw file, so readEnvelope cannot be used and the
+ * JSON error body is only parsed on the failure path.
+ *
+ * Authenticated binary, which is why this cannot be an <a download>: the
+ * bearer token has to travel in a header, so the bytes come back here and the
+ * caller turns them into a download.
+ *
+ * `fallbackName` is the filename from the message payload, used when the
+ * server sends no Content-Disposition (or one this cannot read).
+ */
+export async function downloadAttachment(attachmentId, token, { fallbackName, signal } = {}) {
+    if (MOCK) {
+        await delay(200, signal);
+        const name = fallbackName || "attachment.txt";
+        return {
+            blob: new Blob([`Mock contents of ${name}`], { type: "text/plain" }),
+            filename: name,
+        };
+    }
+
+    assertConfigured();
+
+    const res = await guardedFetch(
+        `${API_BASE}/inbox/attachments/${encodeURIComponent(attachmentId)}`,
+        { headers: authHeaders(token), signal },
+        "downloadAttachment",
+    );
+
+    if (!res.ok) {
+        // The failure path does answer with the envelope, so the server's own
+        // message survives. A 404 here is also "stored with no content", not
+        // only "no such attachment".
+        let message;
+        try {
+            message = (await res.json())?.message;
+        } catch {
+            message = undefined;
+        }
+        const err = new ApiError(res.status, message);
+        console.error("[inboxApi] downloadAttachment failed", err);
+        throw err;
+    }
+
+    return {
+        blob: await res.blob(),
+        filename: filenameFromDisposition(res.headers.get("Content-Disposition")) || fallbackName || "attachment",
+    };
+}
+
+// The filename out of a Content-Disposition header, or null. Handles the
+// RFC 5987 `filename*=UTF-8''...` form first, since a server that sends both
+// means that one to win.
+function filenameFromDisposition(header) {
+    if (!header) return null;
+
+    const encoded = header.match(/filename\*=\s*UTF-8''([^;]+)/i);
+    if (encoded) {
+        try {
+            return decodeURIComponent(encoded[1].trim());
+        } catch (err) {
+            console.error("[inboxApi] undecodable filename* in Content-Disposition", err);
+        }
+    }
+
+    // Express sends the plain form unquoted for an ordinary name
+    // (filename=logo.png) and quoted once it contains a space or a quote, with
+    // inner quotes backslash-escaped - so the quoted branch has to allow \" and
+    // unescape it, or a name like 'weird "quoted" name.txt' is cut at the first
+    // escaped quote.
+    const quoted = header.match(/filename\s*=\s*"((?:[^"\\]|\\.)*)"/i);
+    if (quoted) return quoted[1].replace(/\\(.)/g, "$1").trim() || null;
+
+    const bare = header.match(/filename\s*=\s*([^;]+)/i);
+    return bare ? bare[1].trim() || null : null;
+}
+
+/**
+ * DELETE /api/v1/inbox/:id
+ *     -> { id, deletedMessages, deletedAttachments }
+ *
+ * A hard delete, in one transaction: attachments, then messages, then the
+ * inbox. Nothing is recoverable, and the address stops receiving mail at once
+ * rather than at its TTL.
+ *
+ * Scoped to the session server-side, so another session's inbox answers 404
+ * rather than 403 - no way to learn whether an id exists.
+ *
+ * Not in the published spec as of 2026-10-06, which still documents neither
+ * this nor /inbox/custom; it is live on the deployment and was smoke-tested
+ * there. Treat the spec as the weaker source.
+ */
+export async function deleteInbox(id, token, { signal } = {}) {
+    if (MOCK) {
+        await delay(200, signal);
+        const existed = mockState.delete(id);
+        return { id, deletedMessages: 0, deletedAttachments: 0, existed };
+    }
+
+    assertConfigured();
+
+    const res = await guardedFetch(
+        `${API_BASE}/inbox/${encodeURIComponent(id)}`,
+        { method: "DELETE", headers: authHeaders(token), signal },
+        "deleteInbox",
+    );
+
+    return await readEnvelope(res, "deleteInbox");
 }

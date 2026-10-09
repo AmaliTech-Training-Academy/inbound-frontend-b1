@@ -85,7 +85,7 @@ describe('Attachments', () => {
     const onDownloadAll = vi.fn()
     render(<Attachments attachments={attachments} onDownloadAll={onDownloadAll} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Download all attachments as zip' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Download all attachments' }))
 
     expect(onDownloadAll).toHaveBeenCalledTimes(1)
   })

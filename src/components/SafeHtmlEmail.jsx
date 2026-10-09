@@ -75,6 +75,10 @@ ${content}
     color-scheme: ${darkFrame ? 'dark' : 'light'};
   }
   body {
+    /* Contains the children's margins. Without it the last element's bottom
+       margin collapses out through the body and is missing from the height
+       measured below, so the frame ends up a margin short of its content. */
+    display: flow-root;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-size: 14px;
     line-height: 1.6;
@@ -98,12 +102,19 @@ ${content}
       const doc = iframe.contentDocument || iframe.contentWindow?.document
       if (doc) {
         // Measured on load, which waits for the images, so their height counts.
+        //
+        // Measured on the body, not on documentElement: a frame's root element
+        // fills its viewport, so documentElement.scrollHeight can never report
+        // less than the height the frame already has. Measuring it pinned the
+        // frame at whatever it started as, and a short email kept a frame's
+        // worth of blank space under it before the attachments. The body is
+        // sized by its content - its margin is forced to 0 above - so it is the
+        // honest measure, and it lets the frame shrink as well as grow.
         const measuredHeight = Math.max(
-          doc.documentElement.scrollHeight || 0,
           doc.body?.scrollHeight || 0,
-          180
+          Math.ceil(doc.body?.getBoundingClientRect().height || 0)
         )
-        setIframeHeight(`${measuredHeight + 16}px`)
+        if (measuredHeight > 0) setIframeHeight(`${measuredHeight + 16}px`)
       }
     } catch (error) {
       // Sandboxed origin may restrict direct DOM inspection in some engines; fallback to minimum height
@@ -121,7 +132,9 @@ ${content}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       onLoad={handleLoad}
       className="w-full border-0 block"
-      style={{ height: iframeHeight, minHeight: '180px' }}
+      // No minimum: the measured height is the content's, and a floor would
+      // put the blank space back under a short email.
+      style={{ height: iframeHeight }}
     />
   )
 }

@@ -1,10 +1,9 @@
 import { Blobatar } from "@blobatar/react";
 import { useTheme } from "../state/useTheme.js";
 
-// The design's blob avatars. Blobatar draws the same face for the same name,
-// so an address or sender always looks like itself: across rows, across the
-// rail and across reloads. Decorative - whatever it stands for is written next
-// to it - so it stays hidden from assistive technology.
+// Blobatar draws the same face for the same name, so an address or sender
+// looks like itself across rows, the rail and reloads. Decorative, so hidden
+// from assistive technology.
 //
 // The backdrop is a pale swatch the library draws for light surfaces, so in
 // dark mode it reads as a white disc behind the face. Dropped rather than

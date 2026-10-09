@@ -7,10 +7,8 @@ export const ROUTES = {
   inbox: '/inbox/:messageId?',
 }
 
-/** Url of the inbox with no message open. */
 export const INBOX_PATH = '/inbox'
 
-/** Url of the inbox with a single message open. */
 export function messageDetailsPath(messageId) {
   return `${INBOX_PATH}/${encodeURIComponent(messageId)}`
 }

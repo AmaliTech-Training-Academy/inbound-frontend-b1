@@ -27,7 +27,7 @@ export default function HowItWorksPage() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-slate-600 max-md:px-2 md:text-base dark:text-body-dark">
-            Engineered for absolute frictionlessness and mathematical privacy.
+            Three steps, no sign-up, and nothing left behind.
           </p>
 
           <HowInboundWorks className="mt-10" />

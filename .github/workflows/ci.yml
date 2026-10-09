@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev,feat/frontend-devops]
+    branches: [main, dev,feat/redesign-7-devops]
   pull_request:
-    branches: [main, dev,feat/frontend-devops]
+    branches: [main, dev,feat/redesign-7-devops]
   workflow_dispatch:
 
 concurrency:

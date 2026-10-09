@@ -41,8 +41,7 @@
 }
 
 @theme {
-    /* Everything reads in Haffer: the redesign sets headings and body in one
-       grotesque, so the landing page no longer switches to Poppins. */
+    /* Headings and body share one grotesque, so nothing switches typeface. */
     --font-sans:
         "Haffer", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
         "Helvetica Neue", Arial, sans-serif;
@@ -104,11 +103,8 @@ html.dark body {
     color: #d3dae6;
 }
 
-/*
- * The public pages' backdrop: a soft brand-orange glow behind the headline,
- * fading out into white. The design this replaced drew an amber glow over a
- * perspective grid; the redesign is the glow alone, in the brand colour.
- */
+/* The public pages' backdrop: a soft brand-orange glow behind the headline,
+   fading out into white. Static, so it costs one paint. */
 .landing-backdrop {
     background-color: #ffffff;
     background-image: radial-gradient(

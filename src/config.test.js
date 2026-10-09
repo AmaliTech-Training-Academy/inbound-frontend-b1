@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { backendConfigError, splitSocketTarget, MAX_INBOXES } from "./config.js";
 
 describe("config", () => {
@@ -46,11 +46,23 @@ describe("config", () => {
             ).toEqual({ origin: "https://host.test", path: "/server/socket.io" });
         });
 
-        it("falls back to same-origin defaults for an unparseable base", () => {
-            expect(splitSocketTarget("not a url")).toEqual({
-                origin: undefined,
-                path: "/socket.io",
-            });
+        it("falls back to same-origin defaults for an unparseable base, and says so", () => {
+            const reported = vi.spyOn(console, "error").mockImplementation(() => {});
+
+            try {
+                expect(splitSocketTarget("not a url")).toEqual({
+                    origin: undefined,
+                    path: "/socket.io",
+                });
+                // Silence here leaves the socket pointing somewhere else, which
+                // surfaces only as mail never arriving.
+                expect(reported).toHaveBeenCalledWith(
+                    expect.stringContaining("not a url"),
+                    expect.anything(),
+                );
+            } finally {
+                reported.mockRestore();
+            }
         });
     });
 });

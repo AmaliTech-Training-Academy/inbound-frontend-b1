@@ -128,14 +128,33 @@ describe('SafeHtmlEmail', () => {
     expect(doc.lastIndexOf('background: transparent !important')).toBeGreaterThan(doc.indexOf('#ff0000'))
   })
 
-  it('starts at a fixed height and resizes once the email content has loaded', () => {
+  it('grows to the height of the email body once it has loaded', () => {
     render(<SafeHtmlEmail htmlContent="<p>Hello</p>" />)
 
     const frame = screen.getByTitle('Sandboxed Email Content')
     expect(frame).toHaveStyle({ height: '220px' })
 
+    // jsdom does not lay the frame out, so the measurement is supplied here.
+    // The body is what is measured, not documentElement: a frame's root fills
+    // its viewport, so documentElement can never report less than the height
+    // the frame already has and the frame could never shrink.
+    const body = frame.contentDocument.body
+    Object.defineProperty(body, 'scrollHeight', { value: 300, configurable: true })
+
     fireEvent.load(frame)
 
-    expect(frame.style.height).toBe('196px')
+    expect(frame.style.height).toBe('316px')
+  })
+
+  it('keeps its starting height when the body cannot be measured', () => {
+    // An engine that refuses to let the frame be inspected, or one that has
+    // not laid it out yet, measures zero. Collapsing the frame to nothing is
+    // worse than leaving it at the height it opened with.
+    render(<SafeHtmlEmail htmlContent="<p>Hello</p>" />)
+
+    const frame = screen.getByTitle('Sandboxed Email Content')
+    fireEvent.load(frame)
+
+    expect(frame.style.height).toBe('220px')
   })
 })

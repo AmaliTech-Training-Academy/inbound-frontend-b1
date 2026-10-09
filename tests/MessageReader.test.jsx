@@ -374,9 +374,41 @@ describe('MessageReader', () => {
       const onDownloadAll = vi.fn()
       render(<MessageReader message={baseMessage} onDownloadAll={onDownloadAll} />)
 
-      fireEvent.click(screen.getByLabelText('Download all attachments as zip'))
+      fireEvent.click(screen.getByLabelText('Download all attachments'))
 
       expect(onDownloadAll).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('a message that did not load', () => {
+    const notLoaded = { ...textMessage, textBody: undefined, incomplete: true }
+
+    it('says so instead of showing an empty body', () => {
+      render(<MessageReader message={notLoaded} />)
+
+      expect(screen.getByText('This message didn’t load')).toBeInTheDocument()
+      expect(screen.queryByText('(Empty message body)')).not.toBeInTheDocument()
+      expect(screen.queryByText('No attachments')).not.toBeInTheDocument()
+    })
+
+    it('asks for the message again from Try again', () => {
+      const onRetry = vi.fn()
+      render(<MessageReader message={notLoaded} onRetry={onRetry} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+      expect(onRetry).toHaveBeenCalledWith(notLoaded)
+      expect(screen.getByRole('button', { name: 'Trying again…' })).toBeDisabled()
+    })
+
+    it('offers Try again again once the retry has failed', () => {
+      const onRetry = vi.fn()
+      const { rerender } = render(<MessageReader message={notLoaded} onRetry={onRetry} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+      rerender(<MessageReader message={{ ...notLoaded }} onRetry={onRetry} />)
+
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled()
     })
   })
 })

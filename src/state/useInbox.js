@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     createInbox,
+    deleteInbox,
     getInboxInfo,
     getSessionInboxes,
     extendInbox,
@@ -159,6 +160,10 @@ export function useInbox() {
 
     const actionLock = useRef(false);
 
+    // The inbox an extend is in flight for. Its clock can reach zero while the
+    // server is still answering, so it is not dropped until the answer is in.
+    const extendingId = useRef(null);
+
     // The latest session, for handlers and timers that must not act on a
     // stale copy. Updated after every commit.
     const sessionRef = useRef(session);
@@ -226,9 +231,10 @@ export function useInbox() {
             if (controller.signal.aborted) return;
             console.error("[useInbox] could not sync the session with the server", err);
             if (err instanceof ApiError && err.isDead) {
-                // 401/403/404/410 all mean the same thing to the user: this
-                // session is gone. 410 is the server saying it outlived its TTL.
-                endSession(err.isExpired ? "expired" : "idle");
+                // 401/403/404/410 all mean this session is gone. 410 is the
+                // server saying it outlived its TTL; the rest, that it no
+                // longer knows it, which the page explains as "ended".
+                endSession(err.isExpired ? "expired" : "ended");
             }
             // A network failure keeps what is on screen: a blip must not cost
             // someone their addresses.
@@ -243,6 +249,7 @@ export function useInbox() {
     const backgroundSync = useCallback(() => {
         if (document.visibilityState === "hidden") return;
         if (rateLimitedFor() > 0) return;
+        if (extendingId.current) return;
         sync();
     }, [sync]);
 
@@ -272,6 +279,7 @@ export function useInbox() {
             (inbox) => !hidden.has(inbox.id) && msRemaining(inbox.expiresAt) <= 0,
         );
         if (gone.length === 0) return;
+        if (gone.some((inbox) => inbox.id === extendingId.current)) return;
 
         const next = pruneSession(current);
         if (!next) {
@@ -284,14 +292,24 @@ export function useInbox() {
 
     // One timeout aimed at the soonest expiry, re-armed whenever the inboxes
     // change (an extend pushes one out, an add brings a new one in).
+    //
+    // Aimed from every inbox still in the session, not from liveInboxes: that
+    // one drops an inbox the moment its clock reaches zero. An inbox that ran
+    // out but has not been swept yet was therefore invisible here, so a
+    // re-render in that window cleared the pending timer and re-armed it for
+    // the *next* inbox - minutes away - and the expired one sat on screen
+    // until a sync or a tab focus happened to sweep it. Counting it keeps its
+    // remaining time at 0, which fires the sweep immediately instead.
     useEffect(() => {
-        const live = liveInboxes(session);
-        if (live.length === 0) return undefined;
+        if (!session) return undefined;
         let t;
         const schedule = () => {
-            const currentLive = liveInboxes(sessionRef.current);
-            if (currentLive.length === 0) return;
-            const soonest = Math.min(...currentLive.map((inbox) => msRemaining(inbox.expiresAt)));
+            const current = sessionRef.current;
+            if (!current) return;
+            const hidden = new Set(current.hiddenIds ?? []);
+            const pending = current.inboxes.filter((inbox) => !hidden.has(inbox.id));
+            if (pending.length === 0) return;
+            const soonest = Math.min(...pending.map((inbox) => msRemaining(inbox.expiresAt)));
             t = setTimeout(() => {
                 expireDue();
                 if (liveInboxes(sessionRef.current).length > 0) {
@@ -347,9 +365,10 @@ export function useInbox() {
         const count = liveInboxes(current).length;
 
         // The backend caps a session's inboxes; asking past the cap would only
-        // be refused. Destroying one here does not free a place server-side
-        // until its TTL runs out (there is no delete), so a refusal can still
-        // come back below, and it is shown as the server words it.
+        // be refused. Destroying one frees its place server-side straight away
+        // now that destroy() really deletes, but an expiry the server has seen
+        // and this tab has not can still put the two counts out of step, so a
+        // refusal can come back below and is shown as the server words it.
         if (count >= MAX_INBOXES) {
             setError(
                 new Error(
@@ -377,14 +396,17 @@ export function useInbox() {
                     signal: controller.signal,
                 });
             } catch (err) {
-                // The server no longer knows the session (404): start a new
-                // one. Its old inboxes cannot be read without it anyway.
+                // The session is gone - unknown (404), unusable (401) or past
+                // its time (410): start a new one. Its old inboxes cannot be
+                // read without it anyway.
                 //
-                // Only a 404. Any other refusal - the session's inbox cap, a
+                // Only those. Any other refusal - the session's inbox cap, a
                 // rate limit - is the server saying no to this session, and
                 // quietly starting a fresh one would both dodge the cap and
                 // strand every inbox the session holds.
-                if (!current?.token || !(err instanceof ApiError && err.isNotFound)) throw err;
+                const sessionGone =
+                    err instanceof ApiError && (err.isNotFound || err.status === 401 || err.isExpired);
+                if (!current?.token || !sessionGone) throw err;
                 created = await createInbox({ signal: controller.signal });
             }
 
@@ -470,6 +492,8 @@ export function useInbox() {
         );
     }, []);
 
+    const dismissError = useCallback(() => setError(null), []);
+
     // Ends everything, locally. Does not touch the server.
     const reset = useCallback(() => {
         endSession("idle");
@@ -478,19 +502,57 @@ export function useInbox() {
 
     // "Destroy Inbox": the one being viewed.
     //
-    // Local-only, because the API has no DELETE: the address keeps receiving
-    // mail server-side until its TTL runs out. Hiding it is the most this
-    // client can do. With other inboxes left the next one takes over; with
-    // none, the session ends. If a delete endpoint is added, this is where it
-    // goes.
-    const destroy = useCallback(() => {
-        cancelSync();
-        setError(null);
+    // A real delete now that the API has one. The address stops receiving mail
+    // at once rather than lingering until its TTL, and the messages and
+    // attachments go with it - which is what the button has always claimed.
+    //
+    // The server is asked first and the inbox is only taken off screen once it
+    // agrees. Hiding it first would read as "destroyed" while the address
+    // quietly kept accepting mail whenever the call failed.
+    //
+    // With other inboxes left the next one takes over; with none, the session
+    // ends at "idle" - a deliberate destroy is not an expiry.
+    const destroy = useCallback(async () => {
         const current = sessionRef.current;
-        if (!current) return;
+        if (!current?.activeId) return;
+        if (actionLock.current) return;
+        const id = current.activeId;
+
+        actionLock.current = true;
+        cancelSync();
+        setBusy("destroying");
+        setError(null);
+
+        let gone = false;
+        try {
+            await deleteInbox(id, current.token);
+            gone = true;
+        } catch (err) {
+            console.error("[useInbox] destroy failed", err);
+            // 404/410: the server has already let it go, which is the outcome
+            // that was asked for. Anything else leaves it alive and still
+            // taking mail, so it stays on screen and the user is told.
+            if (err instanceof ApiError && (err.isNotFound || err.isExpired)) {
+                gone = true;
+            } else {
+                setError(new Error("Could not destroy the inbox. Try again."));
+            }
+        } finally {
+            actionLock.current = false;
+            setBusy(null);
+        }
+
+        if (!gone) return;
+
+        // Re-read: the await above gave other handlers a chance to move it on.
+        const latest = sessionRef.current;
+        if (!latest) return;
         const next = pruneSession({
-            ...current,
-            hiddenIds: [...current.hiddenIds, current.activeId],
+            ...latest,
+            // Still hidden as well as deleted: a sync already in flight can
+            // answer with the inbox the server has only just dropped.
+            hiddenIds: [...latest.hiddenIds, id],
+            inboxes: latest.inboxes.filter((entry) => entry.id !== id),
         });
         if (!next) {
             endSession("idle");
@@ -539,9 +601,11 @@ export function useInbox() {
         if (!inbox?.id || !inbox?.token) return;
         if (actionLock.current) return;
         actionLock.current = true;
+        extendingId.current = inbox.id;
         cancelSync();
         setBusy("extending");
         setError(null);
+        let extended = false;
         try {
             const res = await extendInbox(inbox.id, inbox.token);
             if (!res?.expiresAt) {
@@ -551,6 +615,7 @@ export function useInbox() {
                 expiresAt: res.expiresAt,
                 extendCount: res.extendCount ?? (inbox.extendCount ?? 0) + 1,
             });
+            extended = true;
         } catch (err) {
             console.error("[useInbox] extend failed", err);
             if (err instanceof ApiError && err.isDead) {
@@ -564,10 +629,14 @@ export function useInbox() {
                     : new Error("Could not extend the inbox. Try again."),
             );
         } finally {
+            extendingId.current = null;
             actionLock.current = false;
             setBusy(null);
         }
-    }, [inbox, cancelSync, updateInbox, dropInbox]);
+        // An extend that failed may have outlived the inbox's clock, whose
+        // timer has already fired and left it in place.
+        if (!extended) expireDue();
+    }, [inbox, cancelSync, updateInbox, dropInbox, expireDue]);
 
     // "Refresh". Re-reads the active inbox and the session's list, so an
     // expiry changed elsewhere (another tab extending it) is picked up.
@@ -630,5 +699,6 @@ export function useInbox() {
         destroy,
         extend,
         refresh,
+        dismissError,
     };
 }
