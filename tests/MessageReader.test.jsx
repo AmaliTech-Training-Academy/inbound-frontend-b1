@@ -374,7 +374,7 @@ describe('MessageReader', () => {
       const onDownloadAll = vi.fn()
       render(<MessageReader message={baseMessage} onDownloadAll={onDownloadAll} />)
 
-      fireEvent.click(screen.getByLabelText('Download all attachments as zip'))
+      fireEvent.click(screen.getByLabelText('Download all attachments'))
 
       expect(onDownloadAll).toHaveBeenCalledTimes(1)
     })
