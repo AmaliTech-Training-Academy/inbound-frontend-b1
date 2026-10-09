@@ -118,3 +118,137 @@ export function prepareEmail(html) {
 
   return `${styles}\n${doc.body.innerHTML}`
 }
+
+// A background the mail paints on <body> or <html> never shows: the frame keeps
+// the reading pane's canvas behind the mail, whatever the sender asks for. One
+// painted further in - a white panel, a coloured banner, a background image -
+// does show, and SafeHtmlEmail's default text colour is laid over it.
+const DECLARES_BACKGROUND =
+  /background(?:-color|-image)?\s*:\s*(?!(?:none|transparent|inherit|initial|unset)\b)[^;\s]/i
+
+const PAGE_ONLY = /^(?:html|body|:root)$/i
+
+function styleBlocksPaintSurface(styles) {
+  // `selector { declarations }`, innermost first: an @media wrapper never
+  // matches, because the selector and the braces either side of it are what
+  // this reads and an at-rule has another rule in between.
+  for (const [, selector, body] of styles.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!DECLARES_BACKGROUND.test(body)) continue
+    if (selector.split(',').every((part) => PAGE_ONLY.test(part.trim()))) continue
+    return true
+  }
+  return false
+}
+
+/**
+ * Whether the mail paints a surface of its own for its text to sit on.
+ *
+ * The frame's canvas is the reading pane's, so the reader lends the mail the
+ * theme's text colour. That colour is chosen to be read on the pane: on a panel
+ * the mail painted itself - nearly always a light one - the dark theme's
+ * near-white all but disappears. This is what tells the two apart.
+ */
+export function paintsOwnSurface(html) {
+  if (!html || typeof DOMParser === 'undefined') return false
+
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+
+  const styled = [...doc.querySelectorAll('style')].some((style) =>
+    styleBlocksPaintSurface(style.textContent ?? ''),
+  )
+  if (styled) return true
+
+  const template = doc.createElement('template')
+  template.innerHTML = html
+
+  return [...template.content.querySelectorAll('*')].some(
+    (el) =>
+      !PAGE_ONLY.test(el.tagName) &&
+      (el.hasAttribute('bgcolor') ||
+        el.hasAttribute('background') ||
+        DECLARES_BACKGROUND.test(el.getAttribute('style') ?? '')),
+  )
+}
+
+// A colour the sender set on their own text sits over the frame's canvas, and
+// that canvas is the reader's rather than theirs. A mail that paints no surface
+// but does set its text near-black - a forwarded thread, most plain
+// newsletters - would then be read black-on-black under the dark theme. This
+// finds that case so the light canvas can be kept under it instead.
+const DECLARES_COLOUR = /(?:^|[;{\s"'])color\s*:\s*([^;}"']+)/gi
+const FONT_COLOUR_TAG = /^font$/i
+
+// Perceived brightness, 0 (black) to 1 (white); null when the value is one this
+// cannot read, which is left to the sender rather than guessed at.
+function brightnessOf(value) {
+    const colour = value.trim().toLowerCase()
+    let r
+    let g
+    let b
+
+    const hex = colour.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/)
+    const rgb = colour.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/)
+
+    if (hex) {
+        const full =
+            hex[1].length === 3
+                ? [...hex[1]].map((digit) => digit + digit).join('')
+                : hex[1]
+        r = parseInt(full.slice(0, 2), 16)
+        g = parseInt(full.slice(2, 4), 16)
+        b = parseInt(full.slice(4, 6), 16)
+    } else if (rgb) {
+        ;[r, g, b] = [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
+    } else if (colour === 'black') {
+        r = 0
+        g = 0
+        b = 0
+    } else {
+        return null
+    }
+
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+}
+
+// Half way: dark enough to be lost on the dark canvas, and well clear of the
+// mid greys senders use for small print, which stay readable on either.
+const TOO_DARK_FOR_THE_DARK_CANVAS = 0.5
+
+function declaresDarkText(styles) {
+    for (const [, value] of styles.matchAll(DECLARES_COLOUR)) {
+        const brightness = brightnessOf(value)
+        if (brightness !== null && brightness < TOO_DARK_FOR_THE_DARK_CANVAS) {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * Whether the mail sets its own text to a colour too dark to read on the dark
+ * canvas. Checked alongside paintsOwnSurface: either one means the mail has to
+ * keep the light canvas, because a colour the sender set wins over the
+ * reader's default and would otherwise be laid on a near-black panel.
+ */
+export function setsDarkText(html) {
+    if (!html || typeof DOMParser === 'undefined') return false
+
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+
+    const styled = [...doc.querySelectorAll('style')].some((style) =>
+        declaresDarkText(style.textContent ?? ''),
+    )
+    if (styled) return true
+
+    const template = doc.createElement('template')
+    template.innerHTML = html
+
+    return [...template.content.querySelectorAll('*')].some((el) => {
+        if (declaresDarkText(el.getAttribute('style') ?? '')) return true
+        if (!FONT_COLOUR_TAG.test(el.tagName)) return false
+        const attribute = el.getAttribute('color')
+        if (!attribute) return false
+        const brightness = brightnessOf(attribute)
+        return brightness !== null && brightness < TOO_DARK_FOR_THE_DARK_CANVAS
+    })
+}

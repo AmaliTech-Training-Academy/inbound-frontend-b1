@@ -7,6 +7,7 @@ import HowItWorksPage from './pages/HowItWorksPage.jsx'
 import InboxPage from './pages/InboxPage.jsx'
 import { ROUTES } from './router'
 import { useInbox } from './state/useInbox.js'
+import { useTheme } from './state/useTheme.js'
 
 // Everything that has to outlive a single screen. The landing page and the
 // inbox read the same session, and each inbox's feed - its socket, its list,
@@ -14,6 +15,9 @@ import { useInbox } from './state/useInbox.js'
 // other never drops a connection or a message already on screen.
 function SessionLayout() {
   const session = useInbox()
+  // The sparks are drawn on a canvas outside the document, so they cannot take
+  // a dark: utility: the colour has to be chosen here.
+  const { isDark } = useTheme()
 
   // A new page starts at its top, as it would on a full page load.
   const { pathname } = useLocation()
@@ -54,7 +58,7 @@ function SessionLayout() {
   )
 
   return (
-    <ClickSpark sparkColor="#050040" sparkSize={8} sparkRadius={18}>
+    <ClickSpark sparkColor={isDark ? '#ffffff' : '#050040'} sparkSize={8} sparkRadius={18}>
       {session.inboxes.map((entry) => (
         <InboxFeed key={entry.id} inbox={entry} onUpdate={onFeedUpdate} />
       ))}

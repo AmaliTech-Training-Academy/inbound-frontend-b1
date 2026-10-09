@@ -302,11 +302,22 @@ export function useInbox() {
     // remaining time at 0, which fires the sweep immediately instead.
     useEffect(() => {
         if (!session) return undefined;
-        const hidden = new Set(session.hiddenIds ?? []);
-        const pending = session.inboxes.filter((inbox) => !hidden.has(inbox.id));
-        if (pending.length === 0) return undefined;
-        const soonest = Math.min(...pending.map((inbox) => msRemaining(inbox.expiresAt)));
-        const t = setTimeout(expireDue, Math.max(0, soonest));
+        let t;
+        const schedule = () => {
+            const current = sessionRef.current;
+            if (!current) return;
+            const hidden = new Set(current.hiddenIds ?? []);
+            const pending = current.inboxes.filter((inbox) => !hidden.has(inbox.id));
+            if (pending.length === 0) return;
+            const soonest = Math.min(...pending.map((inbox) => msRemaining(inbox.expiresAt)));
+            t = setTimeout(() => {
+                expireDue();
+                if (liveInboxes(sessionRef.current).length > 0) {
+                    schedule();
+                }
+            }, Math.max(0, soonest) + 20);
+        };
+        schedule();
         return () => clearTimeout(t);
     }, [session, expireDue]);
 

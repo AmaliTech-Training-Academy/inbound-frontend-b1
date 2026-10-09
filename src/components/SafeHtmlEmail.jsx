@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { prepareEmail } from '../utils/emailHtml.js'
+import { paintsOwnSurface, prepareEmail, setsDarkText } from '../utils/emailHtml.js'
+import { useTheme } from '../state/useTheme.js'
 
 // An HTML email, shown as its sender laid it out, inside a sandbox it cannot
 // reach out of.
@@ -33,7 +34,20 @@ const CSP = [
 
 function SafeHtmlEmail({ htmlContent }) {
   const [iframeHeight, setIframeHeight] = useState('220px')
+  const { isDark } = useTheme()
   const content = useMemo(() => prepareEmail(htmlContent), [htmlContent])
+  const ownSurface = useMemo(() => paintsOwnSurface(htmlContent), [htmlContent])
+  const ownDarkText = useMemo(() => setsDarkText(htmlContent), [htmlContent])
+
+  // A frame does not inherit the page's CSS, so the theme reaches the email
+  // through this one declaration. The frame's canvas is the reading pane's, so
+  // a mail with no surface of its own is read light-on-dark; one that painted
+  // its own panel needs the light default, or the near-white would vanish on
+  // it. A colour the sender set themselves wins over either.
+  // Light-on-dark only when the mail brought neither a surface nor a dark
+  // text colour of its own.
+  const darkFrame = isDark && !ownSurface && !ownDarkText
+  const defaultTextColor = darkFrame ? '#d3dae6' : '#111213'
 
   // The reader's own base styles come after the sender's, so the frame's
   // background stays the reader's: an email's `body { background }` paints its
@@ -53,6 +67,12 @@ ${content}
     margin: 0 !important;
     padding: 0 !important;
     background: transparent !important;
+    /* A transparent background is not enough on its own: a frame's canvas is
+       the browser's own, and under a light color-scheme that canvas is white,
+       so the mail sat in a white panel with near-white text on it. This is
+       what decides the canvas, and it follows the same condition as the text
+       colour so the two can never disagree. */
+    color-scheme: ${darkFrame ? 'dark' : 'light'};
   }
   body {
     /* Contains the children's margins. Without it the last element's bottom
@@ -62,7 +82,7 @@ ${content}
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-size: 14px;
     line-height: 1.6;
-    color: #111213;
+    color: ${defaultTextColor};
     overflow-wrap: break-word;
   }
   img {

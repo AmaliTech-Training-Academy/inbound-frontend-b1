@@ -54,14 +54,14 @@ function Attachments({
   // "files still loading".
   if (!attachments || attachments.length === 0) {
     return (
-      <p className={`mt-5 text-xs text-slate-400 ${className}`.trim()}>No attachments</p>
+      <p className={`mt-5 text-xs text-slate-400 dark:text-muted-dark ${className}`.trim()}>No attachments</p>
     )
   }
 
   return (
     <section aria-label="Attachments" className={`mt-5 ${className}`.trim()}>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-xs font-medium text-slate-400">
+        <h3 className="text-xs font-medium text-slate-400 dark:text-muted-dark">
           {attachments.length} {attachments.length === 1 ? 'Attachment' : 'Attachments'}
           {totalAttachmentSize ? ` · ${totalAttachmentSize}` : ''}
         </h3>
@@ -69,7 +69,7 @@ function Attachments({
           <button
             type="button"
             onClick={onDownloadAll}
-            className="text-xs font-medium text-sky-600 hover:underline"
+            className="text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
             aria-label="Download all attachments"
           >
             Download All
@@ -81,7 +81,7 @@ function Attachments({
         {attachments.map((att) => (
           <li
             key={att.id || att.filename}
-            className="flex min-w-0 max-w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5"
+            className="flex min-w-0 max-w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5 dark:border-line-dark"
           >
             {/* On paper the tile is drawn, not filled: browsers drop background
                 colours in print unless the reader ticks "Background graphics",
@@ -96,10 +96,10 @@ function Attachments({
               <FileText size={16} />
             </span>
             <div className="min-w-0 leading-tight">
-              <p className="max-w-48 truncate text-xs font-medium text-slate-800" title={att.filename}>
+              <p className="max-w-48 truncate text-xs font-medium text-slate-800 dark:text-ink-dark" title={att.filename}>
                 {att.filename}
               </p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-400 dark:text-muted-dark">
                 <span className="uppercase">{fileType(att) || 'File'}</span>
                 {formatFileSize(att.size) ? ` · ${formatFileSize(att.size)}` : ''}
               </p>
@@ -108,7 +108,7 @@ function Attachments({
               <button
                 type="button"
                 onClick={() => onViewAttachment(att)}
-                className="text-[11px] font-medium text-slate-500 hover:text-slate-900"
+                className="text-[11px] font-medium text-slate-500 hover:text-slate-900 dark:text-body-dark dark:hover:text-ink-dark"
               >
                 View
               </button>
@@ -117,7 +117,7 @@ function Attachments({
               <button
                 type="button"
                 onClick={() => onDownloadAttachment(att)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-muted-dark dark:hover:text-ink-dark"
                 aria-label={`Download ${att.filename}`}
               >
                 <Download size={14} aria-hidden="true" />
@@ -127,7 +127,7 @@ function Attachments({
         ))}
       </ul>
 
-      {scanInfo && <p className="mt-3 font-mono text-[11px] text-slate-400">{scanInfo}</p>}
+      {scanInfo && <p className="mt-3 font-mono text-[11px] text-slate-400 dark:text-muted-dark">{scanInfo}</p>}
     </section>
   )
 }

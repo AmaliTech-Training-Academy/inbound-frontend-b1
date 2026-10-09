@@ -7,6 +7,7 @@ import CopyButton from '../components/CopyButton.jsx'
 import MessageList from '../components/MessageList.jsx'
 import MessageReader from '../components/MessageReader.jsx'
 import InboxRail from '../components/InboxRail.jsx'
+import ThemeToggle from '../components/ThemeToggle.jsx'
 import NewInboxDialog from '../components/NewInboxDialog.jsx'
 import ConfirmDestroyDialog from '../components/ConfirmDestroyDialog.jsx'
 import RateLimitNotice from '../components/RateLimitNotice.jsx'
@@ -274,7 +275,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
 
   return (
     <div
-      className={`flex h-screen w-full flex-col overflow-hidden bg-white font-sans text-[13px] text-slate-700 antialiased lg:flex-row print:block print:h-auto print:overflow-visible ${
+      className={`flex h-screen w-full flex-col overflow-hidden bg-white font-sans text-[13px] text-slate-700 antialiased lg:flex-row print:block print:h-auto print:overflow-visible dark:bg-canvas-dark dark:text-body-dark ${
         isResizing ? 'cursor-col-resize select-none' : ''
       }`}
     >
@@ -283,19 +284,19 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
         ref={sidebarRef}
         aria-label="Messages"
         style={{ '--sidebar-w': `${sidebarWidth}px` }}
-        className={`relative order-2 min-h-0 w-full flex-col bg-white lg:order-none lg:w-(--sidebar-w) lg:flex-none lg:shrink-0 lg:border-r lg:border-slate-200 print:hidden ${
+        className={`relative order-2 min-h-0 w-full flex-col border-slate-200 bg-white lg:order-none lg:w-(--sidebar-w) lg:flex-none lg:shrink-0 lg:border-r print:hidden dark:border-line-dark dark:bg-canvas-dark ${
           selected ? 'hidden lg:flex' : 'flex flex-1'
         }`}
       >
         <div className="px-4 pb-4 pt-5 sm:px-5">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Inbox</h1>
-          <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-ink-dark">Inbox</h1>
+          <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-slate-400 dark:text-muted-dark">
             <span ref={addressRef} className="truncate">
               {inbox.address}
             </span>
             <CopyButton text={inbox.address} fallbackRef={addressRef} size={12} />
           </p>
-          <p className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
+          <p className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-muted-dark">
             <span>Inbox expires {formatClock(inbox.expiresAt)}</span>
             <span aria-hidden="true">·</span>
             <ConnectionState connection={feed?.connection} error={feed?.error} />
@@ -303,7 +304,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
         </div>
 
         <div className="px-4 pb-4 sm:px-5">
-          <label className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-slate-400">
+          <label className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-slate-400 dark:bg-surface-dark dark:text-muted-dark">
             <Search size={15} aria-hidden="true" />
             <span className="sr-only">Search messages</span>
             <input
@@ -311,7 +312,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search"
-              className="w-full bg-transparent text-sm text-slate-600 outline-none placeholder:text-slate-400"
+              className="w-full bg-transparent text-sm text-slate-600 outline-none placeholder:text-slate-400 dark:text-body-dark dark:placeholder:text-muted-dark"
             />
           </label>
         </div>
@@ -320,7 +321,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
         <InboxRail
           orientation="horizontal"
           label="Switch inbox"
-          className="border-y border-slate-100 lg:hidden"
+          className="border-y border-slate-100 lg:hidden dark:border-line-soft-dark"
           inboxes={inboxes}
           activeId={activeId}
           onOpen={switchTo}
@@ -340,7 +341,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               onSelectMessage={openMessage}
             />
           ) : messages.length > 0 ? (
-            <p className="px-6 py-10 text-center text-xs text-slate-400">
+            <p className="px-6 py-10 text-center text-xs text-slate-400 dark:text-muted-dark">
               No messages match “{query.trim()}”.
             </p>
           ) : (
@@ -367,8 +368,10 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
           className="group absolute inset-y-0 -right-1.5 z-10 hidden w-3 cursor-col-resize items-center justify-center focus-visible:outline-none lg:flex"
         >
           <div
-            className={`h-10 w-1 rounded-full transition-colors group-focus-visible:bg-slate-500 ${
-              isResizing ? 'bg-slate-400' : 'bg-slate-200 group-hover:bg-slate-300'
+            className={`h-10 w-1 rounded-full transition-colors group-focus-visible:bg-slate-500 dark:group-focus-visible:bg-slate-400 ${
+              isResizing
+                ? 'bg-slate-400 dark:bg-slate-500'
+                : 'bg-slate-200 group-hover:bg-slate-300 dark:bg-line-dark dark:group-hover:bg-slate-600'
             }`}
           />
         </div>
@@ -380,10 +383,10 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
         }`}
       >
         <main className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 text-slate-500 sm:gap-4 sm:px-6 print:hidden">
+          <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 text-slate-500 sm:gap-4 sm:px-6 print:hidden dark:border-line-dark dark:text-muted-dark">
             <Link
               to={ROUTES.home}
-              className="mr-auto flex items-center gap-2 text-sm font-semibold tracking-tight text-ink"
+              className="mr-auto flex items-center gap-2 text-sm font-semibold tracking-tight text-ink dark:text-ink-dark"
             >
               <BrandMark size={20} />
               <span className="max-sm:sr-only">Inbound</span>
@@ -391,7 +394,9 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
             <span
               title="Time until this inbox self-destructs"
               className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium tabular-nums ${
-                ending ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'
+                ending
+                  ? 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300'
+                  : 'bg-slate-100 text-slate-600 dark:bg-surface-dark dark:text-body-dark'
               }`}
             >
               <Timer size={13} aria-hidden="true" />
@@ -403,7 +408,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               onClick={extend}
               disabled={!canExtend || busy !== null}
               title={canExtend ? undefined : 'This inbox cannot be extended any further.'}
-              className="text-xs font-medium enabled:hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+              className="text-xs font-medium enabled:hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:enabled:hover:text-ink-dark"
             >
               {extending ? 'Extending…' : `+${EXTEND_MINUTES}m`}
               <span className="sr-only"> extend inbox</span>
@@ -412,7 +417,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               type="button"
               onClick={onRefresh}
               disabled={busy !== null}
-              className="enabled:hover:text-slate-800 disabled:opacity-40"
+              className="enabled:hover:text-slate-800 disabled:opacity-40 dark:enabled:hover:text-ink-dark"
               aria-label={refreshing ? 'Refreshing inbox' : 'Refresh inbox'}
             >
               <RefreshCw size={17} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
@@ -421,11 +426,12 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               type="button"
               onClick={() => setConfirmingDestroy(true)}
               disabled={busy !== null}
-              className="text-rose-600 enabled:hover:text-rose-700 disabled:opacity-40"
+              className="text-rose-600 enabled:hover:text-rose-700 disabled:opacity-40 dark:text-rose-400 dark:enabled:hover:text-rose-300"
               aria-label="Destroy inbox"
             >
               <Trash2 size={17} aria-hidden="true" />
             </button>
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => setAddOpen(true)}
@@ -437,7 +443,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               <Avatar seed={inbox.address} size={36} />
               <span
                 aria-hidden="true"
-                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-white ring-2 ring-white"
+                className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-white ring-2 ring-white dark:bg-ink-dark dark:text-canvas-dark dark:ring-canvas-dark"
               >
                 <Plus size={10} />
               </span>
@@ -447,7 +453,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
           <RateLimitNotice until={rateLimitedUntil()} now={now} />
 
           {error && (
-            <div className="flex items-start gap-3 border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700 sm:px-6">
+            <div className="flex items-start gap-3 border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700 sm:px-6 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
               <p role="alert" className="min-w-0 flex-1">
                 {error.message}
               </p>
@@ -497,7 +503,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
       </div>
 
       <InboxRail
-        className="order-3 hidden w-16 shrink-0 border-l border-slate-200 lg:order-none lg:flex print:hidden"
+        className="order-3 hidden w-16 shrink-0 border-l border-slate-200 lg:order-none lg:flex print:hidden dark:border-line-dark"
         inboxes={inboxes}
         activeId={activeId}
         onOpen={switchTo}
@@ -513,9 +519,9 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
         // notification is looked for; full width at the top on a phone.
         <p
           role="status"
-          className="fixed inset-x-4 top-16 z-40 flex animate-fade-up items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-sm sm:inset-x-auto sm:right-4 sm:w-80 lg:right-20"
+          className="fixed inset-x-4 top-16 z-40 flex animate-fade-up items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-sm sm:inset-x-auto sm:right-4 sm:w-80 lg:right-20 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
         >
-          <TimerOff size={16} aria-hidden="true" className="mt-px shrink-0 text-amber-600" />
+          <TimerOff size={16} aria-hidden="true" className="mt-px shrink-0 text-amber-600 dark:text-amber-400" />
           <span className="min-w-0 break-words">
             {notice.addresses.map((address, index) => (
               <span key={address}>
@@ -568,7 +574,7 @@ function formatClock(timestamp) {
 function ConnectionState({ connection, error }) {
   if (connection === SOCKET_STATUS.JOINED) {
     return (
-      <span className="flex items-center gap-1 text-emerald-600">
+      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
         <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-500" />
         Live
       </span>
@@ -576,13 +582,13 @@ function ConnectionState({ connection, error }) {
   }
   if (connection === SOCKET_STATUS.ERROR) {
     return (
-      <span className="text-rose-600" title={error?.message}>
+      <span className="text-rose-600 dark:text-rose-400" title={error?.message}>
         Offline — retrying
       </span>
     )
   }
   return (
-    <span className="text-amber-600">
+    <span className="text-amber-600 dark:text-amber-400">
       {connection === SOCKET_STATUS.DISCONNECTED ? 'Reconnecting…' : 'Connecting…'}
     </span>
   )
@@ -624,13 +630,13 @@ function EmptyInbox({ address, feed }) {
 
   return (
     <div className="flex flex-col items-center px-6 py-16 text-center">
-      <span className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+      <span className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-surface-dark dark:text-body-dark">
         <MailOpen size={20} aria-hidden="true" />
       </span>
-      <h2 className="mt-4 text-sm font-medium text-slate-900">Your inbox is empty</h2>
-      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+      <h2 className="mt-4 text-sm font-medium text-slate-900 dark:text-ink-dark">Your inbox is empty</h2>
+      <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-muted-dark">
         New messages and verification codes sent to{' '}
-        <span className="break-all font-mono text-slate-600">{address}</span> will appear here
+        <span className="break-all font-mono text-slate-600 dark:text-body-dark">{address}</span> will appear here
         in real-time without refreshing.
       </p>
       <LiveLine connection={feed?.connection} />
@@ -648,7 +654,7 @@ function LiveLine({ connection }) {
           ? ['bg-amber-500', 'Reconnecting…']
           : ['bg-amber-500', 'Connecting…']
   return (
-    <p role="status" className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500">
+    <p role="status" className="mt-4 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-muted-dark">
       <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${dot}`} />
       {text}
     </p>
@@ -659,10 +665,10 @@ function NothingOpen({ address, count }) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
       <Avatar seed={address} size={72} animate="always" />
-      <p className="mt-4 text-sm font-medium text-slate-900">
+      <p className="mt-4 text-sm font-medium text-slate-900 dark:text-ink-dark">
         {count > 0 ? 'Select a message to read it' : 'Nothing here yet'}
       </p>
-      <p className="mt-1 max-w-xs text-xs text-slate-400">
+      <p className="mt-1 max-w-xs text-xs text-slate-400 dark:text-muted-dark">
         {count > 0
           ? `${count} ${count === 1 ? 'message' : 'messages'} in this inbox.`
           : 'Mail sent to this address shows up the moment it arrives.'}
@@ -683,11 +689,11 @@ function LoadingMessage() {
 function MissingMessage() {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 py-16 text-center">
-      <p className="text-sm font-medium text-slate-900">This message isn’t here</p>
-      <p className="mt-1 max-w-xs text-xs text-slate-500">
+      <p className="text-sm font-medium text-slate-900 dark:text-ink-dark">This message isn’t here</p>
+      <p className="mt-1 max-w-xs text-xs text-slate-500 dark:text-muted-dark">
         It may belong to another of your inboxes, or it has expired.
       </p>
-      <Link to={INBOX_PATH} className="mt-4 text-xs font-medium text-sky-600 hover:underline">
+      <Link to={INBOX_PATH} className="mt-4 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400">
         Back to inbox
       </Link>
     </div>
@@ -702,12 +708,12 @@ function Purged({ session, onGenerate, onLeave, creating, ended }) {
     // One screen tall: the hero takes what the footer leaves, so the footer
     // shows without scrolling on a laptop, and the page still scrolls when
     // its content needs more room.
-    <div className="flex min-h-dvh flex-col text-ink">
+    <div className="flex min-h-dvh flex-col text-ink dark:text-ink-dark">
       <SiteHero session={session} className="flex-1">
         <div className="flex flex-1 items-center justify-center px-4 pb-24">
           <div
             role="status"
-            className="flex w-full max-w-md animate-fade-up flex-col items-center rounded-3xl border border-slate-200 bg-white/90 px-8 py-10 text-center"
+            className="flex w-full max-w-md animate-fade-up flex-col items-center rounded-3xl border border-slate-200 bg-white/90 px-8 py-10 text-center dark:border-line-dark dark:bg-surface-dark"
           >
             <span className="flex size-14 items-center justify-center rounded-full bg-brand-soft text-brand">
               <TimerOff size={26} strokeWidth={2} aria-hidden="true" />
@@ -715,7 +721,7 @@ function Purged({ session, onGenerate, onLeave, creating, ended }) {
             <h1 className="mt-6 text-2xl font-bold">
               {ended ? 'This session has ended' : 'This inbox has expired'}
             </h1>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-body-dark">
               {ended
                 ? 'The server no longer recognises this session, so its inboxes can’t be opened any more.'
                 : 'Its address no longer receives mail, and its messages and attachments have been permanently deleted.'}
@@ -735,14 +741,14 @@ function Purged({ session, onGenerate, onLeave, creating, ended }) {
               <button
                 type="button"
                 onClick={onLeave}
-                className="flex min-h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-6 text-sm font-medium transition-colors hover:border-slate-300"
+                className="flex min-h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-6 text-sm font-medium transition-colors hover:border-slate-300 dark:border-line-dark dark:bg-surface-dark dark:text-ink-dark dark:hover:border-slate-500"
               >
                 Back to home
               </button>
             </div>
 
             {!ended && (
-              <p className="mt-8 text-xs text-slate-400">
+              <p className="mt-8 text-xs text-slate-400 dark:text-muted-dark">
                 Need more time next time? Use +{EXTEND_MINUTES}m in the inbox before it runs out.
               </p>
             )}

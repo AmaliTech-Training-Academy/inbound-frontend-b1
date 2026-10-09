@@ -33,7 +33,7 @@ export default function HowInboundWorks({ className = "" }) {
             {STEPS.map(({ icon: Icon, title, body, note }, index) => (
                 <li
                     key={title}
-                    className="flex flex-col rounded-3xl border border-slate-200 bg-white/90 p-6 text-left">
+                    className="flex flex-col rounded-3xl border border-slate-200 bg-white/90 p-6 text-left dark:border-line-dark dark:bg-surface-dark/90">
                     <div className="mb-5 flex items-center justify-between">
                         <span className="font-mono text-xs text-brand">
                             {String(index + 1).padStart(2, "0")}
@@ -42,8 +42,8 @@ export default function HowInboundWorks({ className = "" }) {
                             <Icon size={17} aria-hidden="true" />
                         </span>
                     </div>
-                    <h2 className="text-lg font-semibold text-ink">{title}</h2>
-                    <p className="mt-2 grow text-sm leading-relaxed text-slate-600">{body}</p>
+                    <h2 className="text-lg font-semibold text-ink dark:text-ink-dark">{title}</h2>
+                    <p className="mt-2 grow text-sm leading-relaxed text-slate-600 dark:text-body-dark">{body}</p>
                     <p className="mt-6 pt-4 font-mono text-xs text-brand">● {note}</p>
                 </li>
             ))}

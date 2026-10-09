@@ -39,6 +39,65 @@ describe('SafeHtmlEmail', () => {
     expect(doc).toContain('max-width: 100%')
   })
 
+  // The frame does not inherit the page's CSS, so this one declaration is the
+  // whole of the theme reaching the email.
+  it('gives the email a dark default text colour when the page is dark', () => {
+    document.documentElement.classList.add('dark')
+    localStorage.setItem('inbound-theme', 'dark')
+
+    try {
+      render(<SafeHtmlEmail htmlContent="<p>Hello</p>" />)
+
+      expect(screen.getByTitle('Sandboxed Email Content').getAttribute('srcdoc')).toContain(
+        'color: #d3dae6',
+      )
+    } finally {
+      document.documentElement.classList.remove('dark')
+      localStorage.clear()
+    }
+  })
+
+  // The dark default is chosen to be read on the reading pane. A mail that
+  // paints its own panel would take that near-white onto its own light surface,
+  // where it all but disappears, so it keeps the light default instead.
+  it('keeps the light default on a mail that paints its own panel', () => {
+    document.documentElement.classList.add('dark')
+    localStorage.setItem('inbound-theme', 'dark')
+
+    try {
+      render(<SafeHtmlEmail htmlContent='<div style="background: #ffffff">Hello</div>' />)
+
+      const doc = screen.getByTitle('Sandboxed Email Content').getAttribute('srcdoc')
+      expect(doc).toContain('color: #111213')
+      expect(doc).not.toContain('color: #d3dae6')
+    } finally {
+      document.documentElement.classList.remove('dark')
+      localStorage.clear()
+    }
+  })
+
+  // The same reasoning as the panel above, for the mail that paints nothing at
+  // all but sets its own near-black text - a forwarded thread, most plain
+  // newsletters. The dark canvas would go straight under that text.
+  it('keeps the light canvas on a mail that sets its own dark text', () => {
+    document.documentElement.classList.add('dark')
+    localStorage.setItem('inbound-theme', 'dark')
+
+    try {
+      render(
+        <SafeHtmlEmail htmlContent='<div style="color:#000000">Hello Abdul-Azeem</div>' />,
+      )
+
+      const doc = screen.getByTitle('Sandboxed Email Content').getAttribute('srcdoc')
+      expect(doc).toContain('color: #111213')
+      expect(doc).toContain('color-scheme: light')
+      expect(doc).not.toContain('color: #d3dae6')
+    } finally {
+      document.documentElement.classList.remove('dark')
+      localStorage.clear()
+    }
+  })
+
   it('sandboxes the frame without allowing scripts to run', () => {
     render(<SafeHtmlEmail htmlContent="<p>Hello</p>" />)
 
