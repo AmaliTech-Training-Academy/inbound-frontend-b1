@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Graphify knowledge-graph output (local tooling, not committed)
+graphify-out/
+
 # Local env files: never commit real values, but keep the template.
 .env
 .env.*
