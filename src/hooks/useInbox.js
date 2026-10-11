@@ -359,7 +359,7 @@ export function useInbox() {
     // Adds an inbox to the session, or starts the session with its first.
     // Resolves to the inbox it added, or null when it added none, so a caller
     // creating several in a row can list what it got.
-    const addInbox = useCallback(async () => {
+    const addInbox = useCallback(async (localPart) => {
         if (inFlight.current) return null;
         const current = sessionRef.current;
         const count = liveInboxes(current).length;
@@ -393,6 +393,7 @@ export function useInbox() {
             try {
                 created = await createInbox({
                     sessionToken: current?.token,
+                    localPart,
                     signal: controller.signal,
                 });
             } catch (err) {
@@ -407,7 +408,7 @@ export function useInbox() {
                 const sessionGone =
                     err instanceof ApiError && (err.isNotFound || err.status === 401 || err.isExpired);
                 if (!current?.token || !sessionGone) throw err;
-                created = await createInbox({ signal: controller.signal });
+                created = await createInbox({ localPart, signal: controller.signal });
             }
 
             setSession((prev) => {
@@ -440,6 +441,13 @@ export function useInbox() {
             // A build without a backend address is the operator's to fix; the
             // visitor only needs to know it is not them. The technical reason
             // is in the console line above.
+            // A 409 means the chosen custom address is taken; its server wording
+            // ("Inbox with this localPart already exists") is too technical, so
+            // it is said plainly. Other 4xx keep the server's own words.
+            const refusedMessage =
+                err instanceof ApiError && err.status === 409
+                    ? "That address is already taken. Try another name."
+                    : err?.message;
             const shown = err instanceof NotConfiguredError
                 ? new Error("Inbound can't create inboxes right now. Please try again later.")
                 : isTimeout
@@ -447,13 +455,13 @@ export function useInbox() {
                 : err instanceof ApiError && err.status === 0
                   ? new Error("Could not reach the server. Check your connection and try again.")
                   : err instanceof ApiError && err.status >= 400 && err.status < 500
-                    ? new Error(err.message)
+                    ? new Error(refusedMessage)
                     : new Error("Could not create an inbox. Try again in a moment.");
             // A 4xx is the server declining on purpose - its cap, its rate
             // limit - and its own words say which; anything else reads the same.
             const refused =
                 err instanceof ApiError && err.status >= 400 && err.status < 500
-                    ? new Error(err.message)
+                    ? new Error(refusedMessage)
                     : null;
             setError(first ? shown : (refused ?? new Error("Could not add an inbox. Try again.")));
             // Failing to add a second inbox leaves the first on screen.

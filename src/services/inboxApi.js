@@ -258,8 +258,9 @@ function authHeaders(token) {
  * socket's join-inbox - authenticates with, and the rest of the app already
  * reads it from there.
  *
- * Takes no request body: the server owns the TTL, so ttlMinutes and
- * preferredLocalPart are not options the API offers.
+ * The server owns the TTL, so ttlMinutes is not an option. A random address
+ * takes no request body; pass `localPart` to claim a custom one instead, which
+ * posts to /inbox/custom.
  *
  * `createdAt` is added client-side. The create response omits it (only
  * the inbox fetch returns one) but the progress ring needs a start point, and the
@@ -271,7 +272,8 @@ function authHeaders(token) {
  * a fresh one. `sessionExpiresAt` is the session's own lifetime, which the
  * server keeps at least as long as its newest inbox.
  */
-export async function createInbox({ sessionToken, signal } = {}) {
+export async function createInbox({ sessionToken, localPart, signal } = {}) {
+    const custom = typeof localPart === "string" && localPart.length > 0;
     if (MOCK) {
         await delay(400, signal);
         // Lenient where the real server is strict: a reload wipes the mock's
@@ -284,7 +286,7 @@ export async function createInbox({ sessionToken, signal } = {}) {
         const id = mockId();
         const now = Date.now();
         const expiresAt = now + INBOX_TTL_MINUTES * 60_000;
-        const address = `mock-${Math.random().toString(36).slice(2, 8)}@tempmail.dev`;
+        const address = `${custom ? localPart : `mock-${Math.random().toString(36).slice(2, 8)}`}@tempmail.dev`;
         mockState.set(id, { extendCount: 0, expiresAt, token, address, createdAt: now });
         return {
             id,
@@ -298,11 +300,20 @@ export async function createInbox({ sessionToken, signal } = {}) {
 
     assertConfigured();
 
+    // A custom address goes to the sibling /inbox/custom with a JSON body
+    // { localPart }; the bodyless /inbox keeps generating a random one. Both
+    // return the same { success, data } envelope, read below. (Verified against
+    // the live spec 2026-10-11: 400 invalid, 409 taken, 429 rate-limited.)
+    const headers = {
+        ...(sessionToken ? authHeaders(sessionToken) : {}),
+        ...(custom ? { "Content-Type": "application/json" } : {}),
+    };
     const res = await guardedFetch(
-        `${API_BASE}/inbox`,
+        `${API_BASE}/inbox${custom ? "/custom" : ""}`,
         {
             method: "POST",
-            ...(sessionToken ? { headers: authHeaders(sessionToken) } : {}),
+            ...(Object.keys(headers).length ? { headers } : {}),
+            ...(custom ? { body: JSON.stringify({ localPart }) } : {}),
             signal,
         },
         "createInbox",

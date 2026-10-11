@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 import { ActiveAddress, ArrowIcon, GenerateButton, SiteFooter, SiteHero } from '../components/SiteChrome.jsx'
 import { INBOX_TTL_MINUTES } from '../config.js'
 import { INBOX_PATH, ROUTES } from '../router'
+import { isValidLocalPart } from '../utils/localPart.js'
 
 // The landing page from the design (homePage.tsx), driven by the session.
 // Generating shows the new address in place, with the way into the inbox; a
@@ -10,6 +12,13 @@ import { INBOX_PATH, ROUTES } from '../router'
 export default function LandingPage() {
   const { session, unreadCounts } = useOutletContext()
   const { status, inbox, inboxes, error, generate } = session
+
+  // Optional custom address, claimable straight from the landing page; empty
+  // means let the server pick a random one.
+  const [name, setName] = useState('')
+  const localPart = name.trim().toLowerCase()
+  const invalid = localPart.length > 0 && !isValidLocalPart(localPart)
+  const claim = () => !invalid && generate(localPart || undefined)
 
   const creating = status === 'creating'
   const active = status === 'active' && inbox
@@ -85,11 +94,37 @@ export default function LandingPage() {
             {active ? (
               <ActiveAddress inbox={inbox} others={inboxes.length - 1} />
             ) : (
-              <div key="actions" className="flex animate-fade-up flex-wrap items-center justify-center gap-4">
+              <div key="actions" className="flex animate-fade-up flex-col items-center gap-4">
+                <div className="w-full max-w-sm">
+                  <label htmlFor="landing-inbox-name" className="sr-only">
+                    Custom address name (optional)
+                  </label>
+                  <input
+                    id="landing-inbox-name"
+                    type="text"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    onKeyDown={(event) => event.key === 'Enter' && claim()}
+                    disabled={creating}
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={64}
+                    placeholder="Choose a name (optional)"
+                    aria-invalid={invalid}
+                    aria-describedby={invalid ? 'landing-inbox-name-error' : undefined}
+                    className="w-full rounded-full border border-slate-200 bg-white/90 px-6 py-3 text-center font-mono text-base text-ink placeholder:font-sans placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60 dark:border-line-dark dark:bg-surface-dark/90 dark:text-ink-dark dark:placeholder:text-muted-dark"
+                  />
+                  {invalid && (
+                    <p id="landing-inbox-name-error" className="mt-2 text-center text-sm text-rose-600 dark:text-rose-400">
+                      Use letters and numbers only — no spaces or symbols.
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-4">
                 <GenerateButton
-                  onClick={generate}
+                  onClick={claim}
                   creating={creating}
-                  label={status === 'error' ? 'Try Again' : null}
+                  label={status === 'error' ? 'Try Again' : localPart ? 'Claim Inbox' : null}
                 />
                 <Link
                   to={ROUTES.howItWorks}
@@ -100,6 +135,7 @@ export default function LandingPage() {
                     <ArrowUpRight size={20} strokeWidth={2.25} aria-hidden="true" />
                   </span>
                 </Link>
+                </div>
               </div>
             )}
 

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Loader2, Plus, X } from "lucide-react";
 import Avatar from "./Avatar.jsx";
 import CopyButton from "./CopyButton.jsx";
+import { isValidLocalPart } from "../utils/localPart.js";
 
 // The design's "New temporary inbox" modal, one inbox at a time: generate an
 // address for this session, copy it, and carry on. The new inbox is already
@@ -19,7 +20,12 @@ export default function NewInboxDialog({
     errorMessage = null,
 }) {
     const full = count >= limit;
+    const [name, setName] = useState("");
     const [latest, setLatest] = useState(null);
+
+    // Optional custom local part; empty means let the server pick a random one.
+    const localPart = name.trim().toLowerCase();
+    const invalid = localPart.length > 0 && !isValidLocalPart(localPart);
     const [running, setRunning] = useState(false);
     const [failed, setFailed] = useState(false);
     const generateRef = useRef(null);
@@ -52,13 +58,15 @@ export default function NewInboxDialog({
     }, [latest]);
 
     const generate = async () => {
-        if (running || full) return;
+        if (running || full || invalid) return;
         setRunning(true);
         setFailed(false);
-        const created = await onCreate();
+        const created = await onCreate(localPart || undefined);
         if (!mounted.current) return;
-        if (created) setLatest(created.address);
-        else setFailed(true);
+        if (created) {
+            setLatest(created.address);
+            setName(""); // the next one is random again unless retyped
+        } else setFailed(true);
         setRunning(false);
     };
 
@@ -140,19 +148,46 @@ export default function NewInboxDialog({
                         </div>
                     </div>
                 ) : (
-                    <button
-                        ref={generateRef}
-                        type="button"
-                        onClick={generate}
-                        disabled={running || full}
-                        className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-sm font-medium text-white ring-1 ring-transparent enabled:hover:bg-slate-800 disabled:opacity-70 dark:bg-surface-dark dark:text-ink-dark dark:ring-line-dark dark:enabled:hover:bg-line-dark">
-                        {running ? (
-                            <Loader2 size={15} aria-hidden="true" className="animate-spin" />
-                        ) : (
-                            <Plus size={15} aria-hidden="true" />
-                        )}
-                        {running ? "Generating…" : "Generate inbox"}
-                    </button>
+                    <>
+                        <div className="mt-6">
+                            <label htmlFor="new-inbox-name" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-muted-dark">
+                                Custom name <span className="normal-case tracking-normal">(optional)</span>
+                            </label>
+                            <input
+                                id="new-inbox-name"
+                                type="text"
+                                value={name}
+                                onChange={(event) => setName(event.target.value)}
+                                onKeyDown={(event) => event.key === "Enter" && generate()}
+                                disabled={full}
+                                autoComplete="off"
+                                spellCheck={false}
+                                maxLength={64}
+                                placeholder="e.g. alice.shop"
+                                aria-invalid={invalid}
+                                aria-describedby={invalid ? "new-inbox-name-error" : undefined}
+                                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 font-mono text-sm text-slate-800 placeholder:font-sans placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:opacity-60 dark:border-line-dark dark:bg-surface-dark dark:text-ink-dark dark:placeholder:text-muted-dark"
+                            />
+                            {invalid && (
+                                <p id="new-inbox-name-error" className="mt-2 text-xs text-rose-600 dark:text-rose-400">
+                                    Use letters and numbers only — no spaces or symbols.
+                                </p>
+                            )}
+                        </div>
+                        <button
+                            ref={generateRef}
+                            type="button"
+                            onClick={generate}
+                            disabled={running || full || invalid}
+                            className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-sm font-medium text-white ring-1 ring-transparent enabled:hover:bg-slate-800 disabled:opacity-70 dark:bg-surface-dark dark:text-ink-dark dark:ring-line-dark dark:enabled:hover:bg-line-dark">
+                            {running ? (
+                                <Loader2 size={15} aria-hidden="true" className="animate-spin" />
+                            ) : (
+                                <Plus size={15} aria-hidden="true" />
+                            )}
+                            {running ? "Generating…" : localPart ? "Claim inbox" : "Generate inbox"}
+                        </button>
+                    </>
                 )}
 
                 {failed && (
