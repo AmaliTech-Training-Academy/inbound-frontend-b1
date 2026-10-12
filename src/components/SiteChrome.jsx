@@ -1,10 +1,8 @@
 import { useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { Loader2, Mail } from 'lucide-react'
+import { Loader2, Mail, Pencil } from 'lucide-react'
 import BrandMark from './BrandMark.jsx'
 import CopyButton from './CopyButton.jsx'
 import SiteNav from './SiteNav.jsx'
-import { INBOX_PATH } from '../router'
 
 // What the landing page and How it works share, so the two read as one site:
 // the warm backdrop and the nav over it, the Generate button, the pill a new
@@ -41,28 +39,38 @@ export function GenerateButton({ onClick, creating, label = null }) {
   )
 }
 
-export function ActiveAddress({ inbox, others = 0 }) {
+export function ActiveAddress({ inbox, others = 0, onCustomize }) {
   const addressRef = useRef(null)
 
   return (
     <div key="result" className="animate-fade-up">
-      <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 p-2 pl-6 sm:pl-8 dark:border-line-dark dark:bg-surface-dark/90">
-        <span ref={addressRef} className="min-w-0 flex-1 truncate text-base text-ink dark:text-ink-dark">
-          {inbox.address}
-        </span>
-        <CopyButton text={inbox.address} fallbackRef={addressRef} size={16} className="p-2" />
-        <Link
-          to={INBOX_PATH}
-          className="group flex shrink-0 items-center gap-2 rounded-full bg-brand py-3 pl-5 pr-3 text-sm font-medium text-white transition-colors hover:bg-brand/90"
-        >
-          <span>Go to inbox</span>
-          <Mail
-            size={16}
-            strokeWidth={2.25}
-            aria-hidden="true"
-            className="transition-transform duration-300 ease-out group-hover:-translate-y-0.5"
-          />
-        </Link>
+      <div className="relative">
+        {onCustomize && (
+          // A nudge pointing at Customize; non-interactive, so it never steals the tap.
+          <div className="pointer-events-none absolute -top-9 right-14 z-10 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-black">
+            Want a different name? Customize it
+            <span aria-hidden="true" className="absolute -bottom-1 right-6 size-2 rotate-45 bg-slate-900 dark:bg-black" />
+          </div>
+        )}
+        <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 p-2 pl-3 dark:border-line-dark dark:bg-surface-dark/90">
+          <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
+            <Mail size={18} strokeWidth={2.25} />
+          </span>
+          <span ref={addressRef} className="min-w-0 flex-1 truncate px-1 text-base text-ink dark:text-ink-dark">
+            {inbox.address}
+          </span>
+          {onCustomize && (
+            <button
+              type="button"
+              onClick={onCustomize}
+              className="flex shrink-0 items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-slate-50 dark:border-line-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+            >
+              <Pencil size={15} strokeWidth={2.25} aria-hidden="true" />
+              <span>Customize</span>
+            </button>
+          )}
+          <CopyButton text={inbox.address} fallbackRef={addressRef} size={16} className="p-2" />
+        </div>
       </div>
       {others > 0 && (
         <p className="mt-3 text-center text-xs text-slate-500 dark:text-muted-dark">

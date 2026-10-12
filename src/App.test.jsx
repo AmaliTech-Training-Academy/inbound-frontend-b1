@@ -42,7 +42,7 @@ describe("App", () => {
         renderApp();
 
         await user.click(screen.getByRole("button", { name: "Generate Inbox" }));
-        await user.click(await screen.findByRole("link", { name: "Go to inbox" }));
+        await user.click(await screen.findByRole("link", { name: "Open" }));
 
         expect(screen.getByRole("heading", { level: 1, name: "Inbox" })).toBeInTheDocument();
         expect(screen.getAllByText("from-landing@inbound.dev")).not.toHaveLength(0);
@@ -89,7 +89,7 @@ describe("App", () => {
             renderApp();
 
             await user.click(screen.getByRole("button", { name: "Generate Inbox" }));
-            await user.click(await screen.findByRole("link", { name: "Go to inbox" }));
+            await user.click(await screen.findByRole("link", { name: "Open" }));
             await user.click(screen.getAllByRole("button", { name: "Add an inbox" })[0]);
             await user.click(screen.getByRole("button", { name: "Generate inbox" }));
             await screen.findByRole("button", { name: "Dismiss error" });
