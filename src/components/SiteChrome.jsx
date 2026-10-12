@@ -1,8 +1,10 @@
 import { useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { Loader2, Mail, Pencil } from 'lucide-react'
 import BrandMark from './BrandMark.jsx'
 import CopyButton from './CopyButton.jsx'
 import SiteNav from './SiteNav.jsx'
+import { INBOX_PATH } from '../router'
 
 // What the landing page and How it works share, so the two read as one site:
 // the warm backdrop and the nav over it, the Generate button, the pill a new
@@ -70,6 +72,18 @@ export function ActiveAddress({ inbox, others = 0, onCustomize }) {
             </button>
           )}
           <CopyButton text={inbox.address} fallbackRef={addressRef} size={16} className="p-2" />
+          <Link
+            to={INBOX_PATH}
+            className="group flex shrink-0 items-center gap-2 rounded-full bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand/90"
+          >
+            <span>Go to inbox</span>
+            <Mail
+              size={16}
+              strokeWidth={2.25}
+              aria-hidden="true"
+              className="transition-transform duration-300 ease-out group-hover:-translate-y-0.5"
+            />
+          </Link>
         </div>
       </div>
       {others > 0 && (

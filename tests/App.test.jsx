@@ -56,7 +56,7 @@ describe('App', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Generate Inbox' }))
 
-      const goToInbox = await screen.findByRole('link', { name: 'Open' })
+      const goToInbox = await screen.findByRole('link', { name: 'Go to inbox' })
       expect(screen.getByText(/@tempmail\.dev$/)).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /^Copy mock-.+@tempmail\.dev$/ })).toBeInTheDocument()
 
@@ -82,7 +82,7 @@ describe('App', () => {
 
       fireEvent.click(within(nav()).getByRole('button', { name: 'Get an inbox' }))
 
-      expect(await screen.findByRole('link', { name: 'Open' })).toBeInTheDocument()
+      expect(await screen.findByRole('link', { name: 'Go to inbox' })).toBeInTheDocument()
       expect(within(nav()).getByRole('link', { name: 'Open inbox' })).toBeInTheDocument()
     })
   })
