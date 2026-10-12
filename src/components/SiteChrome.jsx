@@ -65,10 +65,10 @@ export function ActiveAddress({ inbox, others = 0, onCustomize }) {
             <button
               type="button"
               onClick={onCustomize}
-              className="flex shrink-0 items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-slate-50 dark:border-line-dark dark:text-ink-dark dark:hover:bg-surface-dark"
+              aria-label="Customize"
+              className="flex shrink-0 items-center justify-center rounded-full border border-slate-200 p-2.5 text-ink transition-colors hover:bg-slate-50 dark:border-line-dark dark:text-ink-dark dark:hover:bg-surface-dark"
             >
-              <Pencil size={15} strokeWidth={2.25} aria-hidden="true" />
-              <span>Customize</span>
+              <Pencil size={16} strokeWidth={2.25} aria-hidden="true" />
             </button>
           )}
           <CopyButton text={inbox.address} fallbackRef={addressRef} size={16} className="p-2" />
