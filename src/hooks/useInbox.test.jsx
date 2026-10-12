@@ -23,7 +23,7 @@ import {
     rateLimitedFor,
     ApiError,
 } from "../services/inboxApi.js";
-import { MAX_INBOXES } from "../config.js";
+import { MAX_EXTENDS, MAX_INBOXES } from "../config.js";
 
 const LEGACY_KEY = "inbound.inbox";
 const SESSION_KEY = "inbound.session";
@@ -626,6 +626,82 @@ describe("useInbox", () => {
 
             expect(result.current.regenerating).toBe(false);
             expect(result.current.status).toBe("active");
+        });
+    });
+
+    describe("extend", () => {
+        it("tracks remaining extensions and disables canExtend at 0", async () => {
+            storeSession();
+            extendInbox.mockResolvedValue({
+                expiresAt: inMinutes(15),
+                extendCount: 1,
+            });
+
+            const { result } = renderHook(() => useInbox());
+
+            expect(result.current.canExtend).toBe(true);
+            expect(result.current.remainingExtends).toBe(3);
+            expect(result.current.maxExtends).toBe(MAX_EXTENDS);
+
+            await act(async () => {
+                await result.current.extend();
+            });
+
+            expect(result.current.inbox.extendCount).toBe(1);
+            expect(result.current.remainingExtends).toBe(2);
+            expect(result.current.canExtend).toBe(true);
+
+            extendInbox.mockResolvedValueOnce({
+                expiresAt: inMinutes(20),
+                extendCount: 2,
+            });
+            await act(async () => {
+                await result.current.extend();
+            });
+            expect(result.current.inbox.extendCount).toBe(2);
+            expect(result.current.remainingExtends).toBe(1);
+            expect(result.current.canExtend).toBe(true);
+
+            extendInbox.mockResolvedValueOnce({
+                expiresAt: inMinutes(25),
+                extendCount: 3,
+            });
+            await act(async () => {
+                await result.current.extend();
+            });
+            expect(result.current.inbox.extendCount).toBe(3);
+            expect(result.current.remainingExtends).toBe(0);
+            expect(result.current.canExtend).toBe(false);
+
+            extendInbox.mockClear();
+            await act(async () => {
+                await result.current.extend();
+            });
+            expect(extendInbox).not.toHaveBeenCalled();
+        });
+
+        it("restores remaining extensions after reload using stored extendCount", () => {
+            storeSession({
+                inboxes: [{ ...inboxA, extendCount: 2 }],
+            });
+
+            const { result } = renderHook(() => useInbox());
+
+            expect(result.current.inbox.extendCount).toBe(2);
+            expect(result.current.remainingExtends).toBe(1);
+            expect(result.current.canExtend).toBe(true);
+        });
+
+        it("disables canExtend on reload when stored extendCount is at or above MAX_EXTENDS", () => {
+            storeSession({
+                inboxes: [{ ...inboxA, extendCount: 3 }],
+            });
+
+            const { result } = renderHook(() => useInbox());
+
+            expect(result.current.inbox.extendCount).toBe(3);
+            expect(result.current.remainingExtends).toBe(0);
+            expect(result.current.canExtend).toBe(false);
         });
     });
 });
