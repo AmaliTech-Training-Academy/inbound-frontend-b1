@@ -144,8 +144,8 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
   }
 
   // A new inbox becomes the open one, so any message open belongs elsewhere.
-  const createInbox = useCallback(async () => {
-    const created = await addInbox()
+  const createInbox = useCallback(async (localPart) => {
+    const created = await addInbox(localPart)
     if (created) leaveMessage()
     return created
   }, [addInbox, leaveMessage])
