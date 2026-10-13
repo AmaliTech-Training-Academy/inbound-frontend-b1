@@ -649,6 +649,7 @@ export function useInbox() {
     // both key off it.
     const extend = useCallback(async () => {
         if (!inbox?.id || !inbox?.token) return;
+        if ((inbox.extendCount ?? 0) >= MAX_EXTENDS) return;
         if (actionLock.current) return;
         actionLock.current = true;
         extendingId.current = inbox.id;
@@ -736,6 +737,8 @@ export function useInbox() {
         notice,
         regenerating,
         canExtend: (inbox?.extendCount ?? 0) < MAX_EXTENDS,
+        maxExtends: MAX_EXTENDS,
+        remainingExtends: Math.max(0, MAX_EXTENDS - (inbox?.extendCount ?? 0)),
         canAddInbox: !adding && inboxes.length < MAX_INBOXES,
         // The cap, and whether this session has reached it, so the page can
         // say why it will not add another rather than just greying it out.

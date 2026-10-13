@@ -257,4 +257,46 @@ describe('App', () => {
       expect(screen.getByRole('button', { name: 'Generate Inbox' })).toBeInTheDocument()
     })
   })
+
+  describe('extending an inbox', () => {
+    it('shows extension counter badge at 3 initially and decrements on extend', async () => {
+      seedSession()
+      renderApp('/inbox')
+
+      const extendButton = await screen.findByRole('button', { name: /\+5m/ })
+      expect(extendButton).toBeInTheDocument()
+      expect(extendButton).toHaveTextContent('3')
+      expect(extendButton).not.toBeDisabled()
+
+      fireEvent.click(extendButton)
+      await waitFor(() => expect(extendButton).toHaveTextContent('2'))
+    })
+
+    it('restores remaining extensions after reload using stored extendCount', async () => {
+      seedSession()
+      const stored = JSON.parse(window.sessionStorage.getItem(SESSION_KEY))
+      stored.inboxes[0].extendCount = 2
+      window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(stored))
+
+      renderApp('/inbox')
+
+      const extendButton = await screen.findByRole('button', { name: /\+5m/ })
+      expect(extendButton).toHaveTextContent('1')
+      expect(extendButton).not.toBeDisabled()
+    })
+
+    it('disables the extend button when remaining extensions reach 0', async () => {
+      seedSession()
+      const stored = JSON.parse(window.sessionStorage.getItem(SESSION_KEY))
+      stored.inboxes[0].extendCount = 3
+      window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(stored))
+
+      renderApp('/inbox')
+
+      const extendButton = await screen.findByRole('button', { name: /\+5m/ })
+      expect(extendButton).toHaveTextContent('0')
+      expect(extendButton).toBeDisabled()
+      expect(extendButton).toHaveAttribute('title', expect.stringContaining('Extension limit reached'))
+    })
+  })
 })

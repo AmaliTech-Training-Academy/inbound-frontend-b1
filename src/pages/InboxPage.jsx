@@ -30,7 +30,7 @@ import { useResizableSidebar } from '../hooks/useResizableSidebar.js'
 import { formatTimeLeft, isRunningOut } from '../utils/inboxProgress.js'
 import { matches, toReaderMessage } from '../utils/message.js'
 import { formatClock } from '../utils/time.js'
-import { EXTEND_MINUTES } from '../config.js'
+import { EXTEND_MINUTES, MAX_EXTENDS } from '../config.js'
 import { INBOX_PATH, ROUTES, messageDetailsPath } from '../router'
 
 
@@ -89,6 +89,7 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
     refresh,
     destroy,
     canExtend,
+    maxExtends = MAX_EXTENDS,
     busy,
     error,
     dismissError,
@@ -99,6 +100,9 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
   const { messageId } = useParams()
   const navigate = useNavigate()
   const now = useNow(1000)
+
+  const extendCount = inbox?.extendCount ?? 0
+  const remainingExtends = Math.max(0, maxExtends - extendCount)
 
   const feed = feeds[inbox.id]
 
@@ -331,11 +335,25 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
               type="button"
               onClick={extend}
               disabled={!canExtend || busy !== null}
-              title={canExtend ? undefined : 'This inbox cannot be extended any further.'}
-              className="text-xs font-medium enabled:hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:enabled:hover:text-ink-dark"
+              title={
+                canExtend
+                  ? `Extend by ${EXTEND_MINUTES}m (${remainingExtends} of ${maxExtends} remaining)`
+                  : `Extension limit reached: 0 of ${maxExtends} remaining`
+              }
+              className="relative flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors enabled:hover:border-slate-300 enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-line-dark dark:bg-surface-dark dark:text-ink-dark dark:enabled:hover:bg-line-soft-dark"
             >
-              {extending ? 'Extending…' : `+${EXTEND_MINUTES}m`}
-              <span className="sr-only"> extend inbox</span>
+              <span>{extending ? 'Extending…' : `+${EXTEND_MINUTES}m`}</span>
+              <span
+                aria-hidden="true"
+                className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand text-[11px] font-bold tabular-nums leading-none text-white shadow-sm"
+              >
+                {remainingExtends}
+              </span>
+              <span className="sr-only">
+                {canExtend
+                  ? `, ${remainingExtends} of ${maxExtends} extensions remaining`
+                  : `, 0 of ${maxExtends} extensions remaining, limit reached`}
+              </span>
             </button>
             <button
               type="button"
