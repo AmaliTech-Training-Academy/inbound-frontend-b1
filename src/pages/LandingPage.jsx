@@ -17,7 +17,7 @@ import NewInboxDialog from "../components/NewInboxDialog.jsx";
 // session already open shows its address straight away.
 export default function LandingPage() {
     const { session, unreadCounts } = useOutletContext();
-    const { status, inbox, inboxes, error, generate, maxInboxes } = session;
+    const { status, inbox, inboxes, error, generate, replaceInbox, maxInboxes } = session;
 
     // Generate makes a random inbox; "Customize" opens the dialog to claim a
     // chosen name instead, reusing the same add-inbox flow.
@@ -148,7 +148,7 @@ export default function LandingPage() {
                         {customizing && (
                             <NewInboxDialog
                                 onClose={() => setCustomizing(false)}
-                                onCreate={generate}
+                                onCreate={replaceInbox}
                                 count={inboxes.length}
                                 limit={maxInboxes}
                                 errorMessage={error?.message}

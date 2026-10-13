@@ -569,6 +569,48 @@ export function useInbox() {
         setSession(next);
     }, [cancelSync, endSession]);
 
+    // The landing page's pencil means "change this address", not "add another":
+    // generating and then customising used to leave the visitor holding both.
+    //
+    // The replacement is created first and the old one dropped only once it
+    // exists, so a name the server refuses - 409 when it is taken - leaves the
+    // original standing rather than leaving the visitor with nothing. The
+    // removal goes through setSession's updater rather than destroy(), because
+    // sessionRef only catches up on the next commit: chained in one tick,
+    // destroy() would prune a session that does not yet hold the replacement
+    // and end the session outright.
+    const replaceInbox = useCallback(
+        async (localPart) => {
+            // Read before the add: the token belongs to the session and does
+            // not change, and the entry addInbox returns does not carry it.
+            const before = sessionRef.current;
+            const previousId = before?.activeId;
+            const created = await addInbox(localPart);
+            if (!created || !previousId || created.id === previousId) return created;
+
+            try {
+                await deleteInbox(previousId, before.token);
+            } catch (err) {
+                // The replacement is already in hand and the old address
+                // expires on its own within the TTL, so this is not worth
+                // interrupting anyone for.
+                console.error("[useInbox] could not destroy the replaced inbox", err);
+            }
+
+            setSession((latest) =>
+                latest
+                    ? {
+                          ...latest,
+                          hiddenIds: [...latest.hiddenIds, previousId],
+                          inboxes: latest.inboxes.filter((entry) => entry.id !== previousId),
+                      }
+                    : latest,
+            );
+            return created;
+        },
+        [addInbox],
+    );
+
     // Drops one inbox the server says is gone, ending the session if it was
     // the last.
     const dropInbox = useCallback(
@@ -702,6 +744,7 @@ export function useInbox() {
         generate,
         regenerate,
         addInbox,
+        replaceInbox,
         select,
         reset,
         destroy,

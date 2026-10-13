@@ -422,6 +422,44 @@ describe("useInbox", () => {
             expect(stored().activeId).toBe("b");
         });
 
+        // The landing page's pencil reads as "change this address". Adding the
+        // custom one and keeping the random one leaves the visitor holding two
+        // inboxes they did not ask for.
+        describe("replaceInbox", () => {
+            it("drops the inbox it replaced", async () => {
+                createInbox.mockResolvedValue(created("custom"));
+                deleteInbox.mockResolvedValue({ id: "a" });
+                storeSession({ inboxes: [inboxA], activeId: "a" });
+                const { result } = renderHook(() => useInbox());
+
+                await act(async () => {
+                    await result.current.replaceInbox("chosen");
+                });
+
+                expect(createInbox).toHaveBeenCalledWith(
+                    expect.objectContaining({ localPart: "chosen" }),
+                );
+                expect(deleteInbox).toHaveBeenCalledWith("a", "tok");
+                expect(result.current.inboxes.map((entry) => entry.id)).toEqual(["custom"]);
+                expect(result.current.inbox.id).toBe("custom");
+            });
+
+            // A name already taken comes back 409. Destroying first would leave
+            // the visitor with nothing at all, so the order matters.
+            it("keeps the original when the new name is refused", async () => {
+                createInbox.mockRejectedValue(new ApiError(409, "already exists"));
+                storeSession({ inboxes: [inboxA], activeId: "a" });
+                const { result } = renderHook(() => useInbox());
+
+                await act(async () => {
+                    await result.current.replaceInbox("taken");
+                });
+
+                expect(deleteInbox).not.toHaveBeenCalled();
+                expect(result.current.inboxes.map((entry) => entry.id)).toEqual(["a"]);
+            });
+        });
+
         it("destroys only the open inbox and moves to the next", async () => {
             deleteInbox.mockResolvedValue({ id: "a", deletedMessages: 0, deletedAttachments: 0 });
             storeSession();
