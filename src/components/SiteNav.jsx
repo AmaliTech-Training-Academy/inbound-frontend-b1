@@ -31,7 +31,7 @@ export default function SiteNav({ session, unread = 0 }) {
 
   return (
     <nav className="relative z-20 flex w-full items-center justify-between gap-4 p-4 md:px-16 md:py-6 lg:px-24 xl:px-32">
-      <Link to={ROUTES.home} className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight text-ink dark:text-ink-dark">
+      <Link to={ROUTES.home} className="group flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight text-ink dark:text-ink-dark">
         <BrandMark size={24} />
         Inbound
       </Link>

@@ -90,7 +90,7 @@ export function ArrowIcon() {
 export function SiteFooter() {
   return (
     <footer className="px-6 py-6 text-center text-xs text-slate-500 dark:text-muted-dark">
-      <span className="inline-flex items-center gap-1.5 align-middle font-semibold text-ink dark:text-ink-dark">
+      <span className="group inline-flex items-center gap-1.5 align-middle font-semibold text-ink dark:text-ink-dark">
         <BrandMark size={14} />
         Inbound
       </span>
