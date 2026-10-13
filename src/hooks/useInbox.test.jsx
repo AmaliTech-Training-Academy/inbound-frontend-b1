@@ -630,7 +630,17 @@ describe("useInbox", () => {
     });
 
     describe("extend", () => {
-        it("tracks remaining extensions and disables canExtend at 0", async () => {
+        it("tracks the initial remaining extensions count", () => {
+            storeSession();
+
+            const { result } = renderHook(() => useInbox());
+
+            expect(result.current.canExtend).toBe(true);
+            expect(result.current.remainingExtends).toBe(3);
+            expect(result.current.maxExtends).toBe(MAX_EXTENDS);
+        });
+
+        it("decrements remaining extensions after a successful extension", async () => {
             storeSession();
             extendInbox.mockResolvedValue({
                 expiresAt: inMinutes(15),
@@ -639,10 +649,6 @@ describe("useInbox", () => {
 
             const { result } = renderHook(() => useInbox());
 
-            expect(result.current.canExtend).toBe(true);
-            expect(result.current.remainingExtends).toBe(3);
-            expect(result.current.maxExtends).toBe(MAX_EXTENDS);
-
             await act(async () => {
                 await result.current.extend();
             });
@@ -650,25 +656,36 @@ describe("useInbox", () => {
             expect(result.current.inbox.extendCount).toBe(1);
             expect(result.current.remainingExtends).toBe(2);
             expect(result.current.canExtend).toBe(true);
+        });
 
-            extendInbox.mockResolvedValueOnce({
-                expiresAt: inMinutes(20),
-                extendCount: 2,
+        it("disables further extensions when the limit is reached", async () => {
+            storeSession();
+            extendInbox
+                .mockResolvedValueOnce({
+                    expiresAt: inMinutes(15),
+                    extendCount: 1,
+                })
+                .mockResolvedValueOnce({
+                    expiresAt: inMinutes(20),
+                    extendCount: 2,
+                })
+                .mockResolvedValueOnce({
+                    expiresAt: inMinutes(25),
+                    extendCount: 3,
+                });
+
+            const { result } = renderHook(() => useInbox());
+
+            await act(async () => {
+                await result.current.extend();
             });
             await act(async () => {
                 await result.current.extend();
             });
-            expect(result.current.inbox.extendCount).toBe(2);
-            expect(result.current.remainingExtends).toBe(1);
-            expect(result.current.canExtend).toBe(true);
-
-            extendInbox.mockResolvedValueOnce({
-                expiresAt: inMinutes(25),
-                extendCount: 3,
-            });
             await act(async () => {
                 await result.current.extend();
             });
+
             expect(result.current.inbox.extendCount).toBe(3);
             expect(result.current.remainingExtends).toBe(0);
             expect(result.current.canExtend).toBe(false);
