@@ -45,13 +45,13 @@ export function ActiveAddress({ inbox, others = 0, onCustomize }) {
   const addressRef = useRef(null)
 
   return (
-    <div key="result" className="animate-fade-up">
+    <div key="result" className="mt-5 animate-fade-up">
       <div className="relative">
         {onCustomize && (
           // A nudge pointing at Customize; non-interactive, so it never steals the tap.
-          <div className="pointer-events-none absolute -top-9 right-14 z-10 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-black">
+          <div className="pointer-events-none absolute -top-10 right-14 z-10 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-white dark:text-slate-900">
             Want a different name? Customize it
-            <span aria-hidden="true" className="absolute -bottom-1 right-6 size-2 rotate-45 bg-slate-900 dark:bg-black" />
+            <span aria-hidden="true" className="absolute -bottom-1 right-6 size-2 rotate-45 bg-slate-900 dark:bg-white" />
           </div>
         )}
         <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/90 p-2 pl-3 dark:border-line-dark dark:bg-surface-dark/90">
