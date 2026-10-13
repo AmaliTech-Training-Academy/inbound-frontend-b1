@@ -68,6 +68,15 @@ export default function InboxPage() {
 }
 
 function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) {
+  const unread = Object.values(unreadCounts ?? {}).reduce((sum, n) => sum + n, 0)
+  useEffect(() => {
+    const previous = document.title
+    document.title = unread > 0 ? `Inbox (${unread}) · Inbound` : 'Inbox · Inbound'
+    return () => {
+      document.title = previous
+    }
+  }, [unread])
+
   const {
     inbox,
     inboxes,
@@ -301,10 +310,10 @@ function InboxWorkspace({ session, feeds, isUnread, markOpened, unreadCounts }) 
           <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 text-slate-500 sm:gap-4 sm:px-6 print:hidden dark:border-line-dark dark:text-muted-dark">
             <Link
               to={ROUTES.home}
-              className="mr-auto flex items-center gap-2 text-sm font-semibold tracking-tight text-ink dark:text-ink-dark"
+              className="group mr-auto flex items-center gap-2 text-sm font-semibold tracking-tight text-ink dark:text-ink-dark"
             >
-              <BrandMark size={20} />
-              <span className="max-sm:sr-only">Inbound</span>
+              <BrandMark size={22} />
+              <span className="sr-only">Inbound</span>
             </Link>
             <span
               title="Time until this inbox self-destructs"

@@ -68,6 +68,20 @@
     --color-muted-dark: #a3aec0;
 
     --animate-fade-up: fade-up 0.35s ease-out both;
+    --animate-blob: blob 0.55s ease-in-out;
+
+    @keyframes blob {
+        0%,
+        100% {
+            transform: scale(1, 1);
+        }
+        35% {
+            transform: scale(1.12, 0.9);
+        }
+        70% {
+            transform: scale(0.94, 1.07);
+        }
+    }
 
     @keyframes fade-up {
         from {

@@ -8,7 +8,7 @@ export default function BrandMark({ size = 22, className = "" }) {
             width={size}
             height={size}
             viewBox="0 0 32 32"
-            className={`shrink-0 ${className}`}>
+            className={`shrink-0 origin-center group-hover:animate-blob motion-reduce:animate-none ${className}`}>
             <path
                 d="M16 2.5c8 0 13.5 5.6 13.5 13.6S23.9 29.5 15.9 29.5 2.5 24 2.5 16.1 8 2.5 16 2.5z"
                 fill="#ff5722"
